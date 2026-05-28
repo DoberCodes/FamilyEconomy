@@ -1,9 +1,9 @@
-export default function StreakCard({ days = 5 }) {
+export default function StreakCard({ days = 0 }) {
   return (
     <section className="streak-card">
       <div>
         <p>🔥 {days} Day Streak!</p>
-        <small>Keep it up, Alex!</small>
+        <small>Keep it going.</small>
       </div>
       <div className="streak-dots" aria-hidden="true">
         <span></span>

@@ -5,16 +5,16 @@ Status legend: `not-started`, `in-progress`, `blocked`, `completed`
 ## Epic A: Parent Setup & Control
 
 - [x] A1 Household setup flow (family creation, child profiles) - `completed`
-- [ ] A2 Parent role/session handling and protected controls - `in-progress`
-- [ ] A3 Parent job creation UX polish + validation - `in-progress`
-- [ ] A4 Reward creation and pricing model - `in-progress`
-- [ ] A5 Economy settings panel (simple toggles) - `not-started`
+- [x] A2 Parent role/session handling and protected controls - `completed`
+- [x] A3 Parent job creation UX polish + validation - `completed`
+- [x] A4 Reward creation and pricing model - `completed`
+- [x] A5 Economy settings panel (simple toggles) - `completed`
 
 ## Epic B: Child Experience
 
 - [x] B1 Child-friendly default mode - `completed`
 - [x] B2 Jobs list and claim behavior - `completed`
-- [ ] B3 Balance and transaction history panel - `in-progress`
+- [x] B3 Balance and transaction history panel - `completed`
 - [ ] B4 Goal progress and milestone celebrations - `in-progress`
 - [x] B5 Reward purchase request flow - `completed`
 

@@ -4,7 +4,11 @@ import { tabs } from '../../data/mobileData'
 
 export default function BottomTabBar() {
   return (
-    <nav className="bottom-tabs" aria-label="Primary">
+    <nav
+      className="bottom-tabs"
+      aria-label="Primary"
+      style={{ '--tab-count': tabs.length }}
+    >
       {tabs.map((tab) => (
         <NavLink
           key={tab.key}

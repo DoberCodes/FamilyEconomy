@@ -69,3 +69,21 @@ Use this log to track execution updates by date and session.
 1. Build transaction history panel and child-friendly ledger summaries.
 2. Expand savings progress and milestone celebration UX.
 3. Draft analytics instrumentation for onboarding completion and weekly activity.
+
+## 2026-05-28
+
+### Session Update 01
+
+- Completed parent command center centralization by removing parent create/review controls from non-parent tabs.
+- Implemented child-request-parent-approval flow improvements for jobs and rewards, including clearer status messaging.
+- Added per-child and family-level limit controls for jobs and rewards with parity for recurring reward rules.
+- Added optional global supply/demand dynamic pricing configuration and effective-cost calculations.
+- Built out Home as the family overview game screen with child attribution, badges, and family tracker cards.
+- Added affordability enforcement so kids can only request rewards when they have enough credits.
+- Re-ran validation: lint passed, production build passed.
+
+### Next Planned Work
+
+1. Complete goal milestone celebration UX and visual feedback.
+2. Expand household dashboard trend views and weekly deltas.
+3. Add analytics instrumentation for onboarding completion and weekly active families.

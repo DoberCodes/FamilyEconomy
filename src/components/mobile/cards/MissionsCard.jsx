@@ -25,36 +25,40 @@ export default function MissionsCard({
           View all
         </button>
       </div>
-      <ul className="mission-list">
-        {jobs.map((job) => (
-          <li key={job.id || job.title}>
-            <span className="mission-main">
-              <em aria-hidden="true">{job.icon}</em>
-              {job.title}
-            </span>
-            <span className="mission-reward">+ {job.points}</span>
-            {userRole === 'kid' && job.status === 'open' && onClaimJob ? (
-              <button
-                type="button"
-                className="claim-button"
-                onClick={() => onClaimJob(job)}
-                disabled={claimingJobId === job.id}
-              >
-                {claimingJobId === job.id ? 'Claiming...' : 'Claim'}
-              </button>
-            ) : (
-              <span className="job-status-label">{statusLabel(job)}</span>
-            )}
+      {jobs.length === 0 ? (
+        <p className="panel-muted">No jobs yet.</p>
+      ) : (
+        <ul className="mission-list">
+          {jobs.map((job) => (
+            <li key={job.id || job.title}>
+              <span className="mission-main">
+                <em aria-hidden="true">{job.icon}</em>
+                {job.title}
+              </span>
+              <span className="mission-reward">+ {job.points}</span>
+              {userRole === 'kid' && job.status === 'open' && onClaimJob ? (
+                <button
+                  type="button"
+                  className="claim-button"
+                  onClick={() => onClaimJob(job)}
+                  disabled={claimingJobId === job.id}
+                >
+                  {claimingJobId === job.id ? 'Claiming...' : 'Claim'}
+                </button>
+              ) : (
+                <span className="job-status-label">{statusLabel(job)}</span>
+              )}
 
-            <span
-              className={job.status === 'done' ? 'status-dot status-done' : 'status-dot'}
-              aria-label={job.status === 'done' ? 'Done' : 'Pending'}
-            >
-              {job.status === 'done' ? '✓' : ''}
-            </span>
-          </li>
-        ))}
-      </ul>
+              <span
+                className={job.status === 'done' ? 'status-dot status-done' : 'status-dot'}
+                aria-label={job.status === 'done' ? 'Done' : 'Pending'}
+              >
+                {job.status === 'done' ? '✓' : ''}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   )
 }

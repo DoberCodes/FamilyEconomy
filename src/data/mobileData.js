@@ -66,8 +66,6 @@ export const seedDashboard = {
 
 export const tabs = [
   { key: 'home', label: 'Home', path: '/mobile/home', icon: '🏠' },
-  { key: 'jobs', label: 'Jobs', path: '/mobile/jobs', icon: '✅' },
-  { key: 'store', label: 'Store', path: '/mobile/store', icon: '🛒' },
-  { key: 'savings', label: 'Savings', path: '/mobile/savings', icon: '💰' },
-  { key: 'profile', label: 'Profile', path: '/mobile/profile', icon: '👤' },
+  { key: 'kids', label: 'Kids', path: '/mobile/children', icon: '🧒' },
+  { key: 'profile', label: 'Parent', path: '/mobile/profile', icon: '👤' },
 ]

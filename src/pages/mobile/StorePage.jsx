@@ -5,7 +5,6 @@ import { useAuth } from '../../context/AuthContext'
 import {
   getFamilyStoreData,
   requestReward,
-  reviewRewardRequest,
 } from '../../services/familyEconomyService'
 
 const requestStatusText = {
@@ -15,7 +14,12 @@ const requestStatusText = {
 }
 
 export default function StorePage() {
-  const { familyId, userId, userRole, parentControlsUnlocked } = useAuth()
+  const {
+    familyId,
+    userId,
+    userRole,
+    activeChildProfile,
+  } = useAuth()
   const effectiveRole = userRole || 'kid'
   const effectiveUserId = userId || 'kid-device'
 
@@ -30,6 +34,7 @@ export default function StorePage() {
       familyId,
       userId: effectiveUserId,
       userRole: effectiveRole,
+      selectedChildId: activeChildProfile?.id,
     })
     setRewards(result.data.rewards)
     setRequests(result.data.requests)
@@ -47,6 +52,7 @@ export default function StorePage() {
           familyId,
           userId: effectiveUserId,
           userRole: effectiveRole,
+          selectedChildId: activeChildProfile?.id,
         })
 
         if (!mounted) {
@@ -72,7 +78,7 @@ export default function StorePage() {
     return () => {
       mounted = false
     }
-  }, [familyId, effectiveRole, effectiveUserId])
+  }, [familyId, effectiveRole, effectiveUserId, activeChildProfile?.id])
 
   async function handleRequestReward(reward) {
     setError('')
@@ -82,6 +88,7 @@ export default function StorePage() {
         familyId,
         userId: effectiveUserId,
         userRole: effectiveRole,
+        selectedChildId: activeChildProfile?.id,
       })
       await refreshStore()
     } catch (caughtError) {
@@ -90,25 +97,6 @@ export default function StorePage() {
       setActioningId('')
     }
   }
-
-  async function handleReview(requestId, decision) {
-    setError('')
-    setActioningId(requestId)
-    try {
-      await reviewRewardRequest(requestId, decision, {
-        familyId,
-        userId: effectiveUserId,
-        userRole: effectiveRole,
-      })
-      await refreshStore()
-    } catch (caughtError) {
-      setError(caughtError.message || 'Could not review request.')
-    } finally {
-      setActioningId('')
-    }
-  }
-
-  const pendingRequests = requests.filter((item) => item.status === 'pending')
 
   return (
     <>
@@ -119,6 +107,18 @@ export default function StorePage() {
       <main className="phone-content">
         {loading ? <p className="status-note">Loading store...</p> : null}
         {error ? <p className="status-note status-error">{error}</p> : null}
+
+        {effectiveRole === 'parent' && activeChildProfile ? (
+          <p className="status-note">
+            Kid-friendly view child: {activeChildProfile.avatar} {activeChildProfile.displayName}
+          </p>
+        ) : null}
+
+        {effectiveRole === 'parent' && !activeChildProfile ? (
+          <p className="status-note">
+            Choose a child in Kids tab to view child-specific rewards.
+          </p>
+        ) : null}
 
         <section className="panel">
           <p className="panel-label">Rewards Store</p>
@@ -137,63 +137,14 @@ export default function StorePage() {
                     {actioningId === reward.id ? 'Sending...' : 'Request'}
                   </button>
                 ) : (
-                  <span className="job-status-label">Approval required</span>
+                  <span className="job-status-label">Requests are managed in Parent tab</span>
                 )}
               </li>
             ))}
           </ul>
         </section>
 
-        {effectiveRole === 'parent' ? (
-          <section className="panel">
-            <div className="panel-head">
-              <p className="panel-label">Reward Requests</p>
-              {parentControlsUnlocked ? (
-                <span className="job-status-label">Parent controls unlocked</span>
-              ) : (
-                <span className="job-status-label">Locked</span>
-              )}
-            </div>
-
-            {pendingRequests.length === 0 ? (
-              <p className="panel-muted">No pending requests.</p>
-            ) : (
-              <ul className="mission-list">
-                {pendingRequests.map((request) => (
-                  <li key={request.id}>
-                    <span className="mission-main">
-                      {request.rewardTitle} ({request.cost})
-                    </span>
-                    {parentControlsUnlocked ? (
-                      <div className="button-row">
-                        <button
-                          type="button"
-                          className="claim-button"
-                          disabled={actioningId === request.id}
-                          onClick={() => handleReview(request.id, 'approved')}
-                        >
-                          Approve
-                        </button>
-                        <button
-                          type="button"
-                          className="claim-button claim-button-deny"
-                          disabled={actioningId === request.id}
-                          onClick={() => handleReview(request.id, 'denied')}
-                        >
-                          Deny
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="job-status-label">
-                        Unlock parent controls in Profile
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        ) : (
+        {effectiveRole !== 'parent' ? (
           <section className="panel">
             <p className="panel-label">My Reward Requests</p>
             {requests.length === 0 ? (
@@ -213,7 +164,7 @@ export default function StorePage() {
               </ul>
             )}
           </section>
-        )}
+        ) : null}
       </main>
       <BottomTabBar />
     </>

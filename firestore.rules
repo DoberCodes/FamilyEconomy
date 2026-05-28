@@ -86,7 +86,28 @@ service cloud.firestore {
           && request.resource.data.requestedBy == request.auth.uid
           && request.resource.data.status == 'pending';
 
+        // Parents can create pending requests on behalf of child sessions.
+        allow create: if isParent(targetFamilyId)
+          && request.resource.data.status == 'pending';
+
         // Parents can approve/deny requests and set reviewer metadata.
+        allow update, delete: if isParent(targetFamilyId);
+      }
+
+      match /jobCheckRequests/{requestId} {
+        allow read: if isInFamily(targetFamilyId);
+
+        // Kids can create pending check requests for themselves.
+        allow create: if isKid(targetFamilyId)
+          && request.resource.data.requestedBy == request.auth.uid
+          && request.resource.data.childId == request.auth.uid
+          && request.resource.data.status == 'pending';
+
+        // Parents can create pending check requests on behalf of child sessions.
+        allow create: if isParent(targetFamilyId)
+          && request.resource.data.status == 'pending';
+
+        // Parents can review and manage check requests.
         allow update, delete: if isParent(targetFamilyId);
       }
 

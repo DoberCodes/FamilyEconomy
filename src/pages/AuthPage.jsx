@@ -3,6 +3,14 @@ import { Navigate } from 'react-router-dom'
 
 import { useAuth } from '../context/AuthContext'
 
+function createFamilyId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `family-${crypto.randomUUID().slice(0, 8)}`
+  }
+
+  return `family-${Math.random().toString(36).slice(2, 10)}`
+}
+
 export default function AuthPage() {
   const {
     isAuthenticated,
@@ -14,14 +22,14 @@ export default function AuthPage() {
     familyId,
     userRole,
     displayName: currentDisplayName,
+    authStatusError,
   } = useAuth()
 
   const [mode, setMode] = useState('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
-  const [newFamilyId, setNewFamilyId] = useState('')
-  const [role, setRole] = useState('kid')
+  const [newFamilyId, setNewFamilyId] = useState(() => createFamilyId())
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -48,10 +56,16 @@ export default function AuthPage() {
     setSaving(true)
 
     try {
+      const resolvedDisplayName = (displayName || currentDisplayName || '').trim()
+
+      if (!resolvedDisplayName) {
+        throw new Error('Display name is required.')
+      }
+
       await completeProfile({
-        displayName,
+        displayName: resolvedDisplayName,
         familyId: newFamilyId,
-        role,
+        role: 'parent',
       })
     } catch (caughtError) {
       setError(caughtError.message || 'Could not save profile.')
@@ -69,8 +83,8 @@ export default function AuthPage() {
           <form className="auth-form" onSubmit={handleCompleteProfile}>
             <input
               className="job-input"
-              placeholder="Display name"
-              value={displayName || currentDisplayName || ''}
+              placeholder={currentDisplayName ? `Display name (${currentDisplayName})` : 'Display name'}
+              value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
               required
             />
@@ -80,15 +94,15 @@ export default function AuthPage() {
               value={newFamilyId}
               onChange={(event) => setNewFamilyId(event.target.value)}
               required
+              readOnly
             />
-            <select
-              className="job-input"
-              value={role}
-              onChange={(event) => setRole(event.target.value)}
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => setNewFamilyId(createFamilyId())}
             >
-              <option value="kid">Kid</option>
-              <option value="parent">Parent</option>
-            </select>
+              Generate new family ID
+            </button>
             {error ? <p className="status-note status-error">{error}</p> : null}
             <button className="claim-button" type="submit" disabled={saving}>
               {saving ? 'Saving...' : 'Save profile'}
@@ -111,7 +125,7 @@ export default function AuthPage() {
           password,
           displayName,
           familyId: newFamilyId,
-          role,
+          role: 'parent',
         })
       } else {
         await login(email, password)
@@ -127,9 +141,12 @@ export default function AuthPage() {
     <main className="phone-content auth-wrap">
       <section className="panel auth-card">
         <p className="panel-label">Family Economy</p>
+        <p className="panel-muted">Parent account required. App defaults to kid-safe view after sign in.</p>
         <h1 className="auth-title">
-          {mode === 'register' ? 'Create your account' : 'Sign in'}
+          {mode === 'register' ? 'Create parent account' : 'Parent sign in'}
         </h1>
+
+        {authStatusError ? <p className="status-note status-error">{authStatusError}</p> : null}
 
         <form className="auth-form" onSubmit={handleSubmit}>
           {mode === 'register' ? (
@@ -167,15 +184,15 @@ export default function AuthPage() {
                 value={newFamilyId}
                 onChange={(event) => setNewFamilyId(event.target.value)}
                 required
+                readOnly
               />
-              <select
-                className="job-input"
-                value={role}
-                onChange={(event) => setRole(event.target.value)}
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => setNewFamilyId(createFamilyId())}
               >
-                <option value="kid">Kid</option>
-                <option value="parent">Parent</option>
-              </select>
+                Generate new family ID
+              </button>
             </>
           ) : null}
 

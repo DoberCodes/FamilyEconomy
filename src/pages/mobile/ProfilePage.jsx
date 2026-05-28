@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import BottomTabBar from '../../components/mobile/BottomTabBar'
 import { useAuth } from '../../context/AuthContext'
@@ -154,6 +155,10 @@ export default function ProfilePage() {
                 Sign out Parent
               </button>
             ) : null}
+
+            <Link className="text-button" to="/mobile/onboarding">
+              Open Household Onboarding
+            </Link>
           </section>
         ) : (
           <section className="panel">

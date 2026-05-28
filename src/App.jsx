@@ -4,6 +4,7 @@ import PhoneFrame from './components/mobile/PhoneFrame'
 import { AuthProvider } from './context/AuthContext'
 import HomePage from './pages/mobile/HomePage'
 import JobsPage from './pages/mobile/MissionsPage'
+import OnboardingPage from './pages/mobile/OnboardingPage'
 import ProfilePage from './pages/mobile/ProfilePage'
 import SavingsPage from './pages/mobile/SavingsPage'
 import StorePage from './pages/mobile/StorePage'
@@ -20,6 +21,7 @@ function App() {
             <Route path="/mobile/jobs" element={<JobsPage />} />
             <Route path="/mobile/store" element={<StorePage />} />
             <Route path="/mobile/savings" element={<SavingsPage />} />
+            <Route path="/mobile/onboarding" element={<OnboardingPage />} />
             <Route path="/mobile/profile" element={<ProfilePage />} />
             <Route path="*" element={<Navigate to="/mobile/home" replace />} />
           </Routes>

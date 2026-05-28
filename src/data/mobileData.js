@@ -38,6 +38,23 @@ export const seedGoals = [
   { name: 'Camera', saved: 320, target: 800 },
 ]
 
+export const seedRewards = [
+  { id: 'reward-1', title: 'Extra Screen Time', cost: 200, requiresApproval: true },
+  { id: 'reward-2', title: 'Choose Dinner', cost: 150, requiresApproval: true },
+  { id: 'reward-3', title: 'Movie Night', cost: 300, requiresApproval: true },
+]
+
+export const seedRewardRequests = [
+  {
+    id: 'request-1',
+    rewardId: 'reward-1',
+    rewardTitle: 'Extra Screen Time',
+    cost: 200,
+    requestedBy: 'kid-alex',
+    status: 'pending',
+  },
+]
+
 export const seedDashboard = {
   profileName: 'Alex',
   level: seedLevel,

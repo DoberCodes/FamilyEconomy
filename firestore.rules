@@ -73,6 +73,28 @@ service cloud.firestore {
         allow write: if isParent(targetFamilyId);
       }
 
+      match /rewards/{rewardId} {
+        allow read: if isInFamily(targetFamilyId);
+        allow write: if isParent(targetFamilyId);
+      }
+
+      match /rewardRequests/{requestId} {
+        allow read: if isInFamily(targetFamilyId);
+
+        // Kids can create request documents for themselves in pending state.
+        allow create: if isKid(targetFamilyId)
+          && request.resource.data.requestedBy == request.auth.uid
+          && request.resource.data.status == 'pending';
+
+        // Parents can approve/deny requests and set reviewer metadata.
+        allow update, delete: if isParent(targetFamilyId);
+      }
+
+      match /children/{childId} {
+        allow read: if isInFamily(targetFamilyId);
+        allow write: if isParent(targetFamilyId);
+      }
+
       match /transactions/{transactionId} {
         allow read: if isInFamily(targetFamilyId);
         allow create: if isParent(targetFamilyId);

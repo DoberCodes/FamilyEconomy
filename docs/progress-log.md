@@ -41,3 +41,31 @@ Use this log to track execution updates by date and session.
 1. Build reward request + parent approval flow.
 2. Implement family onboarding and child profile setup UX.
 3. Add analytics events for core loop retention validation.
+
+### Session Update 04
+
+- Implemented reward request workflow in the store using Firestore-backed data.
+- Added parent approve/deny review actions for pending reward requests.
+- Extended Firestore security rules for `rewards` and `rewardRequests` role boundaries.
+- Added emulator tests for reward request create/review authorization paths.
+- Re-ran validation: lint passed, production build passed, rules tests passed (13/13).
+
+### Next Planned Work
+
+1. Implement household onboarding flow (family creation + child profile setup).
+2. Add transaction history details and richer savings progress UX.
+3. Draft analytics event plan for retention and engagement metrics.
+
+### Session Update 05
+
+- Added parent household onboarding page with family creation/update flow.
+- Added parent child-profile setup flow under family-owned `children` collection.
+- Linked onboarding entry from parent profile and wired `/mobile/onboarding` route.
+- Extended Firestore rules and tests to enforce child-profile write permissions.
+- Re-ran validation: lint passed, production build passed, rules tests passed (16/16).
+
+### Next Planned Work
+
+1. Build transaction history panel and child-friendly ledger summaries.
+2. Expand savings progress and milestone celebration UX.
+3. Draft analytics instrumentation for onboarding completion and weekly activity.

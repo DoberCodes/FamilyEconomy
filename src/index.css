@@ -299,6 +299,12 @@ body {
   cursor: default;
 }
 
+.claim-button-deny {
+  border-color: #f1c3c6;
+  background: #fff1f2;
+  color: #8f2b37;
+}
+
 .job-form {
   margin-top: 0.65rem;
   display: grid;
@@ -311,6 +317,21 @@ body {
   border-radius: 10px;
   padding: 0.5rem 0.6rem;
   font: inherit;
+}
+
+.profile-list {
+  list-style: none;
+  margin: 0.55rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.profile-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .status-dot {

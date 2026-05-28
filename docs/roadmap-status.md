@@ -8,9 +8,9 @@ Status legend: `not-started`, `in-progress`, `blocked`, `completed`
 |---|---|---|---|
 | 0 | Define Product Clearly | in-progress | Product identity now kid-first with parent-protected controls. Formal brief tracked in `docs/product-brief.md`. |
 | 1 | Core MVP Planning | in-progress | Core loop set: Earn -> Save -> Spend -> Goal. MVP backlog tracked in `docs/mvp-backlog.md`. |
-| 2 | Technical Foundation | in-progress | Vite React frontend + Firebase Firestore/Auth integrated; Firestore rules added in `firestore.rules`. |
-| 3 | Parent Experience First | in-progress | Parent create-job flow implemented and protected behind parent mode + PIN unlock. |
-| 4 | Child Experience | in-progress | Child dashboard, jobs view, goals, and store scaffolded. |
+| 2 | Technical Foundation | in-progress | Vite React frontend + Firebase Firestore/Auth integrated; rules and emulator coverage now include reward request permissions. |
+| 3 | Parent Experience First | in-progress | Parent create-job flow plus household onboarding (family + child profiles) now implemented behind protected parent controls. |
+| 4 | Child Experience | in-progress | Child dashboard, jobs view, goals, and store are live; reward request submission flow implemented. |
 | 5 | Household Dashboard | not-started | Needs shared family glance dashboard. |
 | 6 | Dynamic Pricing | not-started | Planned as signature differentiator. |
 | 7 | Economy Rules System | not-started | Modular rule toggles pending. |
@@ -26,6 +26,6 @@ Status legend: `not-started`, `in-progress`, `blocked`, `completed`
 
 ## Current Sprint Focus
 
-1. Harden Firestore permission model with emulator validation (Phase 2)
-2. Ship reward approval request flow for kids (Phases 3-4)
-3. Add household setup and child profile onboarding (Phase 3)
+1. Expand child transaction history and savings UX depth (Phase 4)
+2. Add household dashboard foundation for shared family glance (Phase 5)
+3. Define and instrument analytics events for validation readiness (Phase 10)

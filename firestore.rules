@@ -1,0 +1,82 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function profileDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function hasProfile() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function familyId() {
+      return hasProfile() ? profileDoc().data.familyId : null;
+    }
+
+    function isInFamily(targetFamilyId) {
+      return hasProfile() && familyId() == targetFamilyId;
+    }
+
+    function role() {
+      return hasProfile() ? profileDoc().data.role : null;
+    }
+
+    function isParent(targetFamilyId) {
+      return isInFamily(targetFamilyId) && role() == 'parent';
+    }
+
+    function isKid(targetFamilyId) {
+      return isInFamily(targetFamilyId) && role() == 'kid';
+    }
+
+    // Users manage only their own profile document.
+    match /users/{userId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /families/{targetFamilyId} {
+      // Family members can read family summary. Only parents can edit family settings.
+      allow read: if isInFamily(targetFamilyId);
+      allow write: if isParent(targetFamilyId);
+
+      match /jobs/{jobId} {
+        // All family members can view jobs.
+        allow read: if isInFamily(targetFamilyId);
+
+        // Parents create jobs.
+        allow create: if isParent(targetFamilyId)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.status == 'open'
+          && request.resource.data.claimedBy == null;
+
+        // Parents can fully update/delete jobs.
+        allow update, delete: if isParent(targetFamilyId);
+
+        // Kids can only claim open jobs for themselves.
+        allow update: if isKid(targetFamilyId)
+          && resource.data.status == 'open'
+          && request.resource.data.status == 'claimed'
+          && request.resource.data.claimedBy == request.auth.uid
+          && request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.title == resource.data.title
+          && request.resource.data.points == resource.data.points
+          && request.resource.data.icon == resource.data.icon;
+      }
+
+      match /goals/{goalId} {
+        allow read: if isInFamily(targetFamilyId);
+        allow write: if isParent(targetFamilyId);
+      }
+
+      match /transactions/{transactionId} {
+        allow read: if isInFamily(targetFamilyId);
+        allow create: if isParent(targetFamilyId);
+      }
+    }
+  }
+}

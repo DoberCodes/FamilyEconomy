@@ -1,12 +1,14 @@
-export default function LevelCard({ level, profileName }) {
-  const progress = Math.round((level.xp / level.nextXp) * 100)
+export default function LevelCard({ level, profileName, subtitle, children }) {
+  const safeNextXp = Number(level?.nextXp) || 500
+  const safeXp = Number(level?.xp) || 0
+  const progress = Math.min(100, Math.round((safeXp / safeNextXp) * 100))
 
   return (
     <section className="hero-card">
       <div className="hero-card-row">
         <div>
           <h1>Hi, {profileName || 'there'}! 👋</h1>
-          <p>Let&apos;s build your future.</p>
+          <p>{subtitle || 'Let\'s build your future.'}</p>
         </div>
         <div className="planet" aria-hidden="true">
           🪐
@@ -19,9 +21,11 @@ export default function LevelCard({ level, profileName }) {
           <span style={{ width: `${progress}%` }}></span>
         </div>
         <small>
-          {level.xp} / {level.nextXp} XP
+          {safeXp} / {safeNextXp} XP
         </small>
       </div>
+
+      {children ? <div className="hero-card-footer">{children}</div> : null}
     </section>
   )
 }

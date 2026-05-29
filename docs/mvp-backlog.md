@@ -15,7 +15,7 @@ Status legend: `not-started`, `in-progress`, `blocked`, `completed`
 - [x] B1 Child-friendly default mode - `completed`
 - [x] B2 Jobs list and claim behavior - `completed`
 - [x] B3 Balance and transaction history panel - `completed`
-- [ ] B4 Goal progress and milestone celebrations - `in-progress`
+- [x] B4 Goal progress and milestone celebrations - `completed`
 - [x] B5 Reward purchase request flow - `completed`
 
 ## Epic C: Data & Security Foundation
@@ -28,7 +28,7 @@ Status legend: `not-started`, `in-progress`, `blocked`, `completed`
 
 ## Epic D: Validation Readiness
 
-- [ ] D1 Event tracking plan (retention, usage, adoption) - `not-started`
-- [ ] D2 Parent onboarding completion metric - `not-started`
-- [ ] D3 Weekly active family metric - `not-started`
-- [ ] D4 Feedback capture loop - `not-started`
+- [x] D1 Event tracking plan (retention, usage, adoption) - `completed`
+- [x] D2 Parent onboarding completion metric - `completed`
+- [x] D3 Weekly active family metric - `completed`
+- [x] D4 Feedback capture loop - `completed`

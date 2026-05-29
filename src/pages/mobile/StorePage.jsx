@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import BottomTabBar from '../../components/mobile/BottomTabBar'
+import TopStatusBar from '../../components/mobile/TopStatusBar'
 import { useAuth } from '../../context/AuthContext'
 import {
   getFamilyStoreData,
@@ -100,10 +101,7 @@ export default function StorePage() {
 
   return (
     <>
-      <header className="status-row">
-        <span>9:41</span>
-        <span className="page-title">Store</span>
-      </header>
+      <TopStatusBar title="Store" />
       <main className="phone-content">
         {loading ? <p className="status-note">Loading store...</p> : null}
         {error ? <p className="status-note status-error">{error}</p> : null}

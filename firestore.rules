@@ -39,6 +39,14 @@ service cloud.firestore {
       allow read, write: if isSignedIn() && request.auth.uid == userId;
     }
 
+    match /analyticsEvents/{eventId} {
+      allow read: if isSignedIn();
+      allow create: if hasProfile()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.familyId == familyId();
+      allow update, delete: if false;
+    }
+
     match /families/{targetFamilyId} {
       // Family members can read family summary. Only parents can edit family settings.
       allow read: if isInFamily(targetFamilyId);
@@ -92,6 +100,13 @@ service cloud.firestore {
 
         // Parents can approve/deny requests and set reviewer metadata.
         allow update, delete: if isParent(targetFamilyId);
+
+        // Kids can respond to a parent counter-offer on their own proposal requests.
+        allow update: if isKid(targetFamilyId)
+          && resource.data.requestedBy == request.auth.uid
+          && resource.data.status == 'countered'
+          && resource.data.requestKind == 'proposal'
+          && (request.resource.data.status == 'pending' || request.resource.data.status == 'denied');
       }
 
       match /jobCheckRequests/{requestId} {
@@ -111,6 +126,11 @@ service cloud.firestore {
         allow update, delete: if isParent(targetFamilyId);
       }
 
+      match /consequenceEvents/{eventId} {
+        allow read: if isInFamily(targetFamilyId);
+        allow create, update, delete: if isParent(targetFamilyId);
+      }
+
       match /children/{childId} {
         allow read: if isInFamily(targetFamilyId);
         allow write: if isParent(targetFamilyId);
@@ -119,6 +139,14 @@ service cloud.firestore {
       match /transactions/{transactionId} {
         allow read: if isInFamily(targetFamilyId);
         allow create: if isParent(targetFamilyId);
+      }
+
+      match /feedbackEntries/{feedbackId} {
+        allow read: if isParent(targetFamilyId);
+        allow create: if isParent(targetFamilyId)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.status == 'open';
+        allow update, delete: if isParent(targetFamilyId);
       }
     }
   }

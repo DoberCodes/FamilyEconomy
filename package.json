@@ -8,8 +8,9 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "test:logic": "node --test tests/familyEconomyService.logic.test.js",
     "test:rules": "firebase emulators:exec --only firestore --project family-economy-rules-test \"node --test tests/firestore.rules.test.js\"",
-    "test": "npm run test:rules"
+    "test": "npm run test:logic && npm run test:rules"
   },
   "dependencies": {
     "firebase": "^12.13.0",

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import BottomTabBar from '../../components/mobile/BottomTabBar'
+import TopStatusBar from '../../components/mobile/TopStatusBar'
 import { useAuth } from '../../context/AuthContext'
 import {
   getHouseholdOnboardingData,
@@ -78,10 +79,7 @@ export default function ChildProfilesPage() {
 
   return (
     <>
-      <header className="status-row">
-        <span>9:41</span>
-        <span className="page-title">Kids</span>
-      </header>
+      <TopStatusBar title="Kids" />
       <main className="phone-content">
         <section className="panel">
           <p className="panel-label">Choose Child</p>

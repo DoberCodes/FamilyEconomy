@@ -92,11 +92,40 @@ async function seedBaseData() {
       status: 'pending',
     })
 
+    await setDoc(doc(db, 'families', FAMILY_ID, 'rewardRequests', 'req-countered'), {
+      requestKind: 'proposal',
+      rewardId: null,
+      rewardTitle: 'Arcade Pass',
+      cost: 250,
+      requestedBy: 'kid-1',
+      status: 'countered',
+      counterRewardTitle: 'Arcade Pass (Weekend)',
+      counterCost: 300,
+    })
+
     await setDoc(doc(db, 'families', FAMILY_ID, 'children', 'child-1'), {
       displayName: 'Alex',
       avatar: '🧒',
       weeklyGoalCredits: 300,
       createdBy: 'parent-1',
+    })
+
+    await setDoc(doc(db, 'families', FAMILY_ID, 'feedbackEntries', 'feedback-1'), {
+      category: 'general',
+      message: 'Looks good',
+      status: 'open',
+      createdBy: 'parent-1',
+    })
+
+    await setDoc(doc(db, 'families', FAMILY_ID, 'consequenceEvents', 'event-1'), {
+      type: 'job_marked_missed',
+      childId: 'kid-1',
+      jobId: 'job-locked',
+      jobTitle: 'Read 20 minutes',
+      penaltyCredits: 5,
+      createdBy: 'parent-1',
+      source: 'markJobAsMissed',
+      createdAt: Date.now(),
     })
   })
 }
@@ -267,6 +296,88 @@ describe('Firestore Rules', () => {
     )
   })
 
+  it('allows kid to accept countered proposal terms on own reward request', async () => {
+    const db = userDb('kid-1')
+
+    await assertSucceeds(
+      updateDoc(doc(db, 'families', FAMILY_ID, 'rewardRequests', 'req-countered'), {
+        status: 'pending',
+      }),
+    )
+  })
+
+  it('denies kid from updating non-countered reward request', async () => {
+    const db = userDb('kid-1')
+
+    await assertFails(
+      updateDoc(doc(db, 'families', FAMILY_ID, 'rewardRequests', 'req-1'), {
+        status: 'denied',
+      }),
+    )
+  })
+
+  it('allows parent to create feedback entries', async () => {
+    const db = userDb('parent-1')
+
+    await assertSucceeds(
+      setDoc(doc(db, 'families', FAMILY_ID, 'feedbackEntries', 'feedback-new'), {
+        category: 'bug',
+        message: 'Need a clearer savings screen.',
+        status: 'open',
+        createdBy: 'parent-1',
+      }),
+    )
+  })
+
+  it('denies kid from creating feedback entries', async () => {
+    const db = userDb('kid-1')
+
+    await assertFails(
+      setDoc(doc(db, 'families', FAMILY_ID, 'feedbackEntries', 'feedback-kid'), {
+        category: 'bug',
+        message: 'Kid feedback attempt',
+        status: 'open',
+        createdBy: 'kid-1',
+      }),
+    )
+  })
+
+  it('allows family members to create analytics events', async () => {
+    const parentDb = userDb('parent-1')
+    const kidDb = userDb('kid-1')
+
+    await assertSucceeds(
+      setDoc(doc(parentDb, 'analyticsEvents', 'event-parent'), {
+        eventName: 'family_dashboard_viewed',
+        familyId: FAMILY_ID,
+        createdBy: 'parent-1',
+        eventTimestamp: Date.now(),
+      }),
+    )
+
+    await assertSucceeds(
+      setDoc(doc(kidDb, 'analyticsEvents', 'event-kid'), {
+        eventName: 'job_claimed',
+        familyId: FAMILY_ID,
+        createdBy: 'kid-1',
+        eventTimestamp: Date.now(),
+      }),
+    )
+  })
+
+  it('denies outsiders from creating analytics events for another family', async () => {
+    const db = userDb('outsider-1')
+
+    await assertFails(
+      setDoc(doc(db, 'analyticsEvents', 'event-outsider'), {
+        eventName: 'job_claimed',
+        familyId: FAMILY_ID,
+        createdBy: 'outsider-1',
+        eventTimestamp: Date.now(),
+      }),
+    )
+  })
+
   it('allows parent to bootstrap a new family document', async () => {
     const db = userDb('parent-new')
 
@@ -287,6 +398,45 @@ describe('Firestore Rules', () => {
         avatar: '🧑',
         weeklyGoalCredits: 400,
         createdBy: 'parent-1',
+      }),
+    )
+  })
+
+  it('allows family members to read consequence events', async () => {
+    const kidDb = userDb('kid-1')
+    const parentDb = userDb('parent-1')
+
+    await assertSucceeds(getDoc(doc(kidDb, 'families', FAMILY_ID, 'consequenceEvents', 'event-1')))
+    await assertSucceeds(getDoc(doc(parentDb, 'families', FAMILY_ID, 'consequenceEvents', 'event-1')))
+  })
+
+  it('allows parent and denies kid for consequence event writes', async () => {
+    const parentDb = userDb('parent-1')
+    const kidDb = userDb('kid-1')
+
+    await assertSucceeds(
+      setDoc(doc(parentDb, 'families', FAMILY_ID, 'consequenceEvents', 'event-new'), {
+        type: 'job_check_denied',
+        childId: 'kid-1',
+        jobId: 'job-open',
+        jobTitle: 'Clean kitchen',
+        penaltyCredits: 0,
+        createdBy: 'parent-1',
+        source: 'reviewJobCheckRequest',
+        createdAt: Date.now(),
+      }),
+    )
+
+    await assertFails(
+      setDoc(doc(kidDb, 'families', FAMILY_ID, 'consequenceEvents', 'event-kid'), {
+        type: 'job_check_denied',
+        childId: 'kid-1',
+        jobId: 'job-open',
+        jobTitle: 'Clean kitchen',
+        penaltyCredits: 0,
+        createdBy: 'kid-1',
+        source: 'reviewJobCheckRequest',
+        createdAt: Date.now(),
       }),
     )
   })

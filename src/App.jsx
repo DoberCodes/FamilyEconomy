@@ -14,6 +14,41 @@ import SavingsPage from './pages/mobile/SavingsPage'
 import StorePage from './pages/mobile/StorePage'
 import { getHouseholdOnboardingData } from './services/familyEconomyService'
 
+function resolveUiTheme(pathname, userRole) {
+  if (userRole === 'kid') {
+    return 'theme-playful'
+  }
+
+  if (
+    pathname === '/mobile/home'
+    || pathname === '/mobile/jobs'
+    || pathname === '/mobile/store'
+    || pathname === '/mobile/savings'
+    || /^\/mobile\/children\/.+/.test(pathname)
+  ) {
+    return 'theme-playful'
+  }
+
+  return 'theme-parent'
+}
+
+function UiThemeSync() {
+  const { userRole } = useAuth()
+  const location = useLocation()
+
+  useEffect(() => {
+    const classList = document.body.classList
+    classList.remove('theme-parent', 'theme-playful')
+    classList.add(resolveUiTheme(location.pathname, userRole))
+
+    return () => {
+      classList.remove('theme-parent', 'theme-playful')
+    }
+  }, [location.pathname, userRole])
+
+  return null
+}
+
 function MobileAppRoutes() {
   const { loading, isAuthenticated, userRole, familyId, userId, activeChildProfile } =
     useAuth()
@@ -118,6 +153,7 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <UiThemeSync />
         <PhoneFrame>
           <Routes>
             <Route path="/auth" element={<AuthPage />} />

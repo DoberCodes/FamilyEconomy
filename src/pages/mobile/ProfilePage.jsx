@@ -1,25 +1,53 @@
 import { useEffect, useState } from 'react'
 
 import BottomTabBar from '../../components/mobile/BottomTabBar'
+import TopStatusBar from '../../components/mobile/TopStatusBar'
 import { useAuth } from '../../context/AuthContext'
 import {
-  createGoal,
+  approveSavingsGoalCompletion,
   createHousehold,
   createJob,
+  createFeedbackEntry,
   createReward,
   clearChildSessionCode,
   getFamilyDashboard,
+  getFamilyConsequenceEvents,
   getFamilyJobCheckRequests,
+  getFamilyFeedbackEntries,
   getFamilyStoreData,
   getHouseholdOnboardingData,
+  markJobAsMissed,
   reviewJobCheckRequest,
   reviewRewardRequest,
+  reviewSavingsGoalRequest,
   setChildAllowSessionCode,
   setChildSessionSecurity,
-  updateGoal,
   updateJob,
   updateReward,
 } from '../../services/familyEconomyService'
+import {
+  exportOnboardingCompletionSummary,
+  getOnboardingCompletionSummary,
+  getWeeklyActiveFamilySummary,
+} from '../../services/analytics'
+
+const emptyWeeklySummary = {
+  windowDays: 7,
+  activeFamilyCount: 0,
+  totalEventCount: 0,
+  families: [],
+}
+
+const emptyOnboardingSummary = {
+  windowDays: 30,
+  startedFamilyCount: 0,
+  completedFamilyCount: 0,
+  completionRate: 0,
+  startedFamilies: [],
+  completedFamilies: [],
+}
+
+const CREATOR_OWNER_EMAIL = 'austin.dober@gmail.com'
 
 export default function ProfilePage() {
   const {
@@ -47,6 +75,17 @@ export default function ProfilePage() {
   const [familySummary, setFamilySummary] = useState({
     profileName: '',
     familyRules: '',
+    creatorOwnerEmail: '',
+    creatorMetricsEnabled: false,
+    savingsGoalApprovalMode: 'claim_only',
+    missedJobConsequenceEnabled: false,
+    missedJobPenaltyCredits: 0,
+    missedJobTimingEnabled: false,
+    missedJobDefaultHours: 24,
+    failedJobCheckConsequenceEnabled: false,
+    failedJobCheckPenaltyCredits: 0,
+    maxActivePoolClaimsPerChild: 1,
+    allowClaimingWithPendingChecks: false,
     dynamicPricingEnabled: false,
     dynamicPricingWindowPeriod: 'week',
     dynamicPricingDemandWeight: 10,
@@ -60,39 +99,237 @@ export default function ProfilePage() {
   const [rewards, setRewards] = useState([])
   const [rewardRequests, setRewardRequests] = useState([])
   const [goals, setGoals] = useState([])
+  const [consequenceEvents, setConsequenceEvents] = useState([])
+  
+  const [auditReportRange, setAuditReportRange] = useState('30')
+  const [auditReportChildId, setAuditReportChildId] = useState('all')
+  const [auditReportType, setAuditReportType] = useState('all')
   const [jobTitle, setJobTitle] = useState('')
   const [jobPoints, setJobPoints] = useState('50')
   const [jobLimitCount, setJobLimitCount] = useState('')
   const [jobLimitPeriod, setJobLimitPeriod] = useState('week')
   const [jobFamilyLimitCount, setJobFamilyLimitCount] = useState('')
   const [jobFamilyLimitPeriod, setJobFamilyLimitPeriod] = useState('week')
-  const [jobRepeatMode, setJobRepeatMode] = useState('none')
+  const [jobRecurrenceFrequency, setJobRecurrenceFrequency] = useState('none')
+  const [jobMissedAfterHours, setJobMissedAfterHours] = useState('')
   const [rewardTitle, setRewardTitle] = useState('')
   const [rewardCost, setRewardCost] = useState('150')
-  const [rewardRepeatMode, setRewardRepeatMode] = useState('recur')
+  const [rewardRecurrenceFrequency, setRewardRecurrenceFrequency] = useState('weekly')
   const [rewardLimitCount, setRewardLimitCount] = useState('')
   const [rewardLimitPeriod, setRewardLimitPeriod] = useState('day')
   const [rewardFamilyLimitCount, setRewardFamilyLimitCount] = useState('')
   const [rewardFamilyLimitPeriod, setRewardFamilyLimitPeriod] = useState('day')
-  const [goalName, setGoalName] = useState('')
-  const [goalTarget, setGoalTarget] = useState('500')
   const [jobScopeChildId, setJobScopeChildId] = useState('')
   const [rewardScopeChildId, setRewardScopeChildId] = useState('')
-  const [goalScopeChildId, setGoalScopeChildId] = useState('')
   const [editingJobId, setEditingJobId] = useState('')
   const [editingRewardId, setEditingRewardId] = useState('')
-  const [editingGoalId, setEditingGoalId] = useState('')
   const [reviewingRequestId, setReviewingRequestId] = useState('')
+  const [rewardReviewNotes, setRewardReviewNotes] = useState({})
+  const [counterRewardRequestId, setCounterRewardRequestId] = useState('')
+  const [counterRewardTitle, setCounterRewardTitle] = useState('')
+  const [counterRewardCost, setCounterRewardCost] = useState('')
+  const [counterGoalId, setCounterGoalId] = useState('')
+  const [counterGoalTarget, setCounterGoalTarget] = useState('')
+  const [counterGoalNote, setCounterGoalNote] = useState('')
   const [householdName, setHouseholdName] = useState('')
   const [familyRules, setFamilyRules] = useState('')
   const [dynamicPricingEnabled, setDynamicPricingEnabled] = useState(false)
+  const [savingsGoalApprovalMode, setSavingsGoalApprovalMode] = useState('claim_only')
+  const [missedJobConsequenceEnabled, setMissedJobConsequenceEnabled] = useState(false)
+  const [missedJobPenaltyCredits, setMissedJobPenaltyCredits] = useState('0')
+  const [missedJobTimingEnabled, setMissedJobTimingEnabled] = useState(false)
+  const [missedJobDefaultHours, setMissedJobDefaultHours] = useState('24')
+  const [failedJobCheckConsequenceEnabled, setFailedJobCheckConsequenceEnabled] = useState(false)
+  const [failedJobCheckPenaltyCredits, setFailedJobCheckPenaltyCredits] = useState('0')
+  const [maxActivePoolClaimsPerChild, setMaxActivePoolClaimsPerChild] = useState('1')
+  const [allowClaimingWithPendingChecks, setAllowClaimingWithPendingChecks] = useState(false)
   const [dynamicPricingWindowPeriod, setDynamicPricingWindowPeriod] = useState('week')
   const [dynamicPricingDemandWeight, setDynamicPricingDemandWeight] = useState('10')
   const [dynamicPricingScarcityWeight, setDynamicPricingScarcityWeight] = useState('20')
+  const [markingMissedJobId, setMarkingMissedJobId] = useState('')
+  const [onboardingCompletionSummary, setOnboardingCompletionSummary] = useState(emptyOnboardingSummary)
+  const [weeklyActiveSummary, setWeeklyActiveSummary] = useState(emptyWeeklySummary)
+  const [feedbackEntries, setFeedbackEntries] = useState([])
+  const [feedbackCategory, setFeedbackCategory] = useState('general')
+  const [feedbackMessage, setFeedbackMessage] = useState('')
+  const [feedbackBusy, setFeedbackBusy] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  function toDateValue(value) {
+    if (!value) {
+      return null
+    }
+
+    if (value instanceof Date) {
+      return value
+    }
+
+    if (typeof value?.toDate === 'function') {
+      return value.toDate()
+    }
+
+    const parsed = new Date(value)
+    return Number.isNaN(parsed.getTime()) ? null : parsed
+  }
+
+  function getWeekStart(value = new Date()) {
+    const start = new Date(value)
+    const day = start.getDay()
+    const daysSinceMonday = (day + 6) % 7
+    start.setHours(0, 0, 0, 0)
+    start.setDate(start.getDate() - daysSinceMonday)
+    return start
+  }
+
+  function inRange(value, start, end) {
+    return Boolean(value && value >= start && value < end)
+  }
+
+  function formatDateTime(value) {
+    const date = toDateValue(value)
+    if (!date) {
+      return 'Unknown time'
+    }
+
+    return date.toLocaleString()
+  }
+
+  const missedPenaltyValue = Math.max(0, Number(missedJobPenaltyCredits) || 0)
+  const failedCheckPenaltyValue = Math.max(0, Number(failedJobCheckPenaltyCredits) || 0)
+  const missedHoursValue = Math.max(1, Number(missedJobDefaultHours) || 24)
+  const maxPoolClaimsValue = Math.max(1, Number(maxActivePoolClaimsPerChild) || 1)
+  const demandWeightValue = Math.max(0, Number(dynamicPricingDemandWeight) || 0)
+  const scarcityWeightValue = Math.max(0, Number(dynamicPricingScarcityWeight) || 0)
+  const childNameById = childProfiles.reduce((accumulator, child) => {
+    accumulator[child.id] = `${child.avatar || '🧒'} ${child.displayName || 'Kid'}`
+    return accumulator
+  }, {})
+
+  const consequenceEventsSorted = consequenceEvents
+    .slice()
+    .sort((left, right) => {
+      const leftMs = toDateValue(left.createdAt)?.getTime() || 0
+      const rightMs = toDateValue(right.createdAt)?.getTime() || 0
+      return rightMs - leftMs
+    })
+
+  const thisWeekStart = getWeekStart()
+  const lastWeekStart = new Date(thisWeekStart)
+  lastWeekStart.setDate(lastWeekStart.getDate() - 7)
+  const now = new Date()
+  const trailWindowStart = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000))
+
+  const thisWeekConsequenceEvents = consequenceEventsSorted.filter((entry) =>
+    inRange(toDateValue(entry.createdAt), thisWeekStart, now),
+  )
+  const lastWeekConsequenceEvents = consequenceEventsSorted.filter((entry) =>
+    inRange(toDateValue(entry.createdAt), lastWeekStart, thisWeekStart),
+  )
+
+  const thisWeekPenaltyTotal = thisWeekConsequenceEvents.reduce(
+    (sum, entry) => sum + (Number(entry.penaltyCredits) || 0),
+    0,
+  )
+  const lastWeekPenaltyTotal = lastWeekConsequenceEvents.reduce(
+    (sum, entry) => sum + (Number(entry.penaltyCredits) || 0),
+    0,
+  )
+  const thisWeekDeniedCount = thisWeekConsequenceEvents.filter(
+    (entry) => entry.type === 'job_check_denied',
+  ).length
+  const lastWeekDeniedCount = lastWeekConsequenceEvents.filter(
+    (entry) => entry.type === 'job_check_denied',
+  ).length
+  const thisWeekMissedCount = thisWeekConsequenceEvents.filter(
+    (entry) => entry.type === 'job_marked_missed',
+  ).length
+  const lastWeekMissedCount = lastWeekConsequenceEvents.filter(
+    (entry) => entry.type === 'job_marked_missed',
+  ).length
+
+  const visibleAuditTrailEvents = consequenceEventsSorted
+    .filter((entry) => {
+      const createdAt = toDateValue(entry.createdAt)
+      return inRange(createdAt, trailWindowStart, now)
+    })
+    .slice(0, 20)
+
+  const reportRangeDays = auditReportRange === 'all'
+    ? null
+    : Math.max(1, Number(auditReportRange) || 30)
+  const reportStart = reportRangeDays
+    ? new Date(now.getTime() - (reportRangeDays * 24 * 60 * 60 * 1000))
+    : null
+
+  const reportFilteredEvents = consequenceEventsSorted.filter((entry) => {
+    const createdAt = toDateValue(entry.createdAt)
+    if (!createdAt) {
+      return false
+    }
+
+    if (reportStart && !inRange(createdAt, reportStart, now)) {
+      return false
+    }
+
+    if (auditReportChildId !== 'all' && entry.childId !== auditReportChildId) {
+      return false
+    }
+
+    if (auditReportType === 'missed' && entry.type !== 'job_marked_missed') {
+      return false
+    }
+
+    if (auditReportType === 'denied' && entry.type !== 'job_check_denied') {
+      return false
+    }
+
+    if (auditReportType === 'penalty' && (Number(entry.penaltyCredits) || 0) <= 0) {
+      return false
+    }
+
+    return true
+  })
+
+  const topConsequenceJobs = Object.entries(
+    thisWeekConsequenceEvents.reduce((accumulator, entry) => {
+      const key = entry.jobTitle || 'Unknown job'
+      accumulator[key] = (accumulator[key] || 0) + 1
+      return accumulator
+    }, {}),
+  )
+    .map(([title, count]) => ({ title, count }))
+    .sort((left, right) => right.count - left.count)
+    .slice(0, 5)
+
+  const consequenceByChild = Object.entries(
+    thisWeekConsequenceEvents.reduce((accumulator, entry) => {
+      const childKey = entry.childId || 'unknown'
+      if (!accumulator[childKey]) {
+        accumulator[childKey] = { count: 0, penaltyCredits: 0 }
+      }
+      accumulator[childKey].count += 1
+      accumulator[childKey].penaltyCredits += Number(entry.penaltyCredits) || 0
+      return accumulator
+    }, {}),
+  )
+    .map(([childId, aggregate]) => ({
+      childId,
+      childLabel: childNameById[childId] || 'Unknown child',
+      count: aggregate.count,
+      penaltyCredits: aggregate.penaltyCredits,
+    }))
+    .sort((left, right) => right.count - left.count)
+
   const isParent = isAuthenticated && userRole === 'parent'
+  const userEmailLower = String(userEmail || '').trim().toLowerCase()
+  const familyCreatorOwnerEmail = String(familySummary.creatorOwnerEmail || '').trim().toLowerCase()
+  const isCreatorMode = isParent
+    && parentControlsUnlocked
+    && (
+      userEmailLower === CREATOR_OWNER_EMAIL
+      || (Boolean(familySummary.creatorMetricsEnabled) && userEmailLower === familyCreatorOwnerEmail)
+    )
 
   useEffect(() => {
     let cancelled = false
@@ -113,6 +350,17 @@ export default function ProfilePage() {
           setFamilySummary({
             profileName: result.data.family?.profileName || '',
             familyRules: result.data.family?.familyRules || '',
+            creatorOwnerEmail: result.data.family?.creatorOwnerEmail || '',
+            creatorMetricsEnabled: Boolean(result.data.family?.creatorMetricsEnabled),
+            savingsGoalApprovalMode: result.data.family?.savingsGoalApprovalMode || 'claim_only',
+            missedJobConsequenceEnabled: Boolean(result.data.family?.missedJobConsequenceEnabled),
+            missedJobPenaltyCredits: Number(result.data.family?.missedJobPenaltyCredits) || 0,
+            missedJobTimingEnabled: Boolean(result.data.family?.missedJobTimingEnabled),
+            missedJobDefaultHours: Number(result.data.family?.missedJobDefaultHours) || 24,
+            failedJobCheckConsequenceEnabled: Boolean(result.data.family?.failedJobCheckConsequenceEnabled),
+            failedJobCheckPenaltyCredits: Number(result.data.family?.failedJobCheckPenaltyCredits) || 0,
+            maxActivePoolClaimsPerChild: Number(result.data.family?.maxActivePoolClaimsPerChild) || 1,
+            allowClaimingWithPendingChecks: Boolean(result.data.family?.allowClaimingWithPendingChecks),
             dynamicPricingEnabled: Boolean(result.data.family?.dynamicPricingEnabled),
             dynamicPricingWindowPeriod: result.data.family?.dynamicPricingWindowPeriod || 'week',
             dynamicPricingDemandWeight: Number(result.data.family?.dynamicPricingDemandWeight) || 10,
@@ -138,6 +386,87 @@ export default function ProfilePage() {
 
   useEffect(() => {
     let cancelled = false
+    const shouldRefreshCreatorAnalytics = isCreatorMode && activeDialog === 'analytics'
+
+    async function refreshValidationSummaries() {
+      if (!shouldRefreshCreatorAnalytics) {
+        if (!cancelled) {
+          setWeeklyActiveSummary(emptyWeeklySummary)
+          setOnboardingCompletionSummary(emptyOnboardingSummary)
+        }
+        return
+      }
+
+      try {
+        const [weeklySummary, onboardingSummary] = await Promise.all([
+          getWeeklyActiveFamilySummary(),
+          getOnboardingCompletionSummary(),
+        ])
+
+        if (cancelled) {
+          return
+        }
+
+        setWeeklyActiveSummary(weeklySummary)
+        setOnboardingCompletionSummary(onboardingSummary)
+      } catch {
+        if (!cancelled) {
+          setWeeklyActiveSummary(emptyWeeklySummary)
+          setOnboardingCompletionSummary(emptyOnboardingSummary)
+        }
+      }
+    }
+
+    if (shouldRefreshCreatorAnalytics) {
+      refreshValidationSummaries()
+    }
+
+    function handleAnalyticsEvent() {
+      refreshValidationSummaries()
+    }
+
+    if (shouldRefreshCreatorAnalytics) {
+      window.addEventListener('family-economy-analytics', handleAnalyticsEvent)
+    }
+
+    return () => {
+      cancelled = true
+      if (shouldRefreshCreatorAnalytics) {
+        window.removeEventListener('family-economy-analytics', handleAnalyticsEvent)
+      }
+    }
+  }, [isCreatorMode, activeDialog])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadFeedbackEntries() {
+      if (!isParent || !parentControlsUnlocked || !familyId) {
+        return
+      }
+
+      try {
+        const result = await getFamilyFeedbackEntries({ familyId, userId, userRole })
+
+        if (!cancelled) {
+          setFeedbackEntries(result.data.entries || [])
+        }
+      } catch {
+        if (!cancelled) {
+          setFeedbackEntries([])
+        }
+      }
+    }
+
+    loadFeedbackEntries()
+
+    return () => {
+      cancelled = true
+    }
+  }, [isParent, parentControlsUnlocked, familyId, userId, userRole])
+
+  useEffect(() => {
+    let cancelled = false
 
     async function refreshPendingCounts() {
       if (!isParent || !parentControlsUnlocked || !familyId) {
@@ -145,9 +474,11 @@ export default function ProfilePage() {
       }
 
       try {
-        const [storeResult, checkResult] = await Promise.all([
+        const [storeResult, checkResult, dashboardResult, consequenceResult] = await Promise.all([
           getFamilyStoreData({ familyId, userId, userRole, selectedChildId: null }),
           getFamilyJobCheckRequests({ familyId, userId, userRole, selectedChildId: null }),
+          getFamilyDashboard({ familyId, userId, userRole, selectedChildId: null }),
+          getFamilyConsequenceEvents({ familyId, userId, userRole }),
         ])
 
         if (cancelled) {
@@ -156,10 +487,14 @@ export default function ProfilePage() {
 
         setRewardRequests(storeResult.data.requests || [])
         setJobCheckRequests(checkResult.data.requests || [])
+        setGoals(dashboardResult.data.goals || [])
+        setConsequenceEvents(consequenceResult.data.events || [])
       } catch {
         if (!cancelled) {
           setRewardRequests([])
           setJobCheckRequests([])
+          setGoals([])
+          setConsequenceEvents([])
         }
       }
     }
@@ -274,10 +609,11 @@ export default function ProfilePage() {
   }
 
   async function loadDialogData() {
-    const [dashboardResult, storeResult, checkResult] = await Promise.all([
+    const [dashboardResult, storeResult, checkResult, consequenceResult] = await Promise.all([
       getFamilyDashboard({ familyId, userId, userRole, selectedChildId: null }),
       getFamilyStoreData({ familyId, userId, userRole, selectedChildId: null }),
       getFamilyJobCheckRequests({ familyId, userId, userRole, selectedChildId: null }),
+      getFamilyConsequenceEvents({ familyId, userId, userRole }),
     ])
 
     setJobs(dashboardResult.data.jobs)
@@ -285,6 +621,7 @@ export default function ProfilePage() {
     setRewards(storeResult.data.rewards)
     setRewardRequests(storeResult.data.requests)
     setJobCheckRequests(checkResult.data.requests)
+    setConsequenceEvents(consequenceResult.data.events || [])
   }
 
   async function openDialog(dialog) {
@@ -294,7 +631,6 @@ export default function ProfilePage() {
     if (
       dialog === 'jobs'
       || dialog === 'rewards'
-      || dialog === 'savings'
       || dialog === 'requests'
     ) {
       if (dialog === 'jobs') {
@@ -302,9 +638,6 @@ export default function ProfilePage() {
       }
       if (dialog === 'rewards') {
         setRewardScopeChildId('')
-      }
-      if (dialog === 'savings') {
-        setGoalScopeChildId('')
       }
       setDialogBusy(true)
       try {
@@ -319,6 +652,15 @@ export default function ProfilePage() {
     if (dialog === 'setup') {
       setHouseholdName(familySummary.profileName || '')
       setFamilyRules(familySummary.familyRules || '')
+      setSavingsGoalApprovalMode(familySummary.savingsGoalApprovalMode || 'claim_only')
+      setMissedJobConsequenceEnabled(Boolean(familySummary.missedJobConsequenceEnabled))
+      setMissedJobPenaltyCredits(String(familySummary.missedJobPenaltyCredits || 0))
+      setMissedJobTimingEnabled(Boolean(familySummary.missedJobTimingEnabled))
+      setMissedJobDefaultHours(String(familySummary.missedJobDefaultHours || 24))
+      setFailedJobCheckConsequenceEnabled(Boolean(familySummary.failedJobCheckConsequenceEnabled))
+      setFailedJobCheckPenaltyCredits(String(familySummary.failedJobCheckPenaltyCredits || 0))
+      setMaxActivePoolClaimsPerChild(String(familySummary.maxActivePoolClaimsPerChild || 1))
+      setAllowClaimingWithPendingChecks(Boolean(familySummary.allowClaimingWithPendingChecks))
       setDynamicPricingEnabled(Boolean(familySummary.dynamicPricingEnabled))
       setDynamicPricingWindowPeriod(familySummary.dynamicPricingWindowPeriod || 'week')
       setDynamicPricingDemandWeight(String(familySummary.dynamicPricingDemandWeight || 10))
@@ -328,6 +670,74 @@ export default function ProfilePage() {
 
   function closeDialog() {
     setActiveDialog('')
+  }
+
+  function getConsequencePreset() {
+    if (
+      missedJobConsequenceEnabled
+      && missedPenaltyValue === 5
+      && missedJobTimingEnabled
+      && missedHoursValue === 48
+      && !failedJobCheckConsequenceEnabled
+      && failedCheckPenaltyValue === 0
+    ) {
+      return 'gentle'
+    }
+
+    if (
+      missedJobConsequenceEnabled
+      && missedPenaltyValue === 15
+      && missedJobTimingEnabled
+      && missedHoursValue === 24
+      && failedJobCheckConsequenceEnabled
+      && failedCheckPenaltyValue === 5
+    ) {
+      return 'balanced'
+    }
+
+    if (
+      missedJobConsequenceEnabled
+      && missedPenaltyValue === 30
+      && missedJobTimingEnabled
+      && missedHoursValue === 12
+      && failedJobCheckConsequenceEnabled
+      && failedCheckPenaltyValue === 15
+    ) {
+      return 'strict'
+    }
+
+    return 'custom'
+  }
+
+  function applyConsequencePreset(preset) {
+    if (preset === 'gentle') {
+      setMissedJobConsequenceEnabled(true)
+      setMissedJobPenaltyCredits('5')
+      setMissedJobTimingEnabled(true)
+      setMissedJobDefaultHours('48')
+      setFailedJobCheckConsequenceEnabled(false)
+      setFailedJobCheckPenaltyCredits('0')
+      return
+    }
+
+    if (preset === 'balanced') {
+      setMissedJobConsequenceEnabled(true)
+      setMissedJobPenaltyCredits('15')
+      setMissedJobTimingEnabled(true)
+      setMissedJobDefaultHours('24')
+      setFailedJobCheckConsequenceEnabled(true)
+      setFailedJobCheckPenaltyCredits('5')
+      return
+    }
+
+    if (preset === 'strict') {
+      setMissedJobConsequenceEnabled(true)
+      setMissedJobPenaltyCredits('30')
+      setMissedJobTimingEnabled(true)
+      setMissedJobDefaultHours('12')
+      setFailedJobCheckConsequenceEnabled(true)
+      setFailedJobCheckPenaltyCredits('15')
+    }
   }
 
   async function handleCreateJob(event) {
@@ -344,7 +754,8 @@ export default function ProfilePage() {
         claimLimitPeriod: jobLimitPeriod,
         familyClaimLimitCount: Number(jobFamilyLimitCount) || 0,
         familyClaimLimitPeriod: jobFamilyLimitPeriod,
-        autoRecreate: jobRepeatMode === 'recur',
+        autoRecreate: jobRecurrenceFrequency !== 'none',
+        missedAfterHours: Number(jobMissedAfterHours) || 0,
       }
 
       if (editingJobId) {
@@ -360,7 +771,8 @@ export default function ProfilePage() {
       setJobLimitPeriod('week')
       setJobFamilyLimitCount('')
       setJobFamilyLimitPeriod('week')
-      setJobRepeatMode('none')
+      setJobRecurrenceFrequency('none')
+      setJobMissedAfterHours('')
       await loadDialogData()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not create job.')
@@ -375,13 +787,37 @@ export default function ProfilePage() {
     setError('')
 
     try {
+      const normalizedFrequency =
+        rewardRecurrenceFrequency === 'once'
+        || rewardRecurrenceFrequency === 'daily'
+        || rewardRecurrenceFrequency === 'weekly'
+        || rewardRecurrenceFrequency === 'custom'
+          ? rewardRecurrenceFrequency
+          : 'weekly'
+
+      const repeatMode = normalizedFrequency === 'once' ? 'once' : 'recur'
+      const claimLimitCount =
+        normalizedFrequency === 'daily' || normalizedFrequency === 'weekly'
+          ? 1
+          : normalizedFrequency === 'custom'
+            ? Number(rewardLimitCount) || 0
+            : 0
+      const claimLimitPeriod =
+        normalizedFrequency === 'daily'
+          ? 'day'
+          : normalizedFrequency === 'weekly'
+            ? 'week'
+            : normalizedFrequency === 'custom'
+              ? rewardLimitPeriod
+              : null
+
       const payload = {
         title: rewardTitle,
         cost: Number(rewardCost) || 0,
         childId: rewardScopeChildId || null,
-        repeatMode: rewardRepeatMode,
-        claimLimitCount: Number(rewardLimitCount) || 0,
-        claimLimitPeriod: rewardLimitPeriod,
+        repeatMode,
+        claimLimitCount,
+        claimLimitPeriod,
         familyClaimLimitCount: Number(rewardFamilyLimitCount) || 0,
         familyClaimLimitPeriod: rewardFamilyLimitPeriod,
       }
@@ -395,7 +831,7 @@ export default function ProfilePage() {
       setEditingRewardId('')
       setRewardTitle('')
       setRewardCost('150')
-      setRewardRepeatMode('recur')
+      setRewardRecurrenceFrequency('weekly')
       setRewardLimitCount('')
       setRewardLimitPeriod('day')
       setRewardFamilyLimitCount('')
@@ -403,35 +839,6 @@ export default function ProfilePage() {
       await loadDialogData()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not create reward.')
-    } finally {
-      setDialogBusy(false)
-    }
-  }
-
-  async function handleCreateGoal(event) {
-    event.preventDefault()
-    setDialogBusy(true)
-    setError('')
-
-    try {
-      const payload = {
-        name: goalName,
-        target: Number(goalTarget) || 0,
-        childId: goalScopeChildId || null,
-      }
-
-      if (editingGoalId) {
-        await updateGoal(editingGoalId, payload, { familyId, userId, userRole })
-      } else {
-        await createGoal(payload, { familyId, userId, userRole })
-      }
-
-      setEditingGoalId('')
-      setGoalName('')
-      setGoalTarget('500')
-      await loadDialogData()
-    } catch (caughtError) {
-      setError(caughtError.message || 'Could not create savings goal.')
     } finally {
       setDialogBusy(false)
     }
@@ -448,16 +855,36 @@ export default function ProfilePage() {
           profileName: householdName,
           familyRules,
           childSessionSecurityEnabled,
+          savingsGoalApprovalMode,
+          missedJobConsequenceEnabled,
+          missedJobPenaltyCredits: Number(missedJobPenaltyCredits) || 0,
+          missedJobTimingEnabled,
+          missedJobDefaultHours: Number(missedJobDefaultHours) || 24,
+          failedJobCheckConsequenceEnabled,
+          failedJobCheckPenaltyCredits: Number(failedJobCheckPenaltyCredits) || 0,
+          maxActivePoolClaimsPerChild: Number(maxActivePoolClaimsPerChild) || 1,
+          allowClaimingWithPendingChecks,
           dynamicPricingEnabled,
           dynamicPricingWindowPeriod,
           dynamicPricingDemandWeight: Number(dynamicPricingDemandWeight) || 0,
           dynamicPricingScarcityWeight: Number(dynamicPricingScarcityWeight) || 0,
         },
-        { familyId, userId, userRole },
+        { familyId, userId, userRole, userEmail },
       )
       setFamilySummary({
         profileName: householdName,
         familyRules,
+        creatorOwnerEmail: familySummary.creatorOwnerEmail || (userEmailLower === CREATOR_OWNER_EMAIL ? CREATOR_OWNER_EMAIL : ''),
+        creatorMetricsEnabled: Boolean(familySummary.creatorMetricsEnabled) || userEmailLower === CREATOR_OWNER_EMAIL,
+        savingsGoalApprovalMode,
+        missedJobConsequenceEnabled,
+        missedJobPenaltyCredits: Number(missedJobPenaltyCredits) || 0,
+        missedJobTimingEnabled,
+        missedJobDefaultHours: Number(missedJobDefaultHours) || 24,
+        failedJobCheckConsequenceEnabled,
+        failedJobCheckPenaltyCredits: Number(failedJobCheckPenaltyCredits) || 0,
+        maxActivePoolClaimsPerChild: Number(maxActivePoolClaimsPerChild) || 1,
+        allowClaimingWithPendingChecks,
         dynamicPricingEnabled,
         dynamicPricingWindowPeriod,
         dynamicPricingDemandWeight: Number(dynamicPricingDemandWeight) || 0,
@@ -490,19 +917,241 @@ export default function ProfilePage() {
     }
   }
 
-  async function handleReviewRewardRequest(requestId, decision) {
+  async function handleReviewRewardRequest(requestId, decision, options = {}) {
     setDialogBusy(true)
     setReviewingRequestId(`reward:${requestId}`)
     setError('')
 
     try {
-      await reviewRewardRequest(requestId, decision, { familyId, userId, userRole })
+      await reviewRewardRequest(requestId, decision, { familyId, userId, userRole }, options)
+      setCounterRewardRequestId('')
+      setCounterRewardTitle('')
+      setCounterRewardCost('')
       await loadDialogData()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not review reward request.')
     } finally {
       setReviewingRequestId('')
       setDialogBusy(false)
+    }
+  }
+
+  async function handleCounterRewardRequest(request) {
+    const nextTitle = (counterRewardTitle || request.rewardTitle || '').trim()
+    const nextCost = Number(counterRewardCost)
+
+    if (!nextTitle) {
+      setError('Counter reward title is required.')
+      return
+    }
+
+    if (!Number.isFinite(nextCost) || nextCost <= 0) {
+      setError('Counter reward cost must be greater than zero.')
+      return
+    }
+
+    await handleReviewRewardRequest(request.id, 'countered', {
+      parentNote: rewardReviewNotes[request.id] || '',
+      counterRewardTitle: nextTitle,
+      counterCost: nextCost,
+    })
+  }
+
+  async function handleApproveGoalCompletion(goalId) {
+    setDialogBusy(true)
+    setReviewingRequestId(`goal:${goalId}`)
+    setError('')
+
+    try {
+      await approveSavingsGoalCompletion(goalId, { familyId, userId, userRole })
+      await loadDialogData()
+    } catch (caughtError) {
+      setError(caughtError.message || 'Could not approve this savings goal yet.')
+    } finally {
+      setReviewingRequestId('')
+      setDialogBusy(false)
+    }
+  }
+
+  async function handleReviewGoalRequest(goalId, decision) {
+    setDialogBusy(true)
+    setReviewingRequestId(`goal-request:${goalId}`)
+    setError('')
+
+    try {
+      await reviewSavingsGoalRequest(goalId, decision, { familyId, userId, userRole })
+      setCounterGoalId('')
+      setCounterGoalTarget('')
+      setCounterGoalNote('')
+      await loadDialogData()
+    } catch (caughtError) {
+      setError(caughtError.message || 'Could not review this goal request.')
+    } finally {
+      setReviewingRequestId('')
+      setDialogBusy(false)
+    }
+  }
+
+  async function handleCounterGoalRequest(goal) {
+    const counterTarget = Number(counterGoalTarget)
+
+    if (!Number.isFinite(counterTarget) || counterTarget <= 0) {
+      setError('Counter target must be greater than zero.')
+      return
+    }
+
+    setDialogBusy(true)
+    setReviewingRequestId(`goal-request-counter:${goal.id}`)
+    setError('')
+
+    try {
+      await reviewSavingsGoalRequest(
+        goal.id,
+        'countered',
+        { familyId, userId, userRole },
+        { counterTarget, counterNote: counterGoalNote },
+      )
+      setCounterGoalId('')
+      setCounterGoalTarget('')
+      setCounterGoalNote('')
+      await loadDialogData()
+    } catch (caughtError) {
+      setError(caughtError.message || 'Could not send counter offer.')
+    } finally {
+      setReviewingRequestId('')
+      setDialogBusy(false)
+    }
+  }
+
+  async function handleMarkJobMissed(jobId) {
+    setDialogBusy(true)
+    setMarkingMissedJobId(jobId)
+    setError('')
+
+    try {
+      await markJobAsMissed(jobId, { familyId, userId, userRole })
+      await loadDialogData()
+    } catch (caughtError) {
+      setError(caughtError.message || 'Could not mark this job as missed.')
+    } finally {
+      setMarkingMissedJobId('')
+      setDialogBusy(false)
+    }
+  }
+
+  async function handleExportWeeklyActiveSummary() {
+    const summary = JSON.stringify(
+      {
+        onboarding: await getOnboardingCompletionSummary(),
+        weeklyActive: await getWeeklyActiveFamilySummary(),
+      },
+      null,
+      2,
+    )
+
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(summary)
+        return
+      } catch (caughtError) {
+        setError(caughtError.message || 'Could not copy analytics snapshot.')
+        return
+      }
+    }
+
+    setError('Clipboard access is not available in this browser.')
+  }
+
+  async function handleExportOnboardingSummary() {
+    const summary = await exportOnboardingCompletionSummary()
+
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(summary)
+        return
+      } catch (caughtError) {
+        setError(caughtError.message || 'Could not copy onboarding snapshot.')
+        return
+      }
+    }
+
+    setError('Clipboard access is not available in this browser.')
+  }
+
+  async function handleExportConsequenceAuditCsv() {
+    const csvEscape = (value) => {
+      const text = String(value ?? '')
+      return `"${text.replaceAll('"', '""')}"`
+    }
+
+    const headers = [
+      'eventId',
+      'type',
+      'childId',
+      'childLabel',
+      'jobId',
+      'jobTitle',
+      'decision',
+      'penaltyCredits',
+      'source',
+      'createdBy',
+      'createdAtIso',
+    ]
+
+    const rows = reportFilteredEvents.slice(0, 1000).map((entry) => ([
+      entry.id || '',
+      entry.type || '',
+      entry.childId || '',
+      childNameById[entry.childId] || 'Unknown child',
+      entry.jobId || '',
+      entry.jobTitle || '',
+      entry.decision || '',
+      Number(entry.penaltyCredits) || 0,
+      entry.source || '',
+      entry.createdBy || '',
+      toDateValue(entry.createdAt)?.toISOString() || '',
+    ]))
+
+    const csv = [
+      headers.map(csvEscape).join(','),
+      ...rows.map((row) => row.map(csvEscape).join(',')),
+    ].join('\n')
+
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(csv)
+        return
+      } catch (caughtError) {
+        setError(caughtError.message || 'Could not copy filtered consequence audit CSV.')
+        return
+      }
+    }
+
+    setError('Clipboard access is not available in this browser.')
+  }
+
+  async function handleSubmitFeedback(event) {
+    event.preventDefault()
+
+    setFeedbackBusy(true)
+    setError('')
+
+    try {
+      await createFeedbackEntry(
+        {
+          category: feedbackCategory,
+          message: feedbackMessage,
+        },
+        { familyId, userId, userRole },
+      )
+
+      setFeedbackMessage('')
+      const result = await getFamilyFeedbackEntries({ familyId, userId, userRole })
+      setFeedbackEntries(result.data.entries || [])
+    } catch (caughtError) {
+      setError(caughtError.message || 'Could not submit feedback.')
+    } finally {
+      setFeedbackBusy(false)
     }
   }
 
@@ -515,7 +1164,16 @@ export default function ProfilePage() {
     setJobLimitPeriod(job.claimLimitPeriod || 'week')
     setJobFamilyLimitCount(job.familyClaimLimitCount > 0 ? String(job.familyClaimLimitCount) : '')
     setJobFamilyLimitPeriod(job.familyClaimLimitPeriod || 'week')
-    setJobRepeatMode(job.autoRecreate ? 'recur' : 'none')
+    if (!job.autoRecreate) {
+      setJobRecurrenceFrequency('none')
+    } else if (Number(job.claimLimitCount) === 1 && job.claimLimitPeriod === 'day') {
+      setJobRecurrenceFrequency('daily')
+    } else if (Number(job.claimLimitCount) === 1 && job.claimLimitPeriod === 'week') {
+      setJobRecurrenceFrequency('weekly')
+    } else {
+      setJobRecurrenceFrequency('weekly')
+    }
+    setJobMissedAfterHours(job.missedAfterHours > 0 ? String(job.missedAfterHours) : '')
   }
 
   function startEditReward(reward) {
@@ -523,20 +1181,21 @@ export default function ProfilePage() {
     setRewardTitle(reward.title || '')
     setRewardCost(String(reward.cost || 0))
     setRewardScopeChildId(reward.childId || '')
-    setRewardRepeatMode(reward.repeatMode === 'once' ? 'once' : 'recur')
+    if (reward.repeatMode === 'once') {
+      setRewardRecurrenceFrequency('once')
+    } else if (Number(reward.claimLimitCount) === 1 && reward.claimLimitPeriod === 'day') {
+      setRewardRecurrenceFrequency('daily')
+    } else if (Number(reward.claimLimitCount) === 1 && reward.claimLimitPeriod === 'week') {
+      setRewardRecurrenceFrequency('weekly')
+    } else {
+      setRewardRecurrenceFrequency('custom')
+    }
     setRewardLimitCount(reward.claimLimitCount > 0 ? String(reward.claimLimitCount) : '')
     setRewardLimitPeriod(reward.claimLimitPeriod || 'day')
     setRewardFamilyLimitCount(
       reward.familyClaimLimitCount > 0 ? String(reward.familyClaimLimitCount) : '',
     )
     setRewardFamilyLimitPeriod(reward.familyClaimLimitPeriod || 'day')
-  }
-
-  function startEditGoal(goal) {
-    setEditingGoalId(goal.id)
-    setGoalName(goal.name || '')
-    setGoalTarget(String(goal.target || 0))
-    setGoalScopeChildId(goal.childId || '')
   }
 
   function cancelEditJob() {
@@ -548,7 +1207,8 @@ export default function ProfilePage() {
     setJobLimitPeriod('week')
     setJobFamilyLimitCount('')
     setJobFamilyLimitPeriod('week')
-    setJobRepeatMode('none')
+    setJobRecurrenceFrequency('none')
+    setJobMissedAfterHours('')
   }
 
   function cancelEditReward() {
@@ -556,30 +1216,28 @@ export default function ProfilePage() {
     setRewardTitle('')
     setRewardCost('150')
     setRewardScopeChildId('')
-    setRewardRepeatMode('recur')
+    setRewardRecurrenceFrequency('weekly')
     setRewardLimitCount('')
     setRewardLimitPeriod('day')
     setRewardFamilyLimitCount('')
     setRewardFamilyLimitPeriod('day')
   }
 
-  function cancelEditGoal() {
-    setEditingGoalId('')
-    setGoalName('')
-    setGoalTarget('500')
-    setGoalScopeChildId('')
-  }
-
   const pendingJobCheckRequests = jobCheckRequests.filter((request) => request.status === 'pending')
   const pendingRewardRequests = rewardRequests.filter((request) => request.status === 'pending')
-  const pendingRequestsCount = pendingJobCheckRequests.length + pendingRewardRequests.length
+  const counteredRewardRequests = rewardRequests.filter((request) => request.status === 'countered')
+  const pendingGoalRequests = goals.filter((goal) => goal.status === 'pending_parent_approval')
+  const pendingGoalApprovals = goals.filter((goal) => goal.status === 'ready_to_claim')
+  const pendingRequestsCount =
+    pendingJobCheckRequests.length
+    + pendingRewardRequests.length
+    + counteredRewardRequests.length
+    + pendingGoalRequests.length
+    + pendingGoalApprovals.length
 
   return (
     <>
-      <header className="status-row">
-        <span>9:41</span>
-        <span className="page-title">Parent</span>
-      </header>
+      <TopStatusBar title="Parent" />
       <main className="phone-content">
         {!isParent ? (
           <section className="panel">
@@ -661,9 +1319,7 @@ export default function ProfilePage() {
           <>
             <section className="panel">
               <p className="panel-label">Parent Command Center</p>
-              <p className="panel-muted">{displayName || 'Parent account'}</p>
-              <p className="panel-muted">{userEmail}</p>
-              <p className="panel-muted">Family: {familyId}</p>
+              <p className="panel-muted">Customize jobs, rewards, savings, and child safety settings.</p>
               <p className="panel-muted">Children configured: {childProfiles.length}</p>
             </section>
 
@@ -688,8 +1344,11 @@ export default function ProfilePage() {
                 <button type="button" className="text-button" onClick={() => openDialog('rewards')}>
                   Rewards manager
                 </button>
-                <button type="button" className="text-button" onClick={() => openDialog('savings')}>
-                  Savings manager
+                <button type="button" className="text-button" onClick={() => openDialog('settings')}>
+                  Parent settings
+                </button>
+                <button type="button" className="text-button" onClick={() => openDialog('analytics')}>
+                  Analytics
                 </button>
               </div>
             </section>
@@ -804,7 +1463,8 @@ export default function ProfilePage() {
                   {activeDialog === 'requests' ? 'Pending Requests' : null}
                   {activeDialog === 'jobs' ? 'Jobs Manager' : null}
                   {activeDialog === 'rewards' ? 'Rewards Manager' : null}
-                  {activeDialog === 'savings' ? 'Savings Manager' : null}
+                  {activeDialog === 'settings' ? 'Parent Settings' : null}
+                  {activeDialog === 'analytics' ? 'Analytics' : null}
                 </p>
                 <button type="button" className="text-button" onClick={closeDialog}>
                   Close
@@ -818,72 +1478,299 @@ export default function ProfilePage() {
                   <p className="panel-muted">
                     Dynamic pricing: {familySummary.dynamicPricingEnabled ? 'On' : 'Off'}
                   </p>
+                  <p className="panel-muted">
+                    Savings approvals: {
+                      familySummary.savingsGoalApprovalMode === 'create_and_claim'
+                        ? 'Parent approves create + claim'
+                        : familySummary.savingsGoalApprovalMode === 'no_approval'
+                          ? 'No parent approval'
+                          : 'Parent approves claim only'
+                    }
+                  </p>
+                  <p className="panel-muted">
+                    Missed job consequence: {
+                      familySummary.missedJobConsequenceEnabled
+                        ? `On (${familySummary.missedJobPenaltyCredits} credit penalty)`
+                        : 'Off'
+                    }
+                  </p>
+                  {familySummary.missedJobConsequenceEnabled ? (
+                    <p className="panel-muted">
+                      Missed timing: {
+                        familySummary.missedJobTimingEnabled
+                          ? `Time-based (${familySummary.missedJobDefaultHours}h default)`
+                          : 'Manual'
+                      }
+                    </p>
+                  ) : null}
+                  <p className="panel-muted">
+                    Failed parent check consequence: {
+                      familySummary.failedJobCheckConsequenceEnabled
+                        ? `On (-${familySummary.failedJobCheckPenaltyCredits} credits)`
+                        : 'Off'
+                    }
+                  </p>
+                  <p className="panel-muted">
+                    Pool job slots per child: {familySummary.maxActivePoolClaimsPerChild || 1}
+                  </p>
+                  <p className="panel-muted">
+                    Pending checks count toward slots: {familySummary.allowClaimingWithPendingChecks ? 'No' : 'Yes'}
+                  </p>
                   <p className="panel-muted">Children: {childProfiles.length}</p>
                 </div>
               ) : null}
 
               {activeDialog === 'setup' ? (
                 <form className="auth-form dialog-content" onSubmit={handleSaveHousehold}>
-                  <input
-                    className="job-input"
-                    placeholder="Family name"
-                    value={householdName}
-                    onChange={(event) => setHouseholdName(event.target.value)}
-                    required
-                  />
-                  <textarea
-                    className="job-input form-textarea"
-                    placeholder="Family rules"
-                    value={familyRules}
-                    onChange={(event) => setFamilyRules(event.target.value)}
-                    rows="4"
-                  />
-                  <label className="form-field">
-                    <span className="form-label">Dynamic reward pricing</span>
-                    <select
+                  <section className="dialog-section">
+                    <p className="dialog-section-title">Household Identity</p>
+                    <p className="dialog-section-subtitle">Name and house rules shown across the app.</p>
+                    <input
                       className="job-input"
-                      value={dynamicPricingEnabled ? 'on' : 'off'}
-                      onChange={(event) => setDynamicPricingEnabled(event.target.value === 'on')}
-                    >
-                      <option value="off">Off (fixed prices)</option>
-                      <option value="on">On (supply and demand)</option>
-                    </select>
-                  </label>
-                  {dynamicPricingEnabled ? (
-                    <>
-                      <label className="form-field">
-                        <span className="form-label">Pricing window</span>
-                        <select
-                          className="job-input"
-                          value={dynamicPricingWindowPeriod}
-                          onChange={(event) => setDynamicPricingWindowPeriod(event.target.value)}
-                        >
-                          <option value="day">Per day</option>
-                          <option value="week">Per week</option>
-                        </select>
-                      </label>
-                      <label className="form-field">
-                        <span className="form-label">Demand impact % per claim</span>
-                        <input
-                          className="job-input"
-                          type="number"
-                          min="0"
-                          value={dynamicPricingDemandWeight}
-                          onChange={(event) => setDynamicPricingDemandWeight(event.target.value)}
-                        />
-                      </label>
-                      <label className="form-field">
-                        <span className="form-label">Scarcity impact % near limit</span>
-                        <input
-                          className="job-input"
-                          type="number"
-                          min="0"
-                          value={dynamicPricingScarcityWeight}
-                          onChange={(event) => setDynamicPricingScarcityWeight(event.target.value)}
-                        />
-                      </label>
-                    </>
-                  ) : null}
+                      placeholder="Family name"
+                      value={householdName}
+                      onChange={(event) => setHouseholdName(event.target.value)}
+                      required
+                    />
+                    <textarea
+                      className="job-input form-textarea"
+                      placeholder="Family rules"
+                      value={familyRules}
+                      onChange={(event) => setFamilyRules(event.target.value)}
+                      rows="4"
+                    />
+                  </section>
+
+                  <section className="dialog-section">
+                    <p className="dialog-section-title">Savings Approvals</p>
+                    <p className="dialog-section-subtitle">Control when a parent review is required for savings goals.</p>
+                    <label className="form-field">
+                      <span className="form-label">Savings goal parent approvals</span>
+                      <select
+                        className="job-input"
+                        value={savingsGoalApprovalMode}
+                        onChange={(event) => setSavingsGoalApprovalMode(event.target.value)}
+                      >
+                        <option value="claim_only">Approve claim only (recommended)</option>
+                        <option value="create_and_claim">Approve create and claim</option>
+                        <option value="no_approval">No parent approval</option>
+                      </select>
+                    </label>
+                  </section>
+
+                  <section className="dialog-section">
+                    <p className="dialog-section-title">Consequences</p>
+                    <p className="dialog-section-subtitle">Set what happens for missed jobs and denied parent checks.</p>
+
+                    <label className="form-field">
+                      <span className="form-label">Consequence preset</span>
+                      <select
+                        className="job-input"
+                        value={getConsequencePreset()}
+                        onChange={(event) => applyConsequencePreset(event.target.value)}
+                      >
+                        <option value="custom">Custom</option>
+                        <option value="gentle">Gentle</option>
+                        <option value="balanced">Balanced</option>
+                        <option value="strict">Strict</option>
+                      </select>
+                      <p className="form-help">Presets apply starter values you can still edit.</p>
+                    </label>
+
+                    <details className="dialog-subsection" open>
+                      <summary className="dialog-subsection-summary">Missed or timed-out job</summary>
+                      <div className="dialog-subsection-body">
+                        <label className="form-field">
+                          <span className="form-label">Consequence for missed claimed jobs</span>
+                          <select
+                            className="job-input"
+                            value={missedJobConsequenceEnabled ? 'on' : 'off'}
+                            onChange={(event) => setMissedJobConsequenceEnabled(event.target.value === 'on')}
+                          >
+                            <option value="off">Off</option>
+                            <option value="on">On</option>
+                          </select>
+                        </label>
+                        {missedJobConsequenceEnabled ? (
+                          <div className="dialog-nested-fields">
+                            <label className="form-field">
+                              <span className="form-label">Penalty credits when parent marks missed</span>
+                              <input
+                                className="job-input"
+                                type="number"
+                                min="0"
+                                value={missedJobPenaltyCredits}
+                                onChange={(event) => setMissedJobPenaltyCredits(event.target.value)}
+                              />
+                            </label>
+                            {missedPenaltyValue >= 40 ? (
+                              <p className="status-note">High penalty warning: this can feel harsh for younger kids.</p>
+                            ) : null}
+                            <label className="form-field">
+                              <span className="form-label">Apply missed rule only after time window</span>
+                              <select
+                                className="job-input"
+                                value={missedJobTimingEnabled ? 'on' : 'off'}
+                                onChange={(event) => setMissedJobTimingEnabled(event.target.value === 'on')}
+                              >
+                                <option value="off">Off (parent decides anytime)</option>
+                                <option value="on">On (time-based)</option>
+                              </select>
+                            </label>
+                            {missedJobTimingEnabled ? (
+                              <label className="form-field">
+                                <span className="form-label">Default hours before a claimed job can be marked missed</span>
+                                <input
+                                  className="job-input"
+                                  type="number"
+                                  min="1"
+                                  value={missedJobDefaultHours}
+                                  onChange={(event) => setMissedJobDefaultHours(event.target.value)}
+                                />
+                              </label>
+                            ) : null}
+                            {missedJobTimingEnabled && missedHoursValue < 6 ? (
+                              <p className="status-note">Short timer warning: less than 6 hours may cause frequent misses.</p>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    </details>
+
+                    <details className="dialog-subsection">
+                      <summary className="dialog-subsection-summary">Parent denied job check</summary>
+                      <div className="dialog-subsection-body">
+                        <label className="form-field">
+                          <span className="form-label">Consequence when parent denies a job check</span>
+                          <select
+                            className="job-input"
+                            value={failedJobCheckConsequenceEnabled ? 'on' : 'off'}
+                            onChange={(event) => setFailedJobCheckConsequenceEnabled(event.target.value === 'on')}
+                          >
+                            <option value="off">Off</option>
+                            <option value="on">On</option>
+                          </select>
+                        </label>
+                        {failedJobCheckConsequenceEnabled ? (
+                          <label className="form-field">
+                            <span className="form-label">Penalty credits when a job check is denied</span>
+                            <input
+                              className="job-input"
+                              type="number"
+                              min="0"
+                              value={failedJobCheckPenaltyCredits}
+                              onChange={(event) => setFailedJobCheckPenaltyCredits(event.target.value)}
+                            />
+                          </label>
+                        ) : null}
+                        {failedJobCheckConsequenceEnabled && failedCheckPenaltyValue >= 25 ? (
+                          <p className="status-note">High penalty warning: consider a lower value before enabling this rule.</p>
+                        ) : null}
+                      </div>
+                    </details>
+                  </section>
+
+                  <section className="dialog-section">
+                    <p className="dialog-section-title">Job Flow Limits</p>
+                    <p className="dialog-section-subtitle">Control how many pool jobs a child can work on at once.</p>
+                    <details className="dialog-subsection" open>
+                      <summary className="dialog-subsection-summary">Pool job claiming</summary>
+                      <div className="dialog-subsection-body">
+                        <label className="form-field">
+                          <span className="form-label">Max active pool jobs per child</span>
+                          <input
+                            className="job-input"
+                            type="number"
+                            min="1"
+                            value={maxActivePoolClaimsPerChild}
+                            onChange={(event) => setMaxActivePoolClaimsPerChild(event.target.value)}
+                          />
+                          <p className="form-help">Example: 2 lets a child keep two pool jobs active at the same time.</p>
+                        </label>
+                        {maxPoolClaimsValue > 4 ? (
+                          <p className="status-note">Large slot warning: high values reduce pacing and parent visibility.</p>
+                        ) : null}
+                        <label className="form-field">
+                          <span className="form-label">When waiting for parent check, free up that slot</span>
+                          <select
+                            className="job-input"
+                            value={allowClaimingWithPendingChecks ? 'yes' : 'no'}
+                            onChange={(event) => setAllowClaimingWithPendingChecks(event.target.value === 'yes')}
+                          >
+                            <option value="no">No (still counts toward slot limit)</option>
+                            <option value="yes">Yes (allow claiming another pool job)</option>
+                          </select>
+                        </label>
+                      </div>
+                    </details>
+                  </section>
+
+                  <section className="dialog-section">
+                    <p className="dialog-section-title">Dynamic Pricing</p>
+                    <p className="dialog-section-subtitle">Tune demand and scarcity for reward costs.</p>
+                    <details className="dialog-subsection" open>
+                      <summary className="dialog-subsection-summary">Pricing mode</summary>
+                      <div className="dialog-subsection-body">
+                        <label className="form-field">
+                          <span className="form-label">Dynamic reward pricing</span>
+                          <select
+                            className="job-input"
+                            value={dynamicPricingEnabled ? 'on' : 'off'}
+                            onChange={(event) => setDynamicPricingEnabled(event.target.value === 'on')}
+                          >
+                            <option value="off">Off (fixed prices)</option>
+                            <option value="on">On (supply and demand)</option>
+                          </select>
+                        </label>
+                        {dynamicPricingEnabled ? (
+                          <label className="form-field">
+                            <span className="form-label">Pricing window</span>
+                            <select
+                              className="job-input"
+                              value={dynamicPricingWindowPeriod}
+                              onChange={(event) => setDynamicPricingWindowPeriod(event.target.value)}
+                            >
+                              <option value="day">Per day</option>
+                              <option value="week">Per week</option>
+                            </select>
+                          </label>
+                        ) : null}
+                      </div>
+                    </details>
+
+                    <details className="dialog-subsection">
+                      <summary className="dialog-subsection-summary">Advanced weights</summary>
+                      <div className="dialog-subsection-body">
+                        <p className="form-help">Used only when dynamic pricing is turned on.</p>
+                        <label className="form-field">
+                          <span className="form-label">Demand impact % per claim</span>
+                          <input
+                            className="job-input"
+                            type="number"
+                            min="0"
+                            disabled={!dynamicPricingEnabled}
+                            value={dynamicPricingDemandWeight}
+                            onChange={(event) => setDynamicPricingDemandWeight(event.target.value)}
+                          />
+                        </label>
+                        <label className="form-field">
+                          <span className="form-label">Scarcity impact % near limit</span>
+                          <input
+                            className="job-input"
+                            type="number"
+                            min="0"
+                            disabled={!dynamicPricingEnabled}
+                            value={dynamicPricingScarcityWeight}
+                            onChange={(event) => setDynamicPricingScarcityWeight(event.target.value)}
+                          />
+                        </label>
+                        {dynamicPricingEnabled && (demandWeightValue > 120 || scarcityWeightValue > 150) ? (
+                          <p className="status-note">Extreme pricing warning: large values can make rewards feel unpredictable.</p>
+                        ) : null}
+                      </div>
+                    </details>
+                  </section>
+
                   <button type="submit" className="claim-button" disabled={dialogBusy}>
                     Save household settings
                   </button>
@@ -892,11 +1779,12 @@ export default function ProfilePage() {
 
               {activeDialog === 'requests' ? (
                 <div className="dialog-content">
-                  <p className="panel-label">Job Check Requests</p>
-                  {pendingJobCheckRequests.length === 0 ? (
-                    <p className="panel-muted">No pending job check requests.</p>
-                  ) : (
-                    <ul className="mission-list">
+                  <section className="dialog-section">
+                    <p className="dialog-section-title">Job Check Requests</p>
+                    {pendingJobCheckRequests.length === 0 ? (
+                      <p className="panel-muted">No pending job check requests.</p>
+                    ) : (
+                      <ul className="mission-list">
                       {pendingJobCheckRequests.map((request) => {
                         const requestChild = childProfiles.find(
                           (profile) => profile.id === request.childId,
@@ -928,101 +1816,269 @@ export default function ProfilePage() {
                           </li>
                         )
                       })}
-                    </ul>
-                  )}
+                      </ul>
+                    )}
+                  </section>
 
-                  <p className="panel-label">Reward Requests</p>
-                  {pendingRewardRequests.length === 0 ? (
-                    <p className="panel-muted">No pending reward requests.</p>
-                  ) : (
-                    <ul className="mission-list">
-                      {pendingRewardRequests.map((request) => {
+                  <section className="dialog-section">
+                    <p className="dialog-section-title">Reward Requests</p>
+                    {pendingRewardRequests.length === 0 && counteredRewardRequests.length === 0 ? (
+                      <p className="panel-muted">No pending reward requests.</p>
+                    ) : (
+                      <>
+                        {pendingRewardRequests.length > 0 ? (
+                          <ul className="mission-list">
+                          {pendingRewardRequests.map((request) => {
+                            const requestChild = childProfiles.find(
+                              (profile) => profile.id === request.requestedBy,
+                            )
+                            const childName = requestChild
+                              ? `${requestChild.avatar} ${requestChild.displayName}`
+                              : 'Child'
+
+                            return (
+                              <li key={`reward:${request.id}`}>
+                                <span className="mission-main">
+                                  {request.rewardTitle} ({childName})
+                                </span>
+                                <span className="mission-reward">{request.cost}</span>
+                                {request.childNote ? (
+                                  <span className="job-status-label">Child note: {request.childNote}</span>
+                                ) : null}
+                                <input
+                                  className="job-input"
+                                  placeholder="Parent note (optional)"
+                                  value={rewardReviewNotes[request.id] || ''}
+                                  onChange={(event) => setRewardReviewNotes((current) => ({
+                                    ...current,
+                                    [request.id]: event.target.value,
+                                  }))}
+                                />
+                                <button
+                                  type="button"
+                                  className="claim-button"
+                                  disabled={dialogBusy || reviewingRequestId === `reward:${request.id}`}
+                                  onClick={() => handleReviewRewardRequest(request.id, 'approved', {
+                                    parentNote: rewardReviewNotes[request.id] || '',
+                                  })}
+                                >
+                                  {reviewingRequestId === `reward:${request.id}` ? 'Working...' : 'Approve'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="text-button"
+                                  disabled={dialogBusy}
+                                  onClick={() => {
+                                    setCounterRewardRequestId(request.id)
+                                    setCounterRewardTitle(request.rewardTitle || '')
+                                    setCounterRewardCost(String(request.cost || ''))
+                                  }}
+                                >
+                                  Counter
+                                </button>
+                                <button
+                                  type="button"
+                                  className="text-button"
+                                  disabled={dialogBusy || reviewingRequestId === `reward:${request.id}`}
+                                  onClick={() => handleReviewRewardRequest(request.id, 'denied', {
+                                    parentNote: rewardReviewNotes[request.id] || '',
+                                  })}
+                                >
+                                  Deny
+                                </button>
+                                {counterRewardRequestId === request.id ? (
+                                  <div className="button-row" style={{ gridColumn: '1 / -1' }}>
+                                    <input
+                                      className="job-input"
+                                      placeholder="Counter reward title"
+                                      value={counterRewardTitle}
+                                      onChange={(event) => setCounterRewardTitle(event.target.value)}
+                                    />
+                                    <input
+                                      className="job-input"
+                                      type="number"
+                                      min="1"
+                                      placeholder="Counter cost"
+                                      value={counterRewardCost}
+                                      onChange={(event) => setCounterRewardCost(event.target.value)}
+                                    />
+                                    <button
+                                      type="button"
+                                      className="claim-button"
+                                      disabled={dialogBusy || reviewingRequestId === `reward:${request.id}`}
+                                      onClick={() => handleCounterRewardRequest(request)}
+                                    >
+                                      {reviewingRequestId === `reward:${request.id}` ? 'Sending...' : 'Send Counter'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="text-button"
+                                      disabled={dialogBusy}
+                                      onClick={() => {
+                                        setCounterRewardRequestId('')
+                                        setCounterRewardTitle('')
+                                        setCounterRewardCost('')
+                                      }}
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                ) : null}
+                              </li>
+                            )
+                          })}
+                          </ul>
+                        ) : null}
+                        {counteredRewardRequests.length > 0 ? (
+                          <>
+                            <p className="panel-muted">Waiting on child response</p>
+                            <ul className="mission-list">
+                              {counteredRewardRequests.map((request) => {
+                                const requestChild = childProfiles.find(
+                                  (profile) => profile.id === request.requestedBy,
+                                )
+                                const childName = requestChild
+                                  ? `${requestChild.avatar} ${requestChild.displayName}`
+                                  : 'Child'
+                                return (
+                                  <li key={`reward-countered:${request.id}`}>
+                                    <span className="mission-main">
+                                      {request.counterRewardTitle || request.rewardTitle} ({childName})
+                                    </span>
+                                    <span className="mission-reward">{request.counterCost || request.cost}</span>
+                                    <span className="job-status-label">Waiting for child to accept or decline.</span>
+                                  </li>
+                                )
+                              })}
+                            </ul>
+                          </>
+                        ) : null}
+                      </>
+                    )}
+                  </section>
+
+                  <section className="dialog-section">
+                    <p className="dialog-section-title">Child Requested Reward Goals</p>
+                    <p className="dialog-section-subtitle">Includes new reward-goal requests and goals ready to claim.</p>
+                    {pendingGoalRequests.length + pendingGoalApprovals.length === 0 ? (
+                      <p className="panel-muted">No child reward-goal requests are waiting for review.</p>
+                    ) : (
+                      <ul className="mission-list">
+                      {[...pendingGoalRequests, ...pendingGoalApprovals].map((goal) => {
                         const requestChild = childProfiles.find(
-                          (profile) => profile.id === request.requestedBy,
+                          (profile) => profile.id === goal.childId,
                         )
                         const childName = requestChild
                           ? `${requestChild.avatar} ${requestChild.displayName}`
                           : 'Child'
+                        const isReadyToClaim = goal.status === 'ready_to_claim'
 
                         return (
-                          <li key={`reward:${request.id}`}>
+                          <li key={`goal-request:${goal.id}`}>
                             <span className="mission-main">
-                              {request.rewardTitle} ({childName})
+                              {goal.rewardTitle ? `🎁 ${goal.rewardTitle}` : goal.name} — {childName}
                             </span>
-                            <span className="mission-reward">{request.cost}</span>
-                            <button
-                              type="button"
-                              className="claim-button"
-                              disabled={dialogBusy || reviewingRequestId === `reward:${request.id}`}
-                              onClick={() => handleReviewRewardRequest(request.id, 'approved')}
-                            >
-                              {reviewingRequestId === `reward:${request.id}` ? 'Working...' : 'Approve'}
-                            </button>
-                            <button
-                              type="button"
-                              className="text-button"
-                              disabled={dialogBusy || reviewingRequestId === `reward:${request.id}`}
-                              onClick={() => handleReviewRewardRequest(request.id, 'denied')}
-                            >
-                              Deny
-                            </button>
+                            <span className="job-status-label">
+                              {isReadyToClaim ? 'Ready to claim' : 'Needs setup approval'}
+                            </span>
+                            {isReadyToClaim ? (
+                              <span className="mission-reward">
+                                {goal.saved}/{goal.target}
+                              </span>
+                            ) : null}
+                            {isReadyToClaim ? (
+                              <button
+                                type="button"
+                                className="claim-button"
+                                disabled={dialogBusy || reviewingRequestId === `goal:${goal.id}`}
+                                onClick={() => handleApproveGoalCompletion(goal.id)}
+                              >
+                                {reviewingRequestId === `goal:${goal.id}` ? 'Working...' : 'Approve Goal'}
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  className="claim-button"
+                                  disabled={dialogBusy || reviewingRequestId === `goal-request:${goal.id}`}
+                                  onClick={() => handleReviewGoalRequest(goal.id, 'approved')}
+                                >
+                                  {reviewingRequestId === `goal-request:${goal.id}` ? 'Working...' : 'Approve Goal'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="text-button"
+                                  disabled={dialogBusy}
+                                  onClick={() => {
+                                    setCounterGoalId(goal.id)
+                                    setCounterGoalTarget(String(goal.target || ''))
+                                    setCounterGoalNote(goal.counterNote || '')
+                                  }}
+                                >
+                                  Counter
+                                </button>
+                                <button
+                                  type="button"
+                                  className="text-button"
+                                  disabled={dialogBusy || reviewingRequestId === `goal-request:${goal.id}`}
+                                  onClick={() => handleReviewGoalRequest(goal.id, 'denied')}
+                                >
+                                  Deny
+                                </button>
+                                {counterGoalId === goal.id ? (
+                                  <div className="button-row" style={{ gridColumn: '1 / -1' }}>
+                                    <input
+                                      className="job-input"
+                                      type="number"
+                                      min="1"
+                                      placeholder="Counter target"
+                                      value={counterGoalTarget}
+                                      onChange={(event) => setCounterGoalTarget(event.target.value)}
+                                    />
+                                    <input
+                                      className="job-input"
+                                      placeholder="Optional note for kid"
+                                      value={counterGoalNote}
+                                      onChange={(event) => setCounterGoalNote(event.target.value)}
+                                    />
+                                    <button
+                                      type="button"
+                                      className="claim-button"
+                                      disabled={dialogBusy || reviewingRequestId === `goal-request-counter:${goal.id}`}
+                                      onClick={() => handleCounterGoalRequest(goal)}
+                                    >
+                                      {reviewingRequestId === `goal-request-counter:${goal.id}` ? 'Sending...' : 'Send Counter Offer'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="text-button"
+                                      disabled={dialogBusy}
+                                      onClick={() => {
+                                        setCounterGoalId('')
+                                        setCounterGoalTarget('')
+                                        setCounterGoalNote('')
+                                      }}
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                ) : null}
+                              </>
+                            )}
                           </li>
                         )
                       })}
-                    </ul>
-                  )}
+                      </ul>
+                    )}
+                  </section>
                 </div>
               ) : null}
 
               {activeDialog === 'jobs' ? (
                 <div className="dialog-content">
-                  <p className="panel-label">Pending Check Requests</p>
-                  <ul className="mission-list">
-                    {jobCheckRequests
-                      .filter((request) =>
-                        request.status === 'pending'
-                          && (jobScopeChildId ? request.childId === jobScopeChildId : true),
-                      )
-                      .map((request) => {
-                        const requestChild = childProfiles.find(
-                          (profile) => profile.id === request.childId,
-                        )
-                        const childName = requestChild
-                          ? `${requestChild.avatar} ${requestChild.displayName}`
-                          : 'Child'
-
-                        return (
-                          <li key={request.id}>
-                            <span className="mission-main">
-                              {request.jobTitle} ({childName})
-                            </span>
-                            <span className="mission-reward">+ {request.points}</span>
-                            <div className="button-row">
-                              <button
-                                type="button"
-                                className="claim-button"
-                                disabled={dialogBusy || reviewingRequestId === request.id}
-                                onClick={() =>
-                                  handleReviewJobCheckRequest(request.id, 'approved')
-                                }
-                              >
-                                {reviewingRequestId === request.id ? 'Working...' : 'Approve'}
-                              </button>
-                              <button
-                                type="button"
-                                className="text-button"
-                                disabled={dialogBusy || reviewingRequestId === request.id}
-                                onClick={() => handleReviewJobCheckRequest(request.id, 'denied')}
-                              >
-                                Deny
-                              </button>
-                            </div>
-                          </li>
-                        )
-                      })}
-                  </ul>
-
-                  <form className="auth-form" onSubmit={handleCreateJob}>
+                  <form className="auth-form dialog-section" onSubmit={handleCreateJob}>
+                    <p className="dialog-section-title">Create or Edit Job</p>
+                    <p className="dialog-section-subtitle">Set assignment, cadence, and optional limits in one place.</p>
                     <label className="form-field">
                       <span className="form-label">Apply to</span>
                       <select
@@ -1055,53 +2111,27 @@ export default function ProfilePage() {
                       required
                     />
                     <label className="form-field">
-                      <span className="form-label">Repeat</span>
+                      <span className="form-label">Recurrence frequency</span>
                       <select
                         className="job-input"
-                        value={jobRepeatMode}
-                        onChange={(event) => setJobRepeatMode(event.target.value)}
+                        value={jobRecurrenceFrequency}
+                        onChange={(event) => setJobRecurrenceFrequency(event.target.value)}
                       >
                         <option value="none">One-time only</option>
-                        <option value="recur">Recurring (auto add next)</option>
+                        <option value="daily">Every day</option>
+                        <option value="weekly">Every week</option>
                       </select>
                     </label>
+                    {jobRecurrenceFrequency === 'daily' ? (
+                      <p className="panel-muted">This job can be completed once each day.</p>
+                    ) : null}
+                    {jobRecurrenceFrequency === 'weekly' ? (
+                      <p className="panel-muted">This job can be completed once each week.</p>
+                    ) : null}
                     <label className="form-field">
-                      <span className="form-label">Limit claims (optional)</span>
-                      <div className="button-row">
-                        <button
-                          type="button"
-                          className="text-button"
-                          onClick={() => {
-                            setJobRepeatMode('recur')
-                            setJobLimitCount('1')
-                            setJobLimitPeriod('day')
-                          }}
-                        >
-                          Once per day
-                        </button>
-                        <button
-                          type="button"
-                          className="text-button"
-                          onClick={() => {
-                            setJobRepeatMode('recur')
-                            setJobLimitCount('1')
-                            setJobLimitPeriod('week')
-                          }}
-                        >
-                          Once per week
-                        </button>
-                        <button
-                          type="button"
-                          className="text-button"
-                          onClick={() => {
-                            setJobRepeatMode('recur')
-                            setJobLimitCount('2')
-                            setJobLimitPeriod('week')
-                          }}
-                        >
-                          Twice per week
-                        </button>
-                      </div>
+                      <span className="form-label">Per-child claim limit (optional)</span>
+                      <p className="form-help">How often one child can claim this same job.</p>
+                      <p className="form-help">Example: 2 per week means each child can complete it twice weekly.</p>
                       <div className="job-form">
                         <input
                           className="job-input"
@@ -1123,7 +2153,9 @@ export default function ProfilePage() {
                       </div>
                     </label>
                     <label className="form-field">
-                      <span className="form-label">Family total limit (optional)</span>
+                      <span className="form-label">Family-wide total limit (optional)</span>
+                      <p className="form-help">How often all children combined can claim this job.</p>
+                      <p className="form-help">Example: 3 per week means the whole household can complete it three times total.</p>
                       <div className="job-form">
                         <input
                           className="job-input"
@@ -1144,6 +2176,21 @@ export default function ProfilePage() {
                         </select>
                       </div>
                     </label>
+                    <label className="form-field">
+                      <span className="form-label">Missed timeout override (hours, optional)</span>
+                      <input
+                        className="job-input"
+                        type="number"
+                        min="1"
+                        placeholder={
+                          missedJobTimingEnabled
+                            ? `Family default ${Number(missedJobDefaultHours) || 24}h`
+                            : 'Uses family setting when enabled'
+                        }
+                        value={jobMissedAfterHours}
+                        onChange={(event) => setJobMissedAfterHours(event.target.value)}
+                      />
+                    </label>
                     <div className="button-row">
                       <button type="submit" className="claim-button" disabled={dialogBusy}>
                         {editingJobId ? 'Save job' : 'Add job'}
@@ -1155,7 +2202,10 @@ export default function ProfilePage() {
                       ) : null}
                     </div>
                   </form>
-                  <ul className="mission-list">
+
+                  <section className="dialog-section">
+                    <p className="dialog-section-title">Current Jobs</p>
+                    <ul className="mission-list">
                     {jobs
                       .filter((job) =>
                         jobScopeChildId ? job.childId === jobScopeChildId : !job.childId,
@@ -1164,18 +2214,24 @@ export default function ProfilePage() {
                       <li key={job.id || job.title}>
                         <span className="mission-main">{job.title}</span>
                         <span className="mission-reward">+ {job.points}</span>
+                        <span className="job-status-label">{job.status || 'open'}</span>
                         <span className="job-status-label">
                           {job.autoRecreate ? 'Recurring' : 'One-time'}
                         </span>
                         <span className="job-status-label">
                           {job.claimLimitCount > 0 && job.claimLimitPeriod
-                            ? `Limit ${job.claimLimitCount}/${job.claimLimitPeriod}`
-                            : 'No limit'}
+                            ? `Per-child ${job.claimLimitCount}/${job.claimLimitPeriod}`
+                            : 'Per-child uncapped'}
                         </span>
                         <span className="job-status-label">
                           {job.familyClaimLimitCount > 0 && job.familyClaimLimitPeriod
-                            ? `Family ${job.familyClaimLimitCount}/${job.familyClaimLimitPeriod}`
-                            : 'No family cap'}
+                            ? `Family total ${job.familyClaimLimitCount}/${job.familyClaimLimitPeriod}`
+                            : 'Family uncapped'}
+                        </span>
+                        <span className="job-status-label">
+                          {job.missedAfterHours > 0
+                            ? `Missed after ${job.missedAfterHours}h`
+                            : 'Missed timeout: family default'}
                         </span>
                         <button
                           type="button"
@@ -1184,9 +2240,26 @@ export default function ProfilePage() {
                         >
                           Edit
                         </button>
+                        {job.status === 'claimed' ? (
+                          <button
+                            type="button"
+                            className="text-button"
+                            disabled={dialogBusy || markingMissedJobId === job.id}
+                            onClick={() => handleMarkJobMissed(job.id)}
+                          >
+                            {markingMissedJobId === job.id
+                              ? 'Marking...'
+                              : familySummary.missedJobConsequenceEnabled
+                                ? familySummary.missedJobTimingEnabled
+                                  ? `Mark missed if due (-${familySummary.missedJobPenaltyCredits})`
+                                  : `Mark missed (-${familySummary.missedJobPenaltyCredits})`
+                                : 'Mark missed'}
+                          </button>
+                        ) : null}
                       </li>
                       ))}
-                  </ul>
+                    </ul>
+                  </section>
                 </div>
               ) : null}
 
@@ -1225,40 +2298,54 @@ export default function ProfilePage() {
                       required
                     />
                     <label className="form-field">
-                      <span className="form-label">Repeat</span>
+                      <span className="form-label">Recurrence frequency</span>
                       <select
                         className="job-input"
-                        value={rewardRepeatMode}
-                        onChange={(event) => setRewardRepeatMode(event.target.value)}
+                        value={rewardRecurrenceFrequency}
+                        onChange={(event) => setRewardRecurrenceFrequency(event.target.value)}
                       >
-                        <option value="recur">Recurring (can request again)</option>
                         <option value="once">One-time only</option>
+                        <option value="daily">Every day</option>
+                        <option value="weekly">Every week</option>
+                        <option value="custom">Custom claim limit</option>
                       </select>
                     </label>
+                    {rewardRecurrenceFrequency === 'daily' ? (
+                      <p className="panel-muted">This reward can be requested once each day.</p>
+                    ) : null}
+                    {rewardRecurrenceFrequency === 'weekly' ? (
+                      <p className="panel-muted">This reward can be requested once each week.</p>
+                    ) : null}
+                    {rewardRecurrenceFrequency === 'custom' ? (
+                      <label className="form-field">
+                        <span className="form-label">Per-child request limit (custom)</span>
+                        <p className="form-help">How often one child can request this reward.</p>
+                        <p className="form-help">Example: 1 per day means each child can request it once daily.</p>
+                        <div className="job-form">
+                          <input
+                            className="job-input"
+                            type="number"
+                            min="0"
+                            placeholder="Count"
+                            value={rewardLimitCount}
+                            onChange={(event) => setRewardLimitCount(event.target.value)}
+                          />
+                          <select
+                            className="job-input"
+                            value={rewardLimitPeriod}
+                            onChange={(event) => setRewardLimitPeriod(event.target.value)}
+                            disabled={!rewardLimitCount || Number(rewardLimitCount) <= 0}
+                          >
+                            <option value="day">per day</option>
+                            <option value="week">per week</option>
+                          </select>
+                        </div>
+                      </label>
+                    ) : null}
                     <label className="form-field">
-                      <span className="form-label">Limit claims (optional)</span>
-                      <div className="job-form">
-                        <input
-                          className="job-input"
-                          type="number"
-                          min="0"
-                          placeholder="Count"
-                          value={rewardLimitCount}
-                          onChange={(event) => setRewardLimitCount(event.target.value)}
-                        />
-                        <select
-                          className="job-input"
-                          value={rewardLimitPeriod}
-                          onChange={(event) => setRewardLimitPeriod(event.target.value)}
-                          disabled={!rewardLimitCount || Number(rewardLimitCount) <= 0}
-                        >
-                          <option value="day">per day</option>
-                          <option value="week">per week</option>
-                        </select>
-                      </div>
-                    </label>
-                    <label className="form-field">
-                      <span className="form-label">Family total limit (optional)</span>
+                      <span className="form-label">Family-wide total limit (optional)</span>
+                      <p className="form-help">How often all children combined can request this reward.</p>
+                      <p className="form-help">Example: 2 per week means all children together can request it twice.</p>
                       <div className="job-form">
                         <input
                           className="job-input"
@@ -1310,13 +2397,13 @@ export default function ProfilePage() {
                         </span>
                         <span className="job-status-label">
                           {reward.claimLimitCount > 0 && reward.claimLimitPeriod
-                            ? `Limit ${reward.claimLimitCount}/${reward.claimLimitPeriod}`
-                            : 'No limit'}
+                            ? `Per-child ${reward.claimLimitCount}/${reward.claimLimitPeriod}`
+                            : 'Per-child uncapped'}
                         </span>
                         <span className="job-status-label">
                           {reward.familyClaimLimitCount > 0 && reward.familyClaimLimitPeriod
-                            ? `Family ${reward.familyClaimLimitCount}/${reward.familyClaimLimitPeriod}`
-                            : 'No family cap'}
+                            ? `Family total ${reward.familyClaimLimitCount}/${reward.familyClaimLimitPeriod}`
+                            : 'Family uncapped'}
                         </span>
                         <button
                           type="button"
@@ -1331,72 +2418,255 @@ export default function ProfilePage() {
                 </div>
               ) : null}
 
-              {activeDialog === 'savings' ? (
+              {activeDialog === 'settings' ? (
                 <div className="dialog-content">
-                  <form className="auth-form" onSubmit={handleCreateGoal}>
+                  <p className="panel-label">Account</p>
+                  <p className="panel-muted">{displayName || 'Parent account'}</p>
+                  <p className="panel-muted">{userEmail}</p>
+                  <p className="panel-muted">Family: {familyId}</p>
+
+                  <p className="panel-label">Feedback</p>
+                  <p className="panel-muted">Share notes, issues, or ideas for improving the app.</p>
+                  <form className="auth-form" onSubmit={handleSubmitFeedback}>
                     <label className="form-field">
-                      <span className="form-label">Apply to</span>
+                      <span className="form-label">Category</span>
                       <select
                         className="job-input"
-                        value={goalScopeChildId}
-                        onChange={(event) => setGoalScopeChildId(event.target.value)}
+                        value={feedbackCategory}
+                        onChange={(event) => setFeedbackCategory(event.target.value)}
                       >
-                        <option value="">Global pool (all kids)</option>
-                        {childProfiles.map((child) => (
-                          <option key={child.id} value={child.id}>
-                            {child.avatar} {child.displayName}
-                          </option>
-                        ))}
+                        <option value="general">General</option>
+                        <option value="bug">Bug</option>
+                        <option value="idea">Idea</option>
+                        <option value="confusing">Confusing</option>
                       </select>
                     </label>
-                    <input
-                      className="job-input"
-                      placeholder="Goal name"
-                      value={goalName}
-                      onChange={(event) => setGoalName(event.target.value)}
+                    <textarea
+                      className="job-input form-textarea"
+                      placeholder="What should we improve?"
+                      value={feedbackMessage}
+                      onChange={(event) => setFeedbackMessage(event.target.value)}
+                      rows="4"
                       required
                     />
-                    <input
-                      className="job-input"
-                      type="number"
-                      min="1"
-                      placeholder="Target"
-                      value={goalTarget}
-                      onChange={(event) => setGoalTarget(event.target.value)}
-                      required
-                    />
-                    <div className="button-row">
-                      <button type="submit" className="claim-button" disabled={dialogBusy}>
-                        {editingGoalId ? 'Save goal' : 'Add goal'}
-                      </button>
-                      {editingGoalId ? (
-                        <button type="button" className="text-button" onClick={cancelEditGoal}>
-                          Cancel
-                        </button>
-                      ) : null}
-                    </div>
+                    <button type="submit" className="claim-button" disabled={feedbackBusy}>
+                      {feedbackBusy ? 'Sending...' : 'Send feedback'}
+                    </button>
                   </form>
-                  <ul className="goal-list-simple">
-                    {goals
-                      .filter((goal) =>
-                        goalScopeChildId ? goal.childId === goalScopeChildId : !goal.childId,
-                      )
-                      .map((goal) => (
-                      <li key={goal.id || `${goal.childId || 'family'}:${goal.name}`}>
-                        <p>{goal.name}</p>
-                        <small>
-                          {goal.saved}/{goal.target}
-                        </small>
-                        <button
-                          type="button"
-                          className="text-button"
-                          onClick={() => startEditGoal(goal)}
-                        >
-                          Edit
-                        </button>
-                      </li>
+                  {feedbackEntries.length === 0 ? (
+                    <p className="panel-muted">No feedback captured yet.</p>
+                  ) : (
+                    <ul className="profile-list">
+                      {feedbackEntries.slice(0, 5).map((entry) => (
+                        <li key={entry.id} className="profile-list-item">
+                          <span className="mission-main">{entry.category || 'general'}</span>
+                          <span className="job-status-label">{entry.message}</span>
+                        </li>
                       ))}
-                  </ul>
+                    </ul>
+                  )}
+                </div>
+              ) : null}
+
+              {activeDialog === 'analytics' ? (
+                <div className="dialog-content">
+                  <section className="dialog-section">
+                    <p className="dialog-section-title">Family Analytics</p>
+                    <p className="dialog-section-subtitle">
+                      Family-specific audit tools are visible to every parent.
+                    </p>
+
+                    <details className="dialog-subsection" open>
+                      <summary className="dialog-subsection-summary">Consequence Summary</summary>
+                      <div className="dialog-subsection-body">
+                        <p className="panel-muted">
+                          This week: {thisWeekConsequenceEvents.length} events ({thisWeekConsequenceEvents.length - lastWeekConsequenceEvents.length >= 0 ? '+' : ''}
+                          {thisWeekConsequenceEvents.length - lastWeekConsequenceEvents.length} vs last week)
+                        </p>
+                        <p className="panel-muted">
+                          Penalty credits: {thisWeekPenaltyTotal} ({thisWeekPenaltyTotal - lastWeekPenaltyTotal >= 0 ? '+' : ''}
+                          {thisWeekPenaltyTotal - lastWeekPenaltyTotal} vs last week)
+                        </p>
+                        <p className="panel-muted">
+                          Missed jobs: {thisWeekMissedCount} ({thisWeekMissedCount - lastWeekMissedCount >= 0 ? '+' : ''}
+                          {thisWeekMissedCount - lastWeekMissedCount} vs last week)
+                        </p>
+                        <p className="panel-muted">
+                          Denied checks: {thisWeekDeniedCount} ({thisWeekDeniedCount - lastWeekDeniedCount >= 0 ? '+' : ''}
+                          {thisWeekDeniedCount - lastWeekDeniedCount} vs last week)
+                        </p>
+                      </div>
+                    </details>
+
+                    <details className="dialog-subsection" open>
+                      <summary className="dialog-subsection-summary">Top Jobs This Week</summary>
+                      <div className="dialog-subsection-body">
+                        {topConsequenceJobs.length === 0 ? (
+                          <p className="panel-muted">No consequence events recorded this week.</p>
+                        ) : (
+                          <ul className="profile-list">
+                            {topConsequenceJobs.map((job) => (
+                              <li key={`creator-job:${job.title}`} className="profile-list-item">
+                                <span className="mission-main">{job.title}</span>
+                                <span className="job-status-label">{job.count} events</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </details>
+
+                    <details className="dialog-subsection">
+                      <summary className="dialog-subsection-summary">By Child This Week</summary>
+                      <div className="dialog-subsection-body">
+                        {consequenceByChild.length === 0 ? (
+                          <p className="panel-muted">No child consequence entries in the current week window.</p>
+                        ) : (
+                          <ul className="profile-list">
+                            {consequenceByChild.map((entry) => (
+                              <li key={`creator-child:${entry.childId}`} className="profile-list-item">
+                                <span className="mission-main">{entry.childLabel}</span>
+                                <span className="job-status-label">{entry.count} events, -{entry.penaltyCredits} credits</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </details>
+
+                    <details className="dialog-subsection">
+                      <summary className="dialog-subsection-summary">Recent Audit Trail</summary>
+                      <div className="dialog-subsection-body">
+                        <p className="panel-muted">
+                          Showing last 30 days. Use Run Report for older data.
+                        </p>
+                        {visibleAuditTrailEvents.length === 0 ? (
+                          <p className="panel-muted">No consequence events in the last 30 days.</p>
+                        ) : (
+                          <ul className="profile-list">
+                            {visibleAuditTrailEvents.map((entry) => (
+                              <li key={`creator-audit:${entry.id}`} className="profile-list-item">
+                                <span className="mission-main">
+                                  {entry.type === 'job_marked_missed' ? 'Missed job' : 'Denied check'}: {entry.jobTitle || 'Job'}
+                                </span>
+                                <span className="job-status-label">
+                                  {(childNameById[entry.childId] || 'Unknown child')} | -{Number(entry.penaltyCredits) || 0} | {formatDateTime(entry.createdAt)}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+
+                        <p className="panel-label" style={{ marginTop: '0.6rem' }}>Run Report (CSV)</p>
+                        <div className="job-form">
+                          <label className="form-field">
+                            <span className="form-label">Timeframe</span>
+                            <select
+                              className="job-input"
+                              value={auditReportRange}
+                              onChange={(event) => setAuditReportRange(event.target.value)}
+                            >
+                              <option value="30">Last 30 days</option>
+                              <option value="90">Last 90 days</option>
+                              <option value="180">Last 180 days</option>
+                              <option value="all">All time</option>
+                            </select>
+                          </label>
+                          <label className="form-field">
+                            <span className="form-label">Child</span>
+                            <select
+                              className="job-input"
+                              value={auditReportChildId}
+                              onChange={(event) => setAuditReportChildId(event.target.value)}
+                            >
+                              <option value="all">All children</option>
+                              {childProfiles.map((child) => (
+                                <option key={child.id} value={child.id}>
+                                  {child.avatar} {child.displayName}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="form-field">
+                            <span className="form-label">Event type</span>
+                            <select
+                              className="job-input"
+                              value={auditReportType}
+                              onChange={(event) => setAuditReportType(event.target.value)}
+                            >
+                              <option value="all">All events</option>
+                              <option value="missed">Missed jobs</option>
+                              <option value="denied">Denied checks</option>
+                              <option value="penalty">With penalty only</option>
+                            </select>
+                          </label>
+                        </div>
+                        <p className="panel-muted">Matching events: {reportFilteredEvents.length}</p>
+                        <div className="button-row">
+                          <button type="button" className="claim-button" onClick={handleExportConsequenceAuditCsv}>
+                            Run report (copy CSV)
+                          </button>
+                        </div>
+                      </div>
+                    </details>
+                  </section>
+
+                  {isCreatorMode ? (
+                    <section className="dialog-section">
+                      <p className="dialog-section-title">Creator Metrics</p>
+                      <p className="dialog-section-subtitle">
+                        Cross-family rollups are only visible in creator mode.
+                      </p>
+
+                      <details className="dialog-subsection" open>
+                        <summary className="dialog-subsection-summary">Adoption Snapshot</summary>
+                        <div className="dialog-subsection-body">
+                          <p className="panel-muted">
+                            Onboarding completion: {onboardingCompletionSummary.completedFamilyCount}
+                            /{onboardingCompletionSummary.startedFamilyCount || 0} families
+                            {onboardingCompletionSummary.startedFamilyCount > 0
+                              ? ` (${onboardingCompletionSummary.completionRate}%)`
+                              : ''}
+                          </p>
+                          <p className="panel-muted">
+                            Weekly active families: {weeklyActiveSummary.activeFamilyCount}
+                          </p>
+                          <p className="panel-muted">
+                            Tracked events in window: {weeklyActiveSummary.totalEventCount}
+                          </p>
+                          <p className="panel-muted">
+                            Window: last {weeklyActiveSummary.windowDays} days
+                          </p>
+                        </div>
+                      </details>
+
+                      <details className="dialog-subsection">
+                        <summary className="dialog-subsection-summary">Most Active Families</summary>
+                        <div className="dialog-subsection-body">
+                          {weeklyActiveSummary.families.length > 0 ? (
+                            <ul className="profile-list">
+                              {weeklyActiveSummary.families.slice(0, 5).map((family) => (
+                                <li key={family.familyId} className="profile-list-item">
+                                  <span className="mission-main">{family.familyId}</span>
+                                  <span className="job-status-label">{family.eventCount} events</span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="panel-muted">No weekly active families recorded yet.</p>
+                          )}
+                          <div className="button-row">
+                            <button type="button" className="claim-button" onClick={handleExportWeeklyActiveSummary}>
+                              Copy analytics snapshot
+                            </button>
+                            <button type="button" className="text-button" onClick={handleExportOnboardingSummary}>
+                              Copy onboarding snapshot
+                            </button>
+                          </div>
+                        </div>
+                      </details>
+                    </section>
+                  ) : null}
                 </div>
               ) : null}
 

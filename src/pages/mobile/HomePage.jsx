@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react'
 import BottomTabBar from '../../components/mobile/BottomTabBar'
+import TopStatusBar from '../../components/mobile/TopStatusBar'
 import BalanceCard from '../../components/mobile/cards/BalanceCard'
 import LevelCard from '../../components/mobile/cards/LevelCard'
 import JobsCard from '../../components/mobile/cards/MissionsCard'
 import StreakCard from '../../components/mobile/cards/StreakCard'
 import { useAuth } from '../../context/AuthContext'
+import { trackAnalyticsEvent } from '../../services/analytics'
 import {
   getFamilyDashboard,
+  getFamilyConsequenceEvents,
+  getFamilyJobCheckRequests,
   getHouseholdOnboardingData,
   getFamilyStoreData,
 } from '../../services/familyEconomyService'
@@ -24,7 +28,11 @@ export default function HomePage() {
   const { familyId, userId, userRole, activeChildProfile } = useAuth()
   const [dashboard, setDashboard] = useState(emptyDashboard)
   const [store, setStore] = useState({ rewards: [], requests: [] })
+  const [jobChecks, setJobChecks] = useState([])
+  const [consequenceEvents, setConsequenceEvents] = useState([])
   const [childProfiles, setChildProfiles] = useState([])
+  const [trendView, setTrendView] = useState('daily')
+  const [nowMs, setNowMs] = useState(() => Date.now())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -38,7 +46,7 @@ export default function HomePage() {
       setError('')
 
       try {
-        const [dashboardResult, storeResult, onboardingResult] = await Promise.all([
+        const [dashboardResult, storeResult, onboardingResult, checksResult, consequencesResult] = await Promise.all([
           getFamilyDashboard({
             familyId,
             userId,
@@ -56,6 +64,18 @@ export default function HomePage() {
             userId,
             userRole,
           }),
+          getFamilyJobCheckRequests({
+            familyId,
+            userId,
+            userRole,
+            selectedChildId: isParent ? null : activeChildProfile?.id,
+          }),
+          getFamilyConsequenceEvents({
+            familyId,
+            userId,
+            userRole,
+            selectedChildId: isParent ? null : activeChildProfile?.id,
+          }),
         ])
 
         if (!mounted) {
@@ -64,6 +84,8 @@ export default function HomePage() {
 
         setDashboard(dashboardResult.data)
         setStore(storeResult.data)
+        setJobChecks(checksResult.data.requests || [])
+        setConsequenceEvents(consequencesResult.data.events || [])
         setChildProfiles(onboardingResult.data.childProfiles || [])
       } catch {
         if (!mounted) {
@@ -72,6 +94,8 @@ export default function HomePage() {
 
         setDashboard(emptyDashboard)
         setStore({ rewards: [], requests: [] })
+        setJobChecks([])
+        setConsequenceEvents([])
         setChildProfiles([])
         setError('Could not load family data right now.')
       } finally {
@@ -87,6 +111,55 @@ export default function HomePage() {
       mounted = false
     }
   }, [familyId, userId, userRole, activeChildProfile?.id, isParent])
+
+  useEffect(() => {
+    if (!isParent) {
+      return undefined
+    }
+
+    const timerId = window.setInterval(() => {
+      setTrendView((currentView) => (currentView === 'daily' ? 'weekly' : 'daily'))
+    }, 8000)
+
+    return () => {
+      window.clearInterval(timerId)
+    }
+  }, [isParent])
+
+  useEffect(() => {
+    if (!isParent || loading || error || !familyId) {
+      return
+    }
+
+    const dayKey = new Date().toISOString().slice(0, 10)
+    trackAnalyticsEvent(
+      'family_dashboard_viewed',
+      {
+        screen: 'home',
+        source: 'HomePage',
+        view: 'parent_dashboard',
+      },
+      { familyId, userId, userRole },
+      {
+        dedupe: true,
+        dedupeKey: `family_dashboard_viewed:${familyId}:${userId}:${dayKey}`,
+      },
+    )
+  }, [isParent, loading, error, familyId, userId, userRole])
+
+  useEffect(() => {
+    if (!isParent) {
+      return undefined
+    }
+
+    const timerId = window.setInterval(() => {
+      setNowMs(Date.now())
+    }, 60000)
+
+    return () => {
+      window.clearInterval(timerId)
+    }
+  }, [isParent])
 
   const childProfilesById = childProfiles.reduce((accumulator, child) => {
     accumulator[child.id] = child
@@ -151,7 +224,25 @@ export default function HomePage() {
     return new Date(now.getFullYear(), now.getMonth(), now.getDate())
   }
 
+  function startOfWeek(value = new Date()) {
+    const start = new Date(value)
+    const day = start.getDay()
+    const daysSinceMonday = (day + 6) % 7
+    start.setHours(0, 0, 0, 0)
+    start.setDate(start.getDate() - daysSinceMonday)
+    return start
+  }
+
+  function isWithinRange(value, start, end) {
+    return Boolean(value && value >= start && value < end)
+  }
+
   const todayStart = startOfToday()
+  const yesterdayStart = new Date(todayStart)
+  yesterdayStart.setDate(yesterdayStart.getDate() - 1)
+  const thisWeekStart = startOfWeek()
+  const lastWeekStart = new Date(thisWeekStart)
+  lastWeekStart.setDate(lastWeekStart.getDate() - 7)
 
   const childDailyEarnings = childProfiles.map((child) => {
     const earned = dashboard.jobs
@@ -192,9 +283,7 @@ export default function HomePage() {
   })
 
   const childSavedTotals = childProfiles.map((child) => {
-    const saved = dashboard.goals
-      .filter((goal) => goal.childId === child.id)
-      .reduce((sum, goal) => sum + Number(goal.saved || 0), 0)
+    const saved = Number(child.credits) || 0
 
     return {
       child,
@@ -202,13 +291,252 @@ export default function HomePage() {
     }
   })
 
+  const currentDayJobCompletions = dashboard.jobs.filter((job) => {
+    const completedAt = toDate(job.completedAt)
+    return job.status === 'done' && isWithinRange(completedAt, todayStart, new Date())
+  })
+
+  const previousDayJobCompletions = dashboard.jobs.filter((job) => {
+    const completedAt = toDate(job.completedAt)
+    return job.status === 'done' && isWithinRange(completedAt, yesterdayStart, todayStart)
+  })
+
+  const currentDayRewardApprovals = store.requests.filter((request) => {
+    const reviewedAt = toDate(request.reviewedAt || request.createdAt)
+    return request.status === 'approved' && isWithinRange(reviewedAt, todayStart, new Date())
+  })
+
+  const previousDayRewardApprovals = store.requests.filter((request) => {
+    const reviewedAt = toDate(request.reviewedAt || request.createdAt)
+    return request.status === 'approved' && isWithinRange(reviewedAt, yesterdayStart, todayStart)
+  })
+
+  const currentDayEarnedCredits = currentDayJobCompletions.reduce(
+    (sum, job) => sum + Number(job.points || 0),
+    0,
+  )
+  const previousDayEarnedCredits = previousDayJobCompletions.reduce(
+    (sum, job) => sum + Number(job.points || 0),
+    0,
+  )
+  const currentDaySpentCredits = currentDayRewardApprovals.reduce(
+    (sum, request) => sum + Number(request.cost || 0),
+    0,
+  )
+  const previousDaySpentCredits = previousDayRewardApprovals.reduce(
+    (sum, request) => sum + Number(request.cost || 0),
+    0,
+  )
+
+  const dailyTrendCards = [
+    {
+      label: 'Earned today',
+      value: `+${currentDayEarnedCredits}`,
+      helper: `${currentDayJobCompletions.length} completed jobs`,
+      delta: currentDayEarnedCredits - previousDayEarnedCredits,
+      tone: 'earn',
+    },
+    {
+      label: 'Spent today',
+      value: `-${currentDaySpentCredits}`,
+      helper: `${currentDayRewardApprovals.length} approved rewards`,
+      delta: currentDaySpentCredits - previousDaySpentCredits,
+      tone: 'spend',
+    },
+    {
+      label: 'Job completions',
+      value: String(currentDayJobCompletions.length),
+      helper: `${previousDayJobCompletions.length} yesterday`,
+      delta: currentDayJobCompletions.length - previousDayJobCompletions.length,
+      tone: 'save',
+    },
+    {
+      label: 'Reward approvals',
+      value: String(currentDayRewardApprovals.length),
+      helper: `${previousDayRewardApprovals.length} yesterday`,
+      delta: currentDayRewardApprovals.length - previousDayRewardApprovals.length,
+      tone: 'spend',
+    },
+  ]
+
+  const currentWeekJobCompletions = dashboard.jobs.filter((job) => {
+    const completedAt = toDate(job.completedAt)
+    return job.status === 'done' && isWithinRange(completedAt, thisWeekStart, new Date())
+  })
+
+  const previousWeekJobCompletions = dashboard.jobs.filter((job) => {
+    const completedAt = toDate(job.completedAt)
+    return job.status === 'done' && isWithinRange(completedAt, lastWeekStart, thisWeekStart)
+  })
+
+  const currentWeekRewardApprovals = store.requests.filter((request) => {
+    const reviewedAt = toDate(request.reviewedAt || request.createdAt)
+    return request.status === 'approved' && isWithinRange(reviewedAt, thisWeekStart, new Date())
+  })
+
+  const previousWeekRewardApprovals = store.requests.filter((request) => {
+    const reviewedAt = toDate(request.reviewedAt || request.createdAt)
+    return request.status === 'approved' && isWithinRange(reviewedAt, lastWeekStart, thisWeekStart)
+  })
+
+  const currentWeekEarnedCredits = currentWeekJobCompletions.reduce(
+    (sum, job) => sum + Number(job.points || 0),
+    0,
+  )
+  const previousWeekEarnedCredits = previousWeekJobCompletions.reduce(
+    (sum, job) => sum + Number(job.points || 0),
+    0,
+  )
+  const currentWeekSpentCredits = currentWeekRewardApprovals.reduce(
+    (sum, request) => sum + Number(request.cost || 0),
+    0,
+  )
+  const previousWeekSpentCredits = previousWeekRewardApprovals.reduce(
+    (sum, request) => sum + Number(request.cost || 0),
+    0,
+  )
+
+  const thisWeekConsequenceEvents = consequenceEvents.filter((event) => {
+    const createdAt = toDate(event.createdAt)
+    return isWithinRange(createdAt, thisWeekStart, new Date())
+  })
+
+  const lastWeekConsequenceEvents = consequenceEvents.filter((event) => {
+    const createdAt = toDate(event.createdAt)
+    return isWithinRange(createdAt, lastWeekStart, thisWeekStart)
+  })
+
+  const missedCounts = thisWeekConsequenceEvents
+    .filter((event) => event.type === 'job_missed')
+    .reduce((accumulator, event) => {
+      const key = event.jobTitle || 'Unknown job'
+      accumulator[key] = (accumulator[key] || 0) + 1
+      return accumulator
+    }, {})
+
+  const mostMissedJobs = Object.entries(missedCounts)
+    .map(([title, count]) => ({ title, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3)
+
+  const deniedChecksThisWeek = thisWeekConsequenceEvents.filter(
+    (event) => event.type === 'job_check_denied',
+  )
+  const deniedChecksLastWeek = lastWeekConsequenceEvents.filter(
+    (event) => event.type === 'job_check_denied',
+  )
+  const deniedPenaltyThisWeek = deniedChecksThisWeek.reduce(
+    (sum, event) => sum + Number(event.penaltyCredits || 0),
+    0,
+  )
+  const deniedPenaltyLastWeek = deniedChecksLastWeek.reduce(
+    (sum, event) => sum + Number(event.penaltyCredits || 0),
+    0,
+  )
+
+  const dynamicPressureRewards = (store.rewards || [])
+    .filter((reward) => reward?.pricingMeta?.dynamicPricingApplied)
+    .map((reward) => {
+      const baseCost = Number(reward.pricingMeta.baseCost || reward.baseCost || reward.cost || 0)
+      const adjustedCost = Number(reward.cost || 0)
+      const upliftPct = baseCost > 0
+        ? Math.round(((adjustedCost - baseCost) / baseCost) * 100)
+        : 0
+
+      return {
+        id: reward.id,
+        title: reward.title,
+        adjustedCost,
+        baseCost,
+        demandCount: Number(reward.pricingMeta.demandCount || 0),
+        upliftPct,
+      }
+    })
+    .sort((a, b) => {
+      if (b.upliftPct !== a.upliftPct) {
+        return b.upliftPct - a.upliftPct
+      }
+      return b.demandCount - a.demandCount
+    })
+    .slice(0, 3)
+
+  const reviewedChecks = jobChecks.filter((request) => {
+    const reviewedAt = toDate(request.reviewedAt)
+    return (request.status === 'approved' || request.status === 'denied')
+      && isWithinRange(reviewedAt, thisWeekStart, new Date())
+  })
+
+  const reviewDurationsHours = reviewedChecks
+    .map((request) => {
+      const createdAt = toDate(request.createdAt)
+      const reviewedAt = toDate(request.reviewedAt)
+
+      if (!createdAt || !reviewedAt) {
+        return null
+      }
+
+      const diffMs = reviewedAt.getTime() - createdAt.getTime()
+      if (diffMs < 0) {
+        return null
+      }
+
+      return diffMs / (1000 * 60 * 60)
+    })
+    .filter((value) => Number.isFinite(value))
+
+  const avgReviewHours = reviewDurationsHours.length > 0
+    ? reviewDurationsHours.reduce((sum, value) => sum + value, 0) / reviewDurationsHours.length
+    : null
+
+  const pendingChecks = jobChecks.filter((request) => request.status === 'pending')
+  const stalePendingChecks = pendingChecks.filter((request) => {
+    const createdAt = toDate(request.createdAt)
+    if (!createdAt) {
+      return false
+    }
+    const ageHours = (nowMs - createdAt.getTime()) / (1000 * 60 * 60)
+    return ageHours >= 24
+  })
+  const pendingRewardRequests = store.requests.filter((request) => request.status === 'pending')
+
+  const weeklyTrendCards = [
+    {
+      label: 'Earned this week',
+      value: `+${currentWeekEarnedCredits}`,
+      helper: `${currentWeekJobCompletions.length} completed jobs`,
+      delta: currentWeekEarnedCredits - previousWeekEarnedCredits,
+      tone: 'earn',
+    },
+    {
+      label: 'Spent this week',
+      value: `-${currentWeekSpentCredits}`,
+      helper: `${currentWeekRewardApprovals.length} approved rewards`,
+      delta: currentWeekSpentCredits - previousWeekSpentCredits,
+      tone: 'spend',
+    },
+    {
+      label: 'Job completions',
+      value: String(currentWeekJobCompletions.length),
+      helper: `${previousWeekJobCompletions.length} last week`,
+      delta: currentWeekJobCompletions.length - previousWeekJobCompletions.length,
+      tone: 'save',
+    },
+    {
+      label: 'Reward approvals',
+      value: String(currentWeekRewardApprovals.length),
+      helper: `${previousWeekRewardApprovals.length} last week`,
+      delta: currentWeekRewardApprovals.length - previousWeekRewardApprovals.length,
+      tone: 'spend',
+    },
+  ]
+
   const topEarner = childDailyEarnings
     .slice()
     .sort((a, b) => b.earned - a.earned)[0] || null
   const topSpender = childDailySpending
     .slice()
     .sort((a, b) => b.spent - a.spent)[0] || null
-  const topSaver = childSavedTotals
+  const topCreditsHolder = childSavedTotals
     .slice()
     .sort((a, b) => b.saved - a.saved)[0] || null
 
@@ -290,12 +618,32 @@ export default function HomePage() {
     return 'Unknown'
   }
 
+  const activeTrendCards = trendView === 'daily' ? dailyTrendCards : weeklyTrendCards
+  const trendHeading = trendView === 'daily' ? 'Daily Trends' : 'Weekly Trends'
+  const trendDescription = trendView === 'daily'
+    ? 'Compare today with yesterday to catch near-term changes.'
+    : 'Compare this week with the previous 7-day window.'
+  const trendDeltaLabel = trendView === 'daily' ? 'vs yesterday' : 'vs last week'
+
+  function formatHours(value) {
+    if (!Number.isFinite(value)) {
+      return 'n/a'
+    }
+
+    if (value >= 24) {
+      return `${(value / 24).toFixed(1)}d`
+    }
+
+    if (value >= 1) {
+      return `${value.toFixed(1)}h`
+    }
+
+    return `${Math.round(value * 60)}m`
+  }
+
   return (
     <>
-      <header className="status-row">
-        <span>9:41</span>
-        <span aria-hidden="true">...</span>
-      </header>
+      <TopStatusBar title="Home" />
       <main className="phone-content home-grid">
         {loading ? <p className="status-note">Loading dashboard...</p> : null}
         {error ? <p className="status-note status-error">{error}</p> : null}
@@ -313,11 +661,11 @@ export default function HomePage() {
                   <span>+{topEarner?.earned || 0} today</span>
                 </div>
                 <div className="family-score-card">
-                  <small>Top Saver</small>
+                  <small>Top Credits</small>
                   <strong>
-                    {topSaver ? `${topSaver.child.avatar} ${topSaver.child.displayName}` : 'No data'}
+                    {topCreditsHolder ? `${topCreditsHolder.child.avatar} ${topCreditsHolder.child.displayName}` : 'No data'}
                   </strong>
-                  <span>{topSaver?.saved || 0} saved</span>
+                  <span>{topCreditsHolder?.saved || 0} credits total</span>
                 </div>
                 <div className="family-score-card">
                   <small>Top Spender</small>
@@ -326,6 +674,116 @@ export default function HomePage() {
                   </strong>
                   <span>-{topSpender?.spent || 0} today</span>
                 </div>
+              </div>
+            </section>
+
+            <section className="panel home-col-full">
+              <div className="trend-panel-header">
+                <p className="panel-label">{trendHeading}</p>
+                <div className="trend-tabs" role="tablist" aria-label="Trend range">
+                  <button
+                    type="button"
+                    className={trendView === 'daily' ? 'trend-tab trend-tab-active' : 'trend-tab'}
+                    onClick={() => setTrendView('daily')}
+                    aria-pressed={trendView === 'daily'}
+                  >
+                    Daily
+                  </button>
+                  <button
+                    type="button"
+                    className={trendView === 'weekly' ? 'trend-tab trend-tab-active' : 'trend-tab'}
+                    onClick={() => setTrendView('weekly')}
+                    aria-pressed={trendView === 'weekly'}
+                  >
+                    Weekly
+                  </button>
+                </div>
+              </div>
+              <p className="panel-muted">{trendDescription}</p>
+              <div className="family-trend-grid">
+                {activeTrendCards.map((card) => (
+                  <div key={card.label} className="family-trend-card">
+                    <small>{card.label}</small>
+                    <strong>{card.value}</strong>
+                    <span>{card.helper}</span>
+                    <span
+                      className={
+                        card.delta > 0
+                          ? 'family-trend-delta family-trend-delta-up'
+                          : card.delta < 0
+                            ? 'family-trend-delta family-trend-delta-down'
+                            : 'family-trend-delta'
+                      }
+                    >
+                      {card.delta > 0 ? '+' : ''}{card.delta} {trendDeltaLabel}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="panel home-col-full">
+              <p className="panel-label">Deeper Family Insights</p>
+              <p className="panel-muted">Weekly pressure points and parent workload signals.</p>
+              <div className="family-insight-grid">
+                <article className="family-insight-card">
+                  <small>Most Missed Jobs (7d)</small>
+                  {mostMissedJobs.length === 0 ? (
+                    <p className="panel-muted">No missed-job events this week.</p>
+                  ) : (
+                    <ul className="family-insight-list">
+                      {mostMissedJobs.map((job) => (
+                        <li key={job.title}>
+                          <span>{job.title}</span>
+                          <strong>{job.count}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </article>
+
+                <article className="family-insight-card">
+                  <small>Denied Check Trend (7d)</small>
+                  <strong>{deniedChecksThisWeek.length} denied</strong>
+                  <span className="family-insight-note">
+                    {deniedChecksThisWeek.length - deniedChecksLastWeek.length >= 0 ? '+' : ''}
+                    {deniedChecksThisWeek.length - deniedChecksLastWeek.length} vs last week
+                  </span>
+                  <span className="family-insight-note">
+                    {deniedPenaltyThisWeek} credits penalized ({deniedPenaltyThisWeek - deniedPenaltyLastWeek >= 0 ? '+' : ''}
+                    {deniedPenaltyThisWeek - deniedPenaltyLastWeek} vs last week)
+                  </span>
+                </article>
+
+                <article className="family-insight-card">
+                  <small>Reward Demand Pressure</small>
+                  {dynamicPressureRewards.length === 0 ? (
+                    <p className="panel-muted">No dynamic-pricing uplifts active.</p>
+                  ) : (
+                    <ul className="family-insight-list">
+                      {dynamicPressureRewards.map((reward) => (
+                        <li key={reward.id}>
+                          <span>{reward.title}</span>
+                          <strong>+{reward.upliftPct}%</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </article>
+
+                <article className="family-insight-card">
+                  <small>Parent Review Throughput</small>
+                  <strong>{avgReviewHours === null ? 'No reviews yet' : `${formatHours(avgReviewHours)} avg`}</strong>
+                  <span className="family-insight-note">
+                    {reviewedChecks.length} checks reviewed this week
+                  </span>
+                  <span className="family-insight-note">
+                    {pendingChecks.length} pending checks ({stalePendingChecks.length} older than 24h)
+                  </span>
+                  <span className="family-insight-note">
+                    {pendingRewardRequests.length} pending reward requests
+                  </span>
+                </article>
               </div>
             </section>
 
@@ -343,7 +801,7 @@ export default function HomePage() {
                       <li key={child.id}>
                         <span className="mission-main">{child.avatar} {child.displayName}</span>
                         <span className="family-stat-pill family-stat-pill-earn">+{earn} earned today</span>
-                        <span className="family-stat-pill family-stat-pill-save">{save} saved total</span>
+                        <span className="family-stat-pill family-stat-pill-save">{save} credits total</span>
                         <span className="family-stat-pill family-stat-pill-spend">-{spend} spent today</span>
                       </li>
                     )

@@ -16,6 +16,7 @@ import {
   getFamilyFeedbackEntries,
   getFamilyStoreData,
   getHouseholdOnboardingData,
+  fulfillRewardRequest,
   markJobAsMissed,
   reviewJobCheckRequest,
   reviewRewardRequest,
@@ -86,6 +87,7 @@ export default function ProfilePage() {
     failedJobCheckPenaltyCredits: 0,
     maxActivePoolClaimsPerChild: 1,
     allowClaimingWithPendingChecks: false,
+    familyDashboardTopCardsEnabled: true,
     dynamicPricingEnabled: false,
     dynamicPricingWindowPeriod: 'week',
     dynamicPricingDemandWeight: 10,
@@ -93,6 +95,7 @@ export default function ProfilePage() {
   })
   const [childSessionSecurityEnabled, setChildSessionSecurityEnabled] = useState(false)
   const [activeDialog, setActiveDialog] = useState('')
+  const [requestsJumpTarget, setRequestsJumpTarget] = useState('')
   const [dialogBusy, setDialogBusy] = useState(false)
   const [jobs, setJobs] = useState([])
   const [jobCheckRequests, setJobCheckRequests] = useState([])
@@ -105,6 +108,7 @@ export default function ProfilePage() {
   const [auditReportChildId, setAuditReportChildId] = useState('all')
   const [auditReportType, setAuditReportType] = useState('all')
   const [jobTitle, setJobTitle] = useState('')
+  const [jobRewardType, setJobRewardType] = useState('credits')
   const [jobPoints, setJobPoints] = useState('50')
   const [jobLimitCount, setJobLimitCount] = useState('')
   const [jobLimitPeriod, setJobLimitPeriod] = useState('week')
@@ -143,6 +147,7 @@ export default function ProfilePage() {
   const [failedJobCheckPenaltyCredits, setFailedJobCheckPenaltyCredits] = useState('0')
   const [maxActivePoolClaimsPerChild, setMaxActivePoolClaimsPerChild] = useState('1')
   const [allowClaimingWithPendingChecks, setAllowClaimingWithPendingChecks] = useState(false)
+  const [familyDashboardTopCardsEnabled, setFamilyDashboardTopCardsEnabled] = useState(true)
   const [dynamicPricingWindowPeriod, setDynamicPricingWindowPeriod] = useState('week')
   const [dynamicPricingDemandWeight, setDynamicPricingDemandWeight] = useState('10')
   const [dynamicPricingScarcityWeight, setDynamicPricingScarcityWeight] = useState('20')
@@ -173,6 +178,11 @@ export default function ProfilePage() {
     return Number.isNaN(parsed.getTime()) ? null : parsed
   }
 
+  function formatJobReward(job) {
+    const amount = Number(job.points) || 0
+    return job.rewardType === 'xp' ? `+ ${amount} XP` : `+ ${amount} credits`
+  }
+
   function getWeekStart(value = new Date()) {
     const start = new Date(value)
     const day = start.getDay()
@@ -193,6 +203,22 @@ export default function ProfilePage() {
     }
 
     return date.toLocaleString()
+  }
+
+  function formatHours(value) {
+    if (!Number.isFinite(value)) {
+      return 'n/a'
+    }
+
+    if (value >= 24) {
+      return `${(value / 24).toFixed(1)}d`
+    }
+
+    if (value >= 1) {
+      return `${value.toFixed(1)}h`
+    }
+
+    return `${Math.round(value * 60)}m`
   }
 
   const missedPenaltyValue = Math.max(0, Number(missedJobPenaltyCredits) || 0)
@@ -321,6 +347,173 @@ export default function ProfilePage() {
     }))
     .sort((left, right) => right.count - left.count)
 
+  const mostMissedJobs = Object.entries(
+    thisWeekConsequenceEvents
+      .filter((entry) => entry.type === 'job_marked_missed' || entry.type === 'job_missed')
+      .reduce((accumulator, entry) => {
+        const key = entry.jobTitle || 'Unknown job'
+        accumulator[key] = (accumulator[key] || 0) + 1
+        return accumulator
+      }, {}),
+  )
+    .map(([title, count]) => ({ title, count }))
+    .sort((left, right) => right.count - left.count)
+    .slice(0, 3)
+
+  const deniedChecksThisWeek = thisWeekConsequenceEvents.filter(
+    (entry) => entry.type === 'job_check_denied',
+  )
+  const deniedChecksLastWeek = lastWeekConsequenceEvents.filter(
+    (entry) => entry.type === 'job_check_denied',
+  )
+  const deniedPenaltyThisWeek = deniedChecksThisWeek.reduce(
+    (sum, entry) => sum + Number(entry.penaltyCredits || 0),
+    0,
+  )
+  const deniedPenaltyLastWeek = deniedChecksLastWeek.reduce(
+    (sum, entry) => sum + Number(entry.penaltyCredits || 0),
+    0,
+  )
+
+  const dynamicPressureRewards = (rewards || [])
+    .filter((reward) => reward?.pricingMeta?.dynamicPricingApplied)
+    .map((reward) => {
+      const baseCost = Number(reward.pricingMeta.baseCost || reward.baseCost || reward.cost || 0)
+      const adjustedCost = Number(reward.cost || 0)
+      const upliftPct = baseCost > 0
+        ? Math.round(((adjustedCost - baseCost) / baseCost) * 100)
+        : 0
+
+      return {
+        id: reward.id,
+        title: reward.title,
+        demandCount: Number(reward.pricingMeta.demandCount || 0),
+        upliftPct,
+      }
+    })
+    .sort((left, right) => {
+      if (right.upliftPct !== left.upliftPct) {
+        return right.upliftPct - left.upliftPct
+      }
+      return right.demandCount - left.demandCount
+    })
+    .slice(0, 3)
+
+  const reviewedChecks = jobCheckRequests.filter((request) => {
+    const reviewedAt = toDateValue(request.reviewedAt)
+    return (request.status === 'approved' || request.status === 'denied')
+      && inRange(reviewedAt, thisWeekStart, now)
+  })
+
+  const reviewDurationsHours = reviewedChecks
+    .map((request) => {
+      const createdAt = toDateValue(request.createdAt)
+      const reviewedAt = toDateValue(request.reviewedAt)
+
+      if (!createdAt || !reviewedAt) {
+        return null
+      }
+
+      const diffMs = reviewedAt.getTime() - createdAt.getTime()
+      if (diffMs < 0) {
+        return null
+      }
+
+      return diffMs / (1000 * 60 * 60)
+    })
+    .filter((value) => Number.isFinite(value))
+
+  const avgReviewHours = reviewDurationsHours.length > 0
+    ? reviewDurationsHours.reduce((sum, value) => sum + value, 0) / reviewDurationsHours.length
+    : null
+
+  const pendingChecks = jobCheckRequests.filter((request) => request.status === 'pending')
+  const stalePendingChecks = pendingChecks.filter((request) => {
+    const createdAt = toDateValue(request.createdAt)
+    if (!createdAt) {
+      return false
+    }
+
+    const ageHours = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60)
+    return ageHours >= 24
+  })
+  const pendingRewardRequestsAnalytics = rewardRequests.filter((request) => request.status === 'pending')
+
+  const celebrationTimelineEvents = [
+    ...jobs
+      .filter((job) => job.status === 'done')
+      .map((job) => ({
+        id: `celebrate-job:${job.id || job.title}`,
+        type: 'job_done',
+        title: `${job.title || 'Job'} completed`,
+        icon: '✅',
+        childId: job.claimedBy || job.childId || '',
+        credits: job.rewardType === 'xp' ? 0 : (Number(job.points) || 0),
+        at: toDateValue(job.completedAt),
+      })),
+    ...rewardRequests
+      .filter((request) => request.status === 'approved' || request.status === 'fulfilled')
+      .map((request) => ({
+        id: `celebrate-reward:${request.id}`,
+        type: request.status === 'fulfilled' ? 'reward_fulfilled' : 'reward_approved',
+        title: `${request.rewardTitle || 'Reward'} ${request.status === 'fulfilled' ? 'fulfilled' : 'approved'}`,
+        icon: request.status === 'fulfilled' ? '📦' : '🎁',
+        childId: request.requestedBy || request.childId || '',
+        credits: Number(request.cost) || 0,
+        at: toDateValue(request.status === 'fulfilled' ? request.fulfilledAt : request.reviewedAt),
+      })),
+    ...goals
+      .filter((goal) => goal.status === 'ready_to_claim' || goal.status === 'completed')
+      .map((goal) => ({
+        id: `celebrate-goal:${goal.id || goal.name}`,
+        type: goal.status === 'completed' ? 'goal_completed' : 'goal_ready',
+        title: `${goal.rewardTitle || goal.name || 'Goal'} ${goal.status === 'completed' ? 'completed' : 'ready for claim'}`,
+        icon: goal.status === 'completed' ? '🏁' : '🎯',
+        childId: goal.childId || '',
+        credits: Number(goal.target) || 0,
+        at: toDateValue(goal.status === 'completed' ? goal.completedAt : goal.updatedAt),
+      })),
+  ]
+    .filter((entry) => entry.at)
+    .sort((left, right) => (right.at?.getTime() || 0) - (left.at?.getTime() || 0))
+
+  const recentCelebrationEvents = celebrationTimelineEvents.slice(0, 12)
+  const thisWeekCelebrationEvents = celebrationTimelineEvents.filter((entry) =>
+    inRange(entry.at, thisWeekStart, now),
+  )
+  const celebrationCounts = thisWeekCelebrationEvents.reduce((accumulator, entry) => {
+    accumulator[entry.type] = (accumulator[entry.type] || 0) + 1
+    return accumulator
+  }, {})
+
+  useEffect(() => {
+    if (activeDialog !== 'requests' || !requestsJumpTarget) {
+      return
+    }
+
+    const idByTarget = {
+      jobs: 'requests-section-jobs',
+      rewards: 'requests-section-rewards',
+      goals: 'requests-section-goals',
+    }
+
+    const sectionId = idByTarget[requestsJumpTarget]
+    if (!sectionId) {
+      return
+    }
+
+    const timerId = window.setTimeout(() => {
+      const section = document.getElementById(sectionId)
+      if (section) {
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    }, 80)
+
+    return () => {
+      window.clearTimeout(timerId)
+    }
+  }, [activeDialog, requestsJumpTarget, dialogBusy])
+
   const isParent = isAuthenticated && userRole === 'parent'
   const userEmailLower = String(userEmail || '').trim().toLowerCase()
   const familyCreatorOwnerEmail = String(familySummary.creatorOwnerEmail || '').trim().toLowerCase()
@@ -361,6 +554,7 @@ export default function ProfilePage() {
             failedJobCheckPenaltyCredits: Number(result.data.family?.failedJobCheckPenaltyCredits) || 0,
             maxActivePoolClaimsPerChild: Number(result.data.family?.maxActivePoolClaimsPerChild) || 1,
             allowClaimingWithPendingChecks: Boolean(result.data.family?.allowClaimingWithPendingChecks),
+            familyDashboardTopCardsEnabled: result.data.family?.familyDashboardTopCardsEnabled !== false,
             dynamicPricingEnabled: Boolean(result.data.family?.dynamicPricingEnabled),
             dynamicPricingWindowPeriod: result.data.family?.dynamicPricingWindowPeriod || 'week',
             dynamicPricingDemandWeight: Number(result.data.family?.dynamicPricingDemandWeight) || 10,
@@ -486,11 +680,13 @@ export default function ProfilePage() {
         }
 
         setRewardRequests(storeResult.data.requests || [])
+        setRewards(storeResult.data.rewards || [])
         setJobCheckRequests(checkResult.data.requests || [])
         setGoals(dashboardResult.data.goals || [])
         setConsequenceEvents(consequenceResult.data.events || [])
       } catch {
         if (!cancelled) {
+          setRewards([])
           setRewardRequests([])
           setJobCheckRequests([])
           setGoals([])
@@ -624,9 +820,10 @@ export default function ProfilePage() {
     setConsequenceEvents(consequenceResult.data.events || [])
   }
 
-  async function openDialog(dialog) {
+  async function openDialog(dialog, options = {}) {
     setActiveDialog(dialog)
     setError('')
+    setRequestsJumpTarget(dialog === 'requests' ? (options.requestsJumpTarget || '') : '')
 
     if (
       dialog === 'jobs'
@@ -661,11 +858,26 @@ export default function ProfilePage() {
       setFailedJobCheckPenaltyCredits(String(familySummary.failedJobCheckPenaltyCredits || 0))
       setMaxActivePoolClaimsPerChild(String(familySummary.maxActivePoolClaimsPerChild || 1))
       setAllowClaimingWithPendingChecks(Boolean(familySummary.allowClaimingWithPendingChecks))
+      setFamilyDashboardTopCardsEnabled(familySummary.familyDashboardTopCardsEnabled !== false)
       setDynamicPricingEnabled(Boolean(familySummary.dynamicPricingEnabled))
       setDynamicPricingWindowPeriod(familySummary.dynamicPricingWindowPeriod || 'week')
       setDynamicPricingDemandWeight(String(familySummary.dynamicPricingDemandWeight || 10))
       setDynamicPricingScarcityWeight(String(familySummary.dynamicPricingScarcityWeight || 20))
     }
+  }
+
+  async function handleCelebrationAction(entry) {
+    if (entry.type === 'job_done') {
+      await openDialog('jobs')
+      return
+    }
+
+    if (entry.type === 'reward_approved' || entry.type === 'reward_fulfilled') {
+      await openDialog('requests', { requestsJumpTarget: 'rewards' })
+      return
+    }
+
+    await openDialog('requests', { requestsJumpTarget: 'goals' })
   }
 
   function closeDialog() {
@@ -748,6 +960,7 @@ export default function ProfilePage() {
     try {
       const payload = {
         title: jobTitle,
+        rewardType: jobRewardType,
         points: Number(jobPoints) || 0,
         childId: jobScopeChildId || null,
         claimLimitCount: Number(jobLimitCount) || 0,
@@ -766,6 +979,7 @@ export default function ProfilePage() {
 
       setEditingJobId('')
       setJobTitle('')
+      setJobRewardType('credits')
       setJobPoints('50')
       setJobLimitCount('')
       setJobLimitPeriod('week')
@@ -864,6 +1078,7 @@ export default function ProfilePage() {
           failedJobCheckPenaltyCredits: Number(failedJobCheckPenaltyCredits) || 0,
           maxActivePoolClaimsPerChild: Number(maxActivePoolClaimsPerChild) || 1,
           allowClaimingWithPendingChecks,
+          familyDashboardTopCardsEnabled,
           dynamicPricingEnabled,
           dynamicPricingWindowPeriod,
           dynamicPricingDemandWeight: Number(dynamicPricingDemandWeight) || 0,
@@ -885,6 +1100,7 @@ export default function ProfilePage() {
         failedJobCheckPenaltyCredits: Number(failedJobCheckPenaltyCredits) || 0,
         maxActivePoolClaimsPerChild: Number(maxActivePoolClaimsPerChild) || 1,
         allowClaimingWithPendingChecks,
+        familyDashboardTopCardsEnabled,
         dynamicPricingEnabled,
         dynamicPricingWindowPeriod,
         dynamicPricingDemandWeight: Number(dynamicPricingDemandWeight) || 0,
@@ -955,6 +1171,22 @@ export default function ProfilePage() {
       counterRewardTitle: nextTitle,
       counterCost: nextCost,
     })
+  }
+
+  async function handleFulfillRewardRequest(requestId) {
+    setDialogBusy(true)
+    setReviewingRequestId(`reward-fulfill:${requestId}`)
+    setError('')
+
+    try {
+      await fulfillRewardRequest(requestId, { familyId, userId, userRole })
+      await loadDialogData()
+    } catch (caughtError) {
+      setError(caughtError.message || 'Could not mark reward as fulfilled.')
+    } finally {
+      setReviewingRequestId('')
+      setDialogBusy(false)
+    }
   }
 
   async function handleApproveGoalCompletion(goalId) {
@@ -1158,6 +1390,7 @@ export default function ProfilePage() {
   function startEditJob(job) {
     setEditingJobId(job.id)
     setJobTitle(job.title || '')
+    setJobRewardType(job.rewardType === 'xp' ? 'xp' : 'credits')
     setJobPoints(String(job.points || 0))
     setJobScopeChildId(job.childId || '')
     setJobLimitCount(job.claimLimitCount > 0 ? String(job.claimLimitCount) : '')
@@ -1201,6 +1434,7 @@ export default function ProfilePage() {
   function cancelEditJob() {
     setEditingJobId('')
     setJobTitle('')
+    setJobRewardType('credits')
     setJobPoints('50')
     setJobScopeChildId('')
     setJobLimitCount('')
@@ -1226,12 +1460,48 @@ export default function ProfilePage() {
   const pendingJobCheckRequests = jobCheckRequests.filter((request) => request.status === 'pending')
   const pendingRewardRequests = rewardRequests.filter((request) => request.status === 'pending')
   const counteredRewardRequests = rewardRequests.filter((request) => request.status === 'countered')
+  const approvedRewardRequests = rewardRequests.filter(
+    (request) => request.status === 'approved' && request.requestKind === 'purchase',
+  )
+  const rewardDemandRows = Object.entries(
+    approvedRewardRequests.reduce((accumulator, request) => {
+      const title = request.rewardTitle || 'Unknown reward'
+      const claimantId = request.requestedBy || request.childId || 'unknown'
+
+      if (!accumulator[title]) {
+        accumulator[title] = {
+          count: 0,
+          claimantCounts: {},
+        }
+      }
+
+      accumulator[title].count += 1
+      accumulator[title].claimantCounts[claimantId] = (accumulator[title].claimantCounts[claimantId] || 0) + 1
+      return accumulator
+    }, {}),
+  )
+    .map(([title, aggregate]) => {
+      const topClaimant = Object.entries(aggregate.claimantCounts)
+        .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))[0] || []
+
+      return {
+        title,
+        count: aggregate.count,
+        claimantId: topClaimant[0] || '',
+        claimantCount: topClaimant[1] || 0,
+        claimantLabel: childNameById[topClaimant[0]] || 'Family',
+        claimantTotal: Object.keys(aggregate.claimantCounts).length,
+      }
+    })
+    .sort((left, right) => right.count - left.count || left.title.localeCompare(right.title))
+    .slice(0, 5)
   const pendingGoalRequests = goals.filter((goal) => goal.status === 'pending_parent_approval')
   const pendingGoalApprovals = goals.filter((goal) => goal.status === 'ready_to_claim')
   const pendingRequestsCount =
     pendingJobCheckRequests.length
     + pendingRewardRequests.length
     + counteredRewardRequests.length
+    + approvedRewardRequests.length
     + pendingGoalRequests.length
     + pendingGoalApprovals.length
 
@@ -1706,6 +1976,23 @@ export default function ProfilePage() {
                   </section>
 
                   <section className="dialog-section">
+                    <p className="dialog-section-title">Family Dashboard</p>
+                    <p className="dialog-section-subtitle">Choose whether kids see competitive Top cards.</p>
+                    <label className="form-field">
+                      <span className="form-label">Show Top Earner/Spender cards</span>
+                      <select
+                        className="job-input"
+                        value={familyDashboardTopCardsEnabled ? 'on' : 'off'}
+                        onChange={(event) => setFamilyDashboardTopCardsEnabled(event.target.value === 'on')}
+                      >
+                        <option value="on">On (competitive mode)</option>
+                        <option value="off">Off (simplified mode)</option>
+                      </select>
+                      <p className="form-help">Helpful for multi-child competition; often unnecessary for single-child homes.</p>
+                    </label>
+                  </section>
+
+                  <section className="dialog-section">
                     <p className="dialog-section-title">Dynamic Pricing</p>
                     <p className="dialog-section-subtitle">Tune demand and scarcity for reward costs.</p>
                     <details className="dialog-subsection" open>
@@ -1779,7 +2066,14 @@ export default function ProfilePage() {
 
               {activeDialog === 'requests' ? (
                 <div className="dialog-content">
-                  <section className="dialog-section">
+                  <section
+                    id="requests-section-jobs"
+                    className={
+                      requestsJumpTarget === 'jobs'
+                        ? 'dialog-section dialog-section-focus'
+                        : 'dialog-section'
+                    }
+                  >
                     <p className="dialog-section-title">Job Check Requests</p>
                     {pendingJobCheckRequests.length === 0 ? (
                       <p className="panel-muted">No pending job check requests.</p>
@@ -1820,7 +2114,14 @@ export default function ProfilePage() {
                     )}
                   </section>
 
-                  <section className="dialog-section">
+                  <section
+                    id="requests-section-rewards"
+                    className={
+                      requestsJumpTarget === 'rewards'
+                        ? 'dialog-section dialog-section-focus'
+                        : 'dialog-section'
+                    }
+                  >
                     <p className="dialog-section-title">Reward Requests</p>
                     {pendingRewardRequests.length === 0 && counteredRewardRequests.length === 0 ? (
                       <p className="panel-muted">No pending reward requests.</p>
@@ -1958,6 +2259,49 @@ export default function ProfilePage() {
                   </section>
 
                   <section className="dialog-section">
+                    <p className="dialog-section-title">Approved Rewards Awaiting Fulfillment</p>
+                    {approvedRewardRequests.length === 0 ? (
+                      <p className="panel-muted">No approved rewards waiting for fulfillment.</p>
+                    ) : (
+                      <ul className="mission-list">
+                        {approvedRewardRequests.map((request) => {
+                          const requestChild = childProfiles.find(
+                            (profile) => profile.id === request.requestedBy,
+                          )
+                          const childName = requestChild
+                            ? `${requestChild.avatar} ${requestChild.displayName}`
+                            : 'Child'
+
+                          return (
+                            <li key={`reward-approved:${request.id}`}>
+                              <span className="mission-main">{request.rewardTitle} ({childName})</span>
+                              <span className="mission-reward">{request.cost}</span>
+                              {request.parentNote ? (
+                                <span className="job-status-label">Parent note: {request.parentNote}</span>
+                              ) : null}
+                              <button
+                                type="button"
+                                className="claim-button"
+                                disabled={dialogBusy || reviewingRequestId === `reward-fulfill:${request.id}`}
+                                onClick={() => handleFulfillRewardRequest(request.id)}
+                              >
+                                {reviewingRequestId === `reward-fulfill:${request.id}` ? 'Saving...' : 'Mark Fulfilled'}
+                              </button>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                  </section>
+
+                  <section
+                    id="requests-section-goals"
+                    className={
+                      requestsJumpTarget === 'goals'
+                        ? 'dialog-section dialog-section-focus'
+                        : 'dialog-section'
+                    }
+                  >
                     <p className="dialog-section-title">Child Requested Reward Goals</p>
                     <p className="dialog-section-subtitle">Includes new reward-goal requests and goals ready to claim.</p>
                     {pendingGoalRequests.length + pendingGoalApprovals.length === 0 ? (
@@ -2101,11 +2445,22 @@ export default function ProfilePage() {
                       onChange={(event) => setJobTitle(event.target.value)}
                       required
                     />
+                    <label className="form-field">
+                      <span className="form-label">Reward type</span>
+                      <select
+                        className="job-input"
+                        value={jobRewardType}
+                        onChange={(event) => setJobRewardType(event.target.value)}
+                      >
+                        <option value="credits">Credits</option>
+                        <option value="xp">XP</option>
+                      </select>
+                    </label>
                     <input
                       className="job-input"
                       type="number"
                       min="1"
-                      placeholder="Points"
+                      placeholder={jobRewardType === 'xp' ? 'XP amount' : 'Credits amount'}
                       value={jobPoints}
                       onChange={(event) => setJobPoints(event.target.value)}
                       required
@@ -2213,7 +2568,7 @@ export default function ProfilePage() {
                       .map((job) => (
                       <li key={job.id || job.title}>
                         <span className="mission-main">{job.title}</span>
-                        <span className="mission-reward">+ {job.points}</span>
+                        <span className="mission-reward">{formatJobReward(job)}</span>
                         <span className="job-status-label">{job.status || 'open'}</span>
                         <span className="job-status-label">
                           {job.autoRecreate ? 'Recurring' : 'One-time'}
@@ -2495,6 +2850,139 @@ export default function ProfilePage() {
                           Denied checks: {thisWeekDeniedCount} ({thisWeekDeniedCount - lastWeekDeniedCount >= 0 ? '+' : ''}
                           {thisWeekDeniedCount - lastWeekDeniedCount} vs last week)
                         </p>
+                      </div>
+                    </details>
+
+                    <details className="dialog-subsection" open>
+                      <summary className="dialog-subsection-summary">Deeper Family Insights</summary>
+                      <div className="dialog-subsection-body">
+                        <div className="family-insight-grid">
+                          <article className="family-insight-card">
+                            <small>Most Missed Jobs (7d)</small>
+                            {mostMissedJobs.length === 0 ? (
+                              <p className="panel-muted">No missed-job events this week.</p>
+                            ) : (
+                              <ul className="family-insight-list">
+                                {mostMissedJobs.map((job) => (
+                                  <li key={job.title}>
+                                    <span>{job.title}</span>
+                                    <strong>{job.count}</strong>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </article>
+
+                          <article className="family-insight-card">
+                            <small>Denied Check Trend (7d)</small>
+                            <strong>{deniedChecksThisWeek.length} denied</strong>
+                            <span className="family-insight-note">
+                              {deniedChecksThisWeek.length - deniedChecksLastWeek.length >= 0 ? '+' : ''}
+                              {deniedChecksThisWeek.length - deniedChecksLastWeek.length} vs last week
+                            </span>
+                            <span className="family-insight-note">
+                              {deniedPenaltyThisWeek} credits penalized ({deniedPenaltyThisWeek - deniedPenaltyLastWeek >= 0 ? '+' : ''}
+                              {deniedPenaltyThisWeek - deniedPenaltyLastWeek} vs last week)
+                            </span>
+                          </article>
+
+                          <article className="family-insight-card">
+                            <small>Reward Demand Pressure</small>
+                            {dynamicPressureRewards.length === 0 ? (
+                              <p className="panel-muted">No dynamic-pricing uplifts active.</p>
+                            ) : (
+                              <ul className="family-insight-list">
+                                {dynamicPressureRewards.map((reward) => (
+                                  <li key={reward.id}>
+                                    <span>{reward.title}</span>
+                                    <strong>+{reward.upliftPct}%</strong>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </article>
+
+                          <article className="family-insight-card">
+                            <small>Parent Review Throughput</small>
+                            <strong>{avgReviewHours === null ? 'No reviews yet' : `${formatHours(avgReviewHours)} avg`}</strong>
+                            <span className="family-insight-note">
+                              {reviewedChecks.length} checks reviewed this week
+                            </span>
+                            <span className="family-insight-note">
+                              {pendingChecks.length} pending checks ({stalePendingChecks.length} older than 24h)
+                            </span>
+                            <span className="family-insight-note">
+                              {pendingRewardRequestsAnalytics.length} pending reward requests
+                            </span>
+                          </article>
+                        </div>
+                      </div>
+                    </details>
+
+                    <details className="dialog-subsection" open>
+                      <summary className="dialog-subsection-summary">Reward Demand Patterns</summary>
+                      <div className="dialog-subsection-body">
+                        <p className="panel-muted">
+                          Rewards that get claimed most often, plus the child who claims each one the most.
+                        </p>
+                        {rewardDemandRows.length === 0 ? (
+                          <p className="panel-muted">No approved reward purchases yet.</p>
+                        ) : (
+                          <ul className="mission-list">
+                            {rewardDemandRows.map((reward) => (
+                              <li key={`reward-demand:${reward.title}`}>
+                                <span className="mission-main">🎁 {reward.title}</span>
+                                <span className="mission-reward">{reward.count} claims</span>
+                                <span className="job-status-label">
+                                  Top claimant: {reward.claimantLabel}
+                                </span>
+                                <span className="job-status-label">
+                                  {reward.claimantCount}x | {reward.claimantTotal} kids
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </details>
+
+                    <details className="dialog-subsection" open>
+                      <summary className="dialog-subsection-summary">Celebration Timeline</summary>
+                      <div className="dialog-subsection-body">
+                        <p className="panel-muted">
+                          This week: {thisWeekCelebrationEvents.length} celebration moments.
+                        </p>
+                        <div className="limit-chip-row">
+                          <span className="limit-chip">Jobs done: {celebrationCounts.job_done || 0}</span>
+                          <span className="limit-chip">Rewards approved: {celebrationCounts.reward_approved || 0}</span>
+                          <span className="limit-chip">Rewards fulfilled: {celebrationCounts.reward_fulfilled || 0}</span>
+                          <span className="limit-chip">Goals completed: {celebrationCounts.goal_completed || 0}</span>
+                        </div>
+                        {recentCelebrationEvents.length === 0 ? (
+                          <p className="panel-muted">No celebration events yet.</p>
+                        ) : (
+                          <ul className="profile-list">
+                            {recentCelebrationEvents.map((entry) => (
+                              <li key={entry.id} className="profile-list-item">
+                                <span className="mission-main">{entry.icon} {entry.title}</span>
+                                <span className="job-status-label">
+                                  {childNameById[entry.childId] || 'Family'} | {entry.credits > 0 ? `${entry.type.includes('reward') ? '-' : '+'}${entry.credits}` : 'No credit change'} | {formatDateTime(entry.at)}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="text-button"
+                                  onClick={() => handleCelebrationAction(entry)}
+                                >
+                                  {entry.type === 'job_done'
+                                    ? 'Open Jobs'
+                                    : entry.type === 'reward_approved' || entry.type === 'reward_fulfilled'
+                                      ? 'Open Rewards Queue'
+                                      : 'Open Savings Queue'}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                     </details>
 

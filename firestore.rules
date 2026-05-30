@@ -72,6 +72,7 @@ service cloud.firestore {
           && request.resource.data.claimedBy == request.auth.uid
           && request.resource.data.createdBy == resource.data.createdBy
           && request.resource.data.title == resource.data.title
+          && request.resource.data.rewardType == resource.data.rewardType
           && request.resource.data.points == resource.data.points
           && request.resource.data.icon == resource.data.icon;
       }

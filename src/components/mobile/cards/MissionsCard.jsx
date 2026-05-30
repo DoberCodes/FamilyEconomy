@@ -5,6 +5,11 @@ export default function MissionsCard({
   onClaimJob,
   claimingJobId,
 }) {
+  function formatJobReward(job) {
+    const amount = Number(job.points) || 0
+    return job.rewardType === 'xp' ? `+ ${amount} XP` : `+ ${amount}`
+  }
+
   function statusLabel(job) {
     if (job.status === 'done') {
       return 'Done'
@@ -35,7 +40,7 @@ export default function MissionsCard({
                 <em aria-hidden="true">{job.icon}</em>
                 {job.title}
               </span>
-              <span className="mission-reward">+ {job.points}</span>
+              <span className="mission-reward">{formatJobReward(job)}</span>
               {userRole === 'kid' && job.status === 'open' && onClaimJob ? (
                 <button
                   type="button"

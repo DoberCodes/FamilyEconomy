@@ -15,9 +15,25 @@ Minimal React app scaffolded with Vite.
 - `npm run dev` starts the local dev server
 - `npm run lint` runs ESLint
 - `npm run build` creates a production build
+- `npm run build:github-pages` creates a GitHub Pages-compatible build
 - `npm run preview` serves the production build locally
 - `npm run test:rules` runs Firestore security rules tests in emulator
 - `npm test` runs the same rules suite
+
+## GitHub Pages Deployment
+
+This repo includes [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml) to deploy automatically on every push to `main`.
+
+Use these repository settings:
+
+1. Go to GitHub repository Settings > Pages.
+2. Under Build and deployment, set Source to `GitHub Actions`.
+3. Keep your default branch as `main` (no extra deploy branch needed).
+
+Notes:
+
+- The workflow builds with `VITE_BASE_PATH=/FamilyEconomy/` for project-page hosting.
+- It also enables hash routing for Pages so refresh and direct links keep working.
 
 ## Firebase Setup
 

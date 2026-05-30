@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 
 import PhoneFrame from './components/mobile/PhoneFrame'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -150,8 +150,10 @@ function MobileAppRoutes() {
 }
 
 function App() {
+  const Router = import.meta.env.VITE_USE_HASH_ROUTER === 'true' ? HashRouter : BrowserRouter
+
   return (
-    <BrowserRouter>
+    <Router>
       <AuthProvider>
         <UiThemeSync />
         <PhoneFrame>
@@ -161,7 +163,7 @@ function App() {
           </Routes>
         </PhoneFrame>
       </AuthProvider>
-    </BrowserRouter>
+    </Router>
   )
 }
 

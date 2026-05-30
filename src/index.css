@@ -825,6 +825,68 @@ body.theme-playful .child-tile {
   font-size: 0.95rem;
 }
 
+.activity-feed-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.activity-feed-item {
+  border: 1px solid #dbe4f2;
+  border-radius: 13px;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+  padding: 0.8rem 0.85rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.activity-feed-top {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.activity-feed-icon {
+  font-size: 1rem;
+  line-height: 1;
+  flex: 0 0 auto;
+  margin-top: 0.08rem;
+}
+
+.activity-feed-bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.activity-feed-item .activity-pill {
+  margin-top: 0.05rem;
+}
+
+.activity-feed-item .mission-main {
+  line-height: 1.25;
+}
+
+.activity-feed-title {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.activity-feed-title .activity-feed-icon {
+  margin-top: 0;
+}
+
+.activity-feed-item .family-badge {
+  margin-left: 0;
+}
+
+.activity-feed-meta .job-status-label {
+  font-size: 0.76rem;
+}
+
 .mission-main {
   display: flex;
   align-items: center;
@@ -849,6 +911,54 @@ body.theme-playful .child-tile {
   font-size: 0.74rem;
   color: #6f7f98;
   font-weight: 700;
+}
+
+.activity-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  min-height: 24px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.69rem;
+  font-weight: 800;
+  border: 1px solid transparent;
+}
+
+.activity-pill-milestone {
+  color: #17583e;
+  border-color: #a2d7bc;
+  background: #e8f8ee;
+}
+
+.activity-pill-delivered {
+  color: #1f5da5;
+  border-color: #bad4f2;
+  background: #eaf4ff;
+}
+
+.activity-pill-approved {
+  color: #7a5b00;
+  border-color: #edd289;
+  background: #fff7de;
+}
+
+.activity-pill-progress {
+  color: #6a4a0d;
+  border-color: #edc875;
+  background: #fff3d4;
+}
+
+.activity-pill-win {
+  color: #1f5d38;
+  border-color: #b9dfca;
+  background: #ecf9f2;
+}
+
+.activity-pill-default {
+  color: #445c80;
+  border-color: #ced9ea;
+  background: #f1f5fb;
 }
 
 .claim-button {
@@ -1374,6 +1484,11 @@ body.theme-playful .child-tile {
   gap: 0.55rem;
 }
 
+.dialog-section-focus {
+  border-color: #9cc3f7;
+  box-shadow: 0 0 0 2px rgba(93, 147, 225, 0.18);
+}
+
 .dialog-section-title {
   margin: 0;
   font-size: 0.94rem;
@@ -1660,23 +1775,71 @@ body.theme-playful .child-tile {
   margin: 0.5rem 0 0;
   padding: 0;
   display: grid;
-  gap: 0.45rem;
+  gap: 0.6rem;
 }
 
 .family-grid-list li {
   border: 1px solid #dbe4f2;
   border-radius: 12px;
   background: #ffffff;
-  padding: 0.5rem;
+  padding: 0.75rem;
   display: grid;
   grid-template-columns: 1fr auto auto auto;
   gap: 0.35rem;
   align-items: center;
 }
 
+.family-kid-row {
+  grid-template-columns: 1fr;
+  gap: 0.65rem;
+  padding: 0.8rem;
+}
+
+.family-kid-row-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.45rem;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.family-kid-row-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.family-kid-row-goals {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.6rem;
+}
+
+.family-kid-goal-card {
+  border: 1px solid #dbe4f2;
+  border-radius: 11px;
+  background: linear-gradient(180deg, #ffffff, #f7fbff);
+  padding: 0.6rem;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.family-kid-goal-card small {
+  font-size: 0.69rem;
+  color: #5f6f89;
+  font-weight: 700;
+}
+
+.family-kid-goal-card strong {
+  font-size: 0.83rem;
+  color: #1f3658;
+}
+
 .family-stat-pill {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  width: 100%;
   border-radius: 999px;
   padding: 0.15rem 0.5rem;
   font-size: 0.72rem;
@@ -1707,18 +1870,43 @@ body.theme-playful .child-tile {
   margin: 0.5rem 0 0;
   padding: 0;
   display: grid;
-  gap: 0.45rem;
+  gap: 0.6rem;
 }
 
 .family-job-item {
   border: 1px solid #dbe4f2;
   border-radius: 12px;
   background: #fff;
-  padding: 0.5rem;
+  padding: 0.75rem;
   display: grid;
-  grid-template-columns: 1fr auto auto auto;
-  gap: 0.4rem;
+  gap: 0.55rem;
+}
+
+.family-job-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
   align-items: center;
+}
+
+.family-job-bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.family-job-checkbox {
+  display: inline-grid;
+  place-items: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 0.35rem;
+  background: #edf5ff;
+  border: 1px solid #bbd5f6;
+  font-size: 0.78rem;
+  line-height: 1;
+  flex: 0 0 auto;
 }
 
 .family-status-pill {
@@ -1756,7 +1944,7 @@ body.theme-playful .child-tile {
   gap: 0.25rem;
   margin-left: 0.3rem;
   padding: 0.1rem 0.45rem;
-  border-radius: 999px;
+  border-radius: 12px;
   border: 1px solid #c6d5ec;
   background: #eef4ff;
   color: #3f5a84;
@@ -1863,6 +2051,37 @@ body.theme-playful .child-tile {
     grid-template-columns: 1fr auto;
     align-items: center;
   }
+
+  .mission-list li {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .profile-list-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .activity-feed-top {
+    justify-content: flex-start;
+  }
+
+  .family-kid-row-header {
+    flex-wrap: nowrap;
+  }
+
+  .family-kid-row-header .family-stat-pill-save {
+    flex: 0 0 auto;
+    width: auto;
+  }
+
+  .family-kid-row-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .activity-feed-bottom .job-status-label {
+    width: auto;
+  }
 }
 
 @media (max-width: 900px) {
@@ -1947,7 +2166,15 @@ body.theme-playful .child-tile {
     grid-template-columns: 1fr;
   }
 
-  .family-job-item {
+  .family-kid-row-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .family-kid-row-stats .family-stat-pill {
+    width: 100%;
+  }
+
+  .family-kid-row-goals {
     grid-template-columns: 1fr;
   }
 

@@ -83,6 +83,12 @@ function normalizeFamilyJobFlowSettings(familyData = {}) {
   }
 }
 
+function normalizeFamilyDashboardSettings(familyData = {}) {
+  return {
+    familyDashboardTopCardsEnabled: familyData.familyDashboardTopCardsEnabled !== false,
+  }
+}
+
 function normalizeConsequenceEvent(event, fallbackId) {
   return {
     id: event.id || fallbackId,
@@ -225,6 +231,7 @@ export function getActiveFamilyContext(override = {}) {
 
 function normalizeJob(job) {
   const missedAfterHoursRaw = Number(job.missedAfterHours)
+  const rewardType = job.rewardType === 'xp' ? 'xp' : 'credits'
 
   return {
     id: job.id,
@@ -232,6 +239,7 @@ function normalizeJob(job) {
     order: Number(job.order) || 0,
     icon: job.icon || '✅',
     title: job.title || job.name || 'Untitled job',
+    rewardType,
     points: Number(job.points ?? job.reward) || 0,
     status: job.status || (job.done ? 'done' : 'open'),
     claimedBy: job.claimedBy || null,
@@ -311,6 +319,7 @@ function normalizeGoal(goal, fallbackId) {
     completedAt: goal.completedAt || null,
     approvedAt: goal.approvedAt || null,
     approvedBy: goal.approvedBy || null,
+    updatedAt: goal.updatedAt || null,
   }
 }
 
@@ -358,7 +367,7 @@ function calculateRewardAdjustedCost(reward, rewardRequests, pricingSettings) {
   const windowStart = startOfCurrentWindow(pricingSettings.dynamicPricingWindowPeriod)
   const demandCount = rewardRequests
     .filter((item) => item.rewardId === reward.id)
-    .filter((item) => item.status === 'pending' || item.status === 'approved')
+    .filter((item) => item.status === 'pending' || item.status === 'approved' || item.status === 'fulfilled')
     .filter((item) => {
       const createdAt = item.createdAt?.toDate?.() || null
       if (!windowStart || !createdAt) {
@@ -560,6 +569,8 @@ function normalizeRewardRequest(request, fallbackId) {
     counterRewardTitle: request.counterRewardTitle || '',
     counterCost: Number(request.counterCost) || 0,
     childRespondedAt: request.childRespondedAt || null,
+    fulfilledAt: request.fulfilledAt || null,
+    fulfilledBy: request.fulfilledBy || null,
     reviewedBy: request.reviewedBy || null,
     createdAt: request.createdAt || null,
     reviewedAt: request.reviewedAt || null,
@@ -586,6 +597,7 @@ function normalizeJobCheckRequest(request, fallbackId) {
     jobId: request.jobId || null,
     childId: request.childId || null,
     jobTitle: request.jobTitle || 'Unknown job',
+    rewardType: request.rewardType === 'xp' ? 'xp' : 'credits',
     points: Number(request.points) || 0,
     requestedBy: request.requestedBy || null,
     status: request.status || 'pending',
@@ -720,6 +732,7 @@ export async function createJob(jobPayload, context = {}) {
   }
 
   const points = Number(jobPayload.points) || 0
+  const rewardType = jobPayload.rewardType === 'xp' ? 'xp' : 'credits'
   const claimLimitCount = Number(jobPayload.claimLimitCount) || 0
   const claimLimitPeriod =
     jobPayload.claimLimitPeriod === 'day' || jobPayload.claimLimitPeriod === 'week'
@@ -740,6 +753,7 @@ export async function createJob(jobPayload, context = {}) {
 
   const jobRef = await addDoc(collection(db, 'families', targetFamilyId, 'jobs'), {
     title,
+    rewardType,
     points,
     icon: jobPayload.icon || '✅',
     childId: jobPayload.childId || null,
@@ -806,6 +820,7 @@ export async function updateJob(jobId, jobPayload, context = {}) {
   }
 
   const points = Number(jobPayload.points) || 0
+  const rewardType = jobPayload.rewardType === 'xp' ? 'xp' : 'credits'
   const claimLimitCount = Number(jobPayload.claimLimitCount) || 0
   const claimLimitPeriod =
     jobPayload.claimLimitPeriod === 'day' || jobPayload.claimLimitPeriod === 'week'
@@ -826,6 +841,7 @@ export async function updateJob(jobId, jobPayload, context = {}) {
 
   await updateDoc(doc(db, 'families', activeFamilyId, 'jobs', jobId), {
     title,
+    rewardType,
     points,
     childId: jobPayload.childId || null,
     claimLimitCount,
@@ -1057,6 +1073,7 @@ export async function requestJobCheck(job, context = {}) {
       jobId: job.id,
       childId: userId,
       jobTitle: jobData.title,
+      rewardType: jobData.rewardType,
       points: Number(jobData.points) || 0,
       requestedBy: userId,
       status: 'pending',
@@ -1255,11 +1272,13 @@ export async function reviewJobCheckRequest(requestId, decision, context = {}) {
       completedAt: serverTimestamp(),
     })
 
-    const childRef = doc(db, 'families', activeFamilyId, 'children', requestData.childId)
-    await updateDoc(childRef, {
-      credits: increment(Number(requestData.points) || 0),
-      updatedAt: serverTimestamp(),
-    })
+    if (requestData.rewardType !== 'xp') {
+      const childRef = doc(db, 'families', activeFamilyId, 'children', requestData.childId)
+      await updateDoc(childRef, {
+        credits: increment(Number(requestData.points) || 0),
+        updatedAt: serverTimestamp(),
+      })
+    }
 
     await awardFamilyXp(activeFamilyId, Number(requestData.points) || 0)
     await maybeAwardWeeklyStreakBonus(activeFamilyId, requestData.childId, {
@@ -1272,6 +1291,7 @@ export async function reviewJobCheckRequest(requestId, decision, context = {}) {
     if (approvedJob?.autoRecreate) {
       await addDoc(collection(db, 'families', activeFamilyId, 'jobs'), {
         title: approvedJob.title,
+        rewardType: approvedJob.rewardType === 'xp' ? 'xp' : 'credits',
         points: Number(approvedJob.points) || 0,
         icon: approvedJob.icon || '✅',
         childId: approvedJob.childId || null,
@@ -1504,7 +1524,7 @@ export async function getFamilyStoreData(context = {}) {
 
   allRequests
     .filter((request) => request.requestKind === 'purchase')
-    .filter((request) => request.status === 'pending' || request.status === 'approved')
+    .filter((request) => request.status === 'pending' || request.status === 'approved' || request.status === 'fulfilled')
     .forEach((request) => {
       const rewardId = request.rewardId
       if (!rewardId) {
@@ -1643,7 +1663,7 @@ export async function requestReward(reward, context = {}) {
           &&
           item.rewardId === rewardData.id
           && item.requestedBy === userId
-          && (item.status === 'pending' || item.status === 'approved'),
+            && (item.status === 'pending' || item.status === 'approved' || item.status === 'fulfilled'),
       )
 
     if (alreadyRequested) {
@@ -1657,7 +1677,7 @@ export async function requestReward(reward, context = {}) {
     const usedFamilyClaims = allRewardRequests
       .filter((item) => item.requestKind === 'purchase')
       .filter((item) => item.rewardId === rewardData.id)
-      .filter((item) => item.status === 'pending' || item.status === 'approved')
+      .filter((item) => item.status === 'pending' || item.status === 'approved' || item.status === 'fulfilled')
       .filter((item) => {
         const createdAt = item.createdAt?.toDate?.() || null
         if (!windowStart || !createdAt) {
@@ -1681,7 +1701,7 @@ export async function requestReward(reward, context = {}) {
       .filter((item) => item.requestKind === 'purchase')
       .filter((item) => item.rewardId === rewardData.id)
       .filter((item) => item.requestedBy === userId)
-      .filter((item) => item.status === 'pending' || item.status === 'approved')
+      .filter((item) => item.status === 'pending' || item.status === 'approved' || item.status === 'fulfilled')
       .filter((item) => {
         const createdAt = item.createdAt?.toDate?.() || null
         if (!windowStart || !createdAt) {
@@ -1929,6 +1949,56 @@ export async function reviewRewardRequest(requestId, decision, context = {}, opt
   }
 }
 
+export async function fulfillRewardRequest(requestId, context = {}) {
+  const { familyId: activeFamilyId, userId, userRole } = getActiveFamilyContext(
+    context,
+  )
+
+  if (userRole !== 'parent') {
+    throw new Error('Only parents can fulfill reward requests.')
+  }
+
+  if (!hasFirebaseConfig || !db) {
+    throw new Error('Firebase is not configured.')
+  }
+
+  const requestRef = doc(db, 'families', activeFamilyId, 'rewardRequests', requestId)
+  const requestSnap = await getDoc(requestRef)
+
+  if (!requestSnap.exists()) {
+    throw new Error('Reward request not found.')
+  }
+
+  const requestData = normalizeRewardRequest({ id: requestSnap.id, ...requestSnap.data() }, requestSnap.id)
+
+  if (requestData.status !== 'approved') {
+    throw new Error('Only approved reward requests can be marked fulfilled.')
+  }
+
+  if (requestData.requestKind !== 'purchase') {
+    throw new Error('Only purchased reward requests can be fulfilled.')
+  }
+
+  await updateDoc(requestRef, {
+    status: 'fulfilled',
+    fulfilledBy: userId,
+    fulfilledAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+
+  trackAnalyticsEvent(
+    'reward_fulfilled',
+    {
+      itemId: requestData.rewardId || requestData.id,
+      itemType: 'reward',
+      title: requestData.rewardTitle,
+      source: 'fulfillRewardRequest',
+      screen: 'parent',
+    },
+    { familyId: activeFamilyId, userId, userRole, childId: requestData.childId || requestData.requestedBy || null },
+  )
+}
+
 export async function acceptRewardRequestTerms(requestId, context = {}) {
   const { familyId: activeFamilyId, userId, userRole } = getActiveFamilyContext(context)
 
@@ -2062,6 +2132,7 @@ export async function getHouseholdOnboardingData(context = {}) {
         ...normalizeFamilySavingsSettings(familyData),
         ...normalizeFamilyJobConsequenceSettings(familyData),
         ...normalizeFamilyJobFlowSettings(familyData),
+        ...normalizeFamilyDashboardSettings(familyData),
       },
       childProfiles: childSnapshot.docs
         .map((item) => normalizeChildProfile({ id: item.id, ...item.data() }, item.id))
@@ -2133,6 +2204,7 @@ export async function createHousehold(household, context = {}) {
       failedJobCheckPenaltyCredits: Math.max(0, Number(household.failedJobCheckPenaltyCredits) || 0),
       maxActivePoolClaimsPerChild: Math.max(1, Number(household.maxActivePoolClaimsPerChild) || 1),
       allowClaimingWithPendingChecks: Boolean(household.allowClaimingWithPendingChecks),
+      familyDashboardTopCardsEnabled: household.familyDashboardTopCardsEnabled !== false,
       streakDays: 0,
       balance: { credits: 0 },
       level: { current: 1, xp: 0, nextXp: 500 },

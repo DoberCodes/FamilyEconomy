@@ -191,6 +191,60 @@ export default function KidProfilePage() {
     localStorage.setItem(storageKey, String(reachedMilestone))
   }, [familyId])
 
+  const updateRewardCelebration = useCallback((selectedChildId, requests) => {
+    if (!familyId || !selectedChildId) {
+      return
+    }
+
+    const relevantRequests = (requests || [])
+      .filter((request) => request.requestedBy === selectedChildId)
+      .filter((request) => request.status === 'approved' || request.status === 'fulfilled')
+
+    if (relevantRequests.length === 0) {
+      return
+    }
+
+    const parseTimeMs = (value) => {
+      if (!value) {
+        return 0
+      }
+      if (typeof value?.toDate === 'function') {
+        return value.toDate().getTime()
+      }
+      if (typeof value === 'string' || value instanceof Date) {
+        const date = new Date(value)
+        return Number.isNaN(date.getTime()) ? 0 : date.getTime()
+      }
+      return 0
+    }
+
+    const latest = relevantRequests
+      .map((request) => ({
+        request,
+        atMs: Math.max(parseTimeMs(request.fulfilledAt), parseTimeMs(request.reviewedAt), parseTimeMs(request.createdAt)),
+      }))
+      .sort((left, right) => right.atMs - left.atMs)[0]
+
+    if (!latest || latest.atMs <= 0) {
+      return
+    }
+
+    const storageKey = `family-economy-reward-celebration:${familyId}:${selectedChildId}`
+    const previousMs = Number(localStorage.getItem(storageKey) || 0)
+
+    if (latest.atMs > previousMs) {
+      if (latest.request.status === 'fulfilled') {
+        setCelebrationTitle('Reward Delivered')
+        setCelebrationMessage(`Your reward "${latest.request.rewardTitle}" was fulfilled!`)
+      } else {
+        setCelebrationTitle('Reward Approved')
+        setCelebrationMessage(`Nice! "${latest.request.rewardTitle}" was approved.`)
+      }
+    }
+
+    localStorage.setItem(storageKey, String(latest.atMs))
+  }, [familyId])
+
   useEffect(() => {
     let cancelled = false
 
@@ -291,6 +345,7 @@ export default function KidProfilePage() {
 
         updateCreditsCelebration(selected.id, dashboardResult.data.balance?.credits)
         updateGoalMilestoneCelebration(selected.id, dashboardResult.data.goals)
+        updateRewardCelebration(selected.id, storeResult.data.requests)
         setDashboard(dashboardResult.data)
         setStoreData(storeResult.data)
         setConsequenceEvents(consequenceResult.data.events || [])
@@ -322,6 +377,7 @@ export default function KidProfilePage() {
     setActiveChildProfile,
     updateCreditsCelebration,
     updateGoalMilestoneCelebration,
+    updateRewardCelebration,
   ])
 
   async function handleUnlockSession(event) {
@@ -371,6 +427,7 @@ export default function KidProfilePage() {
 
       updateCreditsCelebration(selected.id, dashboardResult.data.balance?.credits)
       updateGoalMilestoneCelebration(selected.id, dashboardResult.data.goals)
+      updateRewardCelebration(selected.id, storeResult.data.requests)
       setDashboard(dashboardResult.data)
       setStoreData(storeResult.data)
       setConsequenceEvents(consequenceResult.data.events || [])
@@ -430,6 +487,7 @@ export default function KidProfilePage() {
 
       updateCreditsCelebration(selected.id, dashboardResult.data.balance?.credits)
       updateGoalMilestoneCelebration(selected.id, dashboardResult.data.goals)
+      updateRewardCelebration(selected.id, storeResult.data.requests)
       setDashboard(dashboardResult.data)
       setStoreData(storeResult.data)
       setChildHasSessionCode(true)
@@ -481,6 +539,7 @@ export default function KidProfilePage() {
 
     updateCreditsCelebration(selectedChildId, dashboardResult.data.balance?.credits)
     updateGoalMilestoneCelebration(selectedChildId, dashboardResult.data.goals)
+    updateRewardCelebration(selectedChildId, storeResult.data.requests)
     setDashboard(dashboardResult.data)
     setStoreData(storeResult.data)
     setJobCheckRequests(checkResult.data.requests)
@@ -856,6 +915,7 @@ export default function KidProfilePage() {
   )
   const pendingRewardCount = rewardHistory.filter((item) => item.status === 'pending' || item.status === 'countered').length
   const approvedRewardCount = rewardHistory.filter((item) => item.status === 'approved').length
+  const fulfilledRewardCount = rewardHistory.filter((item) => item.status === 'fulfilled').length
   const deniedRewardCount = rewardHistory.filter((item) => item.status === 'denied').length
   const childGoals = dashboard.goals.filter((goal) => goal.childId === resolvedChild?.id)
   const pendingChildGoalRequest =
@@ -896,15 +956,22 @@ export default function KidProfilePage() {
     ? `If a parent says a check-in is not complete, up to ${failedJobCheckPenaltyCredits} credits can be removed.`
     : 'There is no extra penalty when a parent denies a job check.'
 
+  function formatJobReward(job) {
+    const amount = Number(job.points) || 0
+    return job.rewardType === 'xp' ? `+ ${amount} XP` : `+ ${amount}`
+  }
+
   const statementEntries = [
-    ...completedJobsHistory.map((job) => ({
+    ...completedJobsHistory
+      .filter((job) => job.rewardType !== 'xp')
+      .map((job) => ({
       id: `job:${job.id || job.title}`,
       type: 'in',
       label: job.title,
       amount: Number(job.points) || 0,
       status: 'posted',
       at: toDate(job.completedAt || job.claimedAt || job.createdAt),
-    })),
+      })),
     ...rewardHistory.map((request) => ({
       id: `reward:${request.id}`,
       type: 'out',
@@ -924,7 +991,7 @@ export default function KidProfilePage() {
     .filter((entry) => entry.type === 'in')
     .reduce((sum, entry) => sum + entry.amount, 0)
   const statementSpent = statementEntries
-    .filter((entry) => entry.type === 'out' && entry.status === 'approved')
+    .filter((entry) => entry.type === 'out' && (entry.status === 'approved' || entry.status === 'fulfilled'))
     .reduce((sum, entry) => sum + entry.amount, 0)
 
   function formatDate(value) {
@@ -974,6 +1041,9 @@ export default function KidProfilePage() {
     if (status === 'approved') {
       return 'Bought'
     }
+    if (status === 'fulfilled') {
+      return 'Fulfilled'
+    }
     if (status === 'denied') {
       return 'Denied'
     }
@@ -990,11 +1060,14 @@ export default function KidProfilePage() {
     if (status === 'countered') {
       return 'Countered'
     }
+    if (status === 'fulfilled') {
+      return 'Fulfilled'
+    }
     return 'Pending'
   }
 
   function getRequestTone(status) {
-    if (status === 'approved' || status === 'posted') {
+    if (status === 'approved' || status === 'fulfilled' || status === 'posted') {
       return 'done'
     }
     if (status === 'denied') {
@@ -1004,6 +1077,25 @@ export default function KidProfilePage() {
       return 'ready'
     }
     return 'active'
+  }
+
+  function displayGoalStatus(status) {
+    if (status === 'completed') {
+      return 'Completed'
+    }
+    if (status === 'pending_parent_approval') {
+      return 'Pending Parent'
+    }
+    if (status === 'ready_to_claim') {
+      return 'Ready for Parent'
+    }
+    if (status === 'countered') {
+      return 'Countered'
+    }
+    if (status === 'denied') {
+      return 'Denied'
+    }
+    return 'Saving'
   }
 
   function normalizeJobLimitKey(title) {
@@ -1146,7 +1238,7 @@ export default function KidProfilePage() {
       const usedOnce = rewardHistory.some(
         (item) =>
           item.rewardId === reward.id
-          && (item.status === 'pending' || item.status === 'approved'),
+          && (item.status === 'pending' || item.status === 'approved' || item.status === 'fulfilled'),
       )
 
       if (usedOnce) {
@@ -1419,6 +1511,48 @@ export default function KidProfilePage() {
             <StreakCard days={dashboard.streakDays} />
 
             <section className="panel">
+              <p className="panel-label">Savings</p>
+              <div className="limit-chip-row">
+                <span className="limit-chip">Goal slots: {activeChildGoal ? 1 : 0}/1</span>
+              </div>
+              {!activeChildGoal && !pendingChildGoalRequest ? (
+                <p className="panel-muted">No active savings goal yet.</p>
+              ) : null}
+              {pendingChildGoalRequest ? (
+                <p className="panel-muted">Your goal request is waiting for parent approval.</p>
+              ) : (
+                <>
+                  {activeChildGoal ? (
+                    <>
+                      <p className="panel-muted">{activeChildGoal.name}</p>
+                      <div className="limit-chip-row">
+                        <span className="limit-chip">{displayGoalStatus(activeChildGoal.status)}</span>
+                        <span className="limit-chip">
+                          {Math.max(0, Number(activeChildGoal.target) - Number(activeChildGoal.saved || 0))} credits to go
+                        </span>
+                      </div>
+                      <p className="panel-muted">
+                        {activeChildGoal.saved}/{activeChildGoal.target} credits ({childGoalProgress}%)
+                      </p>
+                      <div className="xp-track xp-track-light">
+                        <span style={{ width: `${childGoalProgress}%` }}></span>
+                      </div>
+                    </>
+                  ) : null}
+                </>
+              )}
+              {!activeChildGoal && !pendingChildGoalRequest ? (
+                <button
+                  type="button"
+                  className="claim-button panel-action-button"
+                  onClick={() => setActiveTab('savings')}
+                >
+                  Add Savings Goal
+                </button>
+              ) : null}
+            </section>
+
+            <section className="panel">
               <p className="panel-label">Quick Jobs</p>
               <div className="limit-chip-row">
                 <span className="limit-chip">Pool jobs: {blockingPoolJobs.length}/{maxActivePoolClaimsPerChild}</span>
@@ -1445,7 +1579,7 @@ export default function KidProfilePage() {
                           ) : null}
                         </div>
                         <div className="kid-job-side">
-                          <span className="mission-reward">+ {job.points}</span>
+                          <span className="mission-reward">{formatJobReward(job)}</span>
                           <span className="kid-job-state kid-job-state-active">
                             {job.childId ? 'Assigned' : 'Pool job'}
                           </span>
@@ -1471,6 +1605,7 @@ export default function KidProfilePage() {
               <div className="limit-chip-row">
                 <span className="limit-chip">Pending: {pendingRewardCount}</span>
                 <span className="limit-chip">Approved: {approvedRewardCount}</span>
+                <span className="limit-chip">Fulfilled: {fulfilledRewardCount}</span>
                 <span className="limit-chip">Denied: {deniedRewardCount}</span>
               </div>
               <button
@@ -1480,42 +1615,6 @@ export default function KidProfilePage() {
               >
                 Go To Rewards
               </button>
-            </section>
-
-            <section className="panel">
-              <p className="panel-label">Savings</p>
-              <div className="limit-chip-row">
-                <span className="limit-chip">Goal slots: {activeChildGoal ? 1 : 0}/1</span>
-              </div>
-              {!activeChildGoal && !pendingChildGoalRequest ? (
-                <p className="panel-muted">No active savings goal yet.</p>
-              ) : null}
-              {pendingChildGoalRequest ? (
-                <p className="panel-muted">Your goal request is waiting for parent approval.</p>
-              ) : (
-                <>
-                  {activeChildGoal ? (
-                    <>
-                      <p className="panel-muted">{activeChildGoal.name}</p>
-                      <p className="panel-muted">
-                        {activeChildGoal.saved}/{activeChildGoal.target} credits ({childGoalProgress}%)
-                      </p>
-                      <div className="xp-track xp-track-light">
-                        <span style={{ width: `${childGoalProgress}%` }}></span>
-                      </div>
-                    </>
-                  ) : null}
-                </>
-              )}
-              {!activeChildGoal && !pendingChildGoalRequest ? (
-                <button
-                  type="button"
-                  className="claim-button panel-action-button"
-                  onClick={() => setActiveTab('savings')}
-                >
-                  Add Savings Goal
-                </button>
-              ) : null}
             </section>
           </>
         ) : null}
@@ -1633,7 +1732,7 @@ export default function KidProfilePage() {
                               ))}
                             </div>
                             <div className="kid-job-side">
-                              <span className="mission-reward">+ {job.points}</span>
+                              <span className="mission-reward">{formatJobReward(job)}</span>
                               <span className={`kid-job-state kid-job-state-${state.tone}`}>{state.label}</span>
                               {job.status === 'open' && job.childId === resolvedChild?.id ? (
                                 <button
@@ -1680,7 +1779,7 @@ export default function KidProfilePage() {
                               ) : null}
                             </div>
                             <div className="kid-job-side">
-                              <span className="mission-reward">+ {job.points}</span>
+                              <span className="mission-reward">{formatJobReward(job)}</span>
                               <span className={`kid-job-state kid-job-state-${state.tone}`}>{state.label}</span>
                               <button
                                 type="button"
@@ -1721,7 +1820,7 @@ export default function KidProfilePage() {
                               </span>
                             </div>
                             <div className="kid-job-side">
-                              <span className="mission-reward">+ {job.points}</span>
+                              <span className="mission-reward">{formatJobReward(job)}</span>
                               <span className={`kid-job-state kid-job-state-${state.tone}`}>{state.label}</span>
                             </div>
                           </li>
@@ -1785,7 +1884,7 @@ export default function KidProfilePage() {
                         ))}
                       </div>
                       <div className="kid-job-side">
-                        <span className="mission-reward">+ {job.points}</span>
+                        <span className="mission-reward">{formatJobReward(job)}</span>
                         <span className="kid-job-state kid-job-state-ready">Ready</span>
                         <button
                           type="button"
@@ -2040,16 +2139,7 @@ export default function KidProfilePage() {
                   const pct = Number(goal.target) > 0
                     ? Math.round((goal.saved / goal.target) * 100)
                     : 0
-                  const statusLabel =
-                    goal.status === 'completed'
-                      ? 'Completed'
-                      : goal.status === 'pending_parent_approval'
-                        ? 'Pending Parent'
-                      : goal.status === 'ready_to_claim'
-                        ? 'Ready for Parent'
-                        : goal.status === 'denied'
-                          ? 'Denied'
-                        : 'Saving'
+                  const statusLabel = displayGoalStatus(goal.status)
 
                   return (
                     <li key={`${goal.childId || 'family'}:${goal.name}`} className="kid-job-item">
@@ -2132,6 +2222,7 @@ export default function KidProfilePage() {
             <div className="limit-chip-row">
               <span className="limit-chip">Pending: {pendingRewardCount}</span>
               <span className="limit-chip">Approved: {approvedRewardCount}</span>
+              <span className="limit-chip">Fulfilled: {fulfilledRewardCount}</span>
               <span className="limit-chip">Denied: {deniedRewardCount}</span>
             </div>
             <div className="money-block">

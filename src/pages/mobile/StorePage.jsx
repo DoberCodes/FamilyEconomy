@@ -11,6 +11,8 @@ import {
 const requestStatusText = {
   pending: 'Pending',
   approved: 'Approved',
+  fulfilled: 'Fulfilled',
+  countered: 'Countered',
   denied: 'Denied',
 }
 

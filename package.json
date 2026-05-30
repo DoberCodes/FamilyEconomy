@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:github-pages": "cross-env VITE_BASE_PATH=/FamilyEconomy/ VITE_USE_HASH_ROUTER=true vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "test:logic": "node --test tests/familyEconomyService.logic.test.js",
@@ -24,6 +25,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "cross-env": "^7.0.3",
     "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",

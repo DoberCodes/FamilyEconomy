@@ -8,21 +8,9 @@ export default function SavingsPage() {
     familyId,
     userId,
     userRole,
-    parentControlsUnlocked,
     activeChildProfile,
   } = useAuth()
   const [goals, setGoals] = useState([])
-  const [error, setError] = useState('')
-
-  async function refreshGoals() {
-    const result = await getFamilyDashboard({
-      familyId,
-      userId,
-      userRole,
-      selectedChildId: activeChildProfile?.id,
-    })
-    setGoals(result.data.goals)
-  }
 
   useEffect(() => {
     let mounted = true
@@ -115,8 +103,6 @@ export default function SavingsPage() {
         {userRole === 'parent' && !activeChildProfile ? (
           <p className="status-note">Choose a child in Kids tab before adding savings goals.</p>
         ) : null}
-
-        {error ? <p className="status-note status-error">{error}</p> : null}
 
         <section className="panel">
           <p className="panel-label">Savings Goals</p>

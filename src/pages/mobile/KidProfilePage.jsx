@@ -105,8 +105,6 @@ export default function KidProfilePage() {
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [houseRulesSnapshot, setHouseRulesSnapshot] = useState('')
   const [hasUnreadHouseRulesUpdate, setHasUnreadHouseRulesUpdate] = useState(false)
-  const [hasUnreadJobsUpdate, setHasUnreadJobsUpdate] = useState(false)
-  const [hasUnreadRewardsUpdate, setHasUnreadRewardsUpdate] = useState(false)
 
   useEffect(() => {
     const timerId = window.setInterval(() => {
@@ -986,6 +984,22 @@ export default function KidProfilePage() {
     const ms = toDate(reward.createdAt || reward.updatedAt)?.getTime() || 0
     return Math.max(maxValue, ms)
   }, 0)
+  const jobsSeenKey = familyId && resolvedChild?.id
+    ? `family-economy-jobs-seen:${familyId}:${resolvedChild.id}`
+    : ''
+  const rewardsSeenKey = familyId && resolvedChild?.id
+    ? `family-economy-rewards-seen:${familyId}:${resolvedChild.id}`
+    : ''
+  const seenJobsAtMs = jobsSeenKey ? Number(localStorage.getItem(jobsSeenKey) || 0) : 0
+  const seenRewardsAtMs = rewardsSeenKey ? Number(localStorage.getItem(rewardsSeenKey) || 0) : 0
+  const hasUnreadJobsUpdate =
+    latestVisibleJobCreatedAtMs > 0
+    && seenJobsAtMs > 0
+    && seenJobsAtMs < latestVisibleJobCreatedAtMs
+  const hasUnreadRewardsUpdate =
+    latestRewardCreatedAtMs > 0
+    && seenRewardsAtMs > 0
+    && seenRewardsAtMs < latestRewardCreatedAtMs
   const rewardSnapshotItems = rewardHistory
     .slice()
     .sort((left, right) => {
@@ -1528,15 +1542,11 @@ export default function KidProfilePage() {
     }
 
     if (nextTab === 'jobs' && hasUnreadJobsUpdate && familyId && resolvedChild?.id && latestVisibleJobCreatedAtMs) {
-      const jobsSeenKey = `family-economy-jobs-seen:${familyId}:${resolvedChild.id}`
       localStorage.setItem(jobsSeenKey, String(latestVisibleJobCreatedAtMs))
-      setHasUnreadJobsUpdate(false)
     }
 
     if (nextTab === 'rewards' && hasUnreadRewardsUpdate && familyId && resolvedChild?.id && latestRewardCreatedAtMs) {
-      const rewardsSeenKey = `family-economy-rewards-seen:${familyId}:${resolvedChild.id}`
       localStorage.setItem(rewardsSeenKey, String(latestRewardCreatedAtMs))
-      setHasUnreadRewardsUpdate(false)
     }
   }
 
@@ -1549,29 +1559,27 @@ export default function KidProfilePage() {
     const rewardsSeenKey = `family-economy-rewards-seen:${familyId}:${resolvedChild.id}`
 
     if (latestVisibleJobCreatedAtMs > 0) {
-      const seenJobsAtMs = Number(localStorage.getItem(jobsSeenKey) || 0)
       if (seenJobsAtMs === 0) {
         localStorage.setItem(jobsSeenKey, String(latestVisibleJobCreatedAtMs))
-        setHasUnreadJobsUpdate(false)
-      } else {
-        setHasUnreadJobsUpdate(seenJobsAtMs < latestVisibleJobCreatedAtMs)
       }
-    } else {
-      setHasUnreadJobsUpdate(false)
     }
 
     if (latestRewardCreatedAtMs > 0) {
-      const seenRewardsAtMs = Number(localStorage.getItem(rewardsSeenKey) || 0)
       if (seenRewardsAtMs === 0) {
         localStorage.setItem(rewardsSeenKey, String(latestRewardCreatedAtMs))
-        setHasUnreadRewardsUpdate(false)
-      } else {
-        setHasUnreadRewardsUpdate(seenRewardsAtMs < latestRewardCreatedAtMs)
       }
-    } else {
-      setHasUnreadRewardsUpdate(false)
     }
-  }, [familyId, resolvedChild?.id, kidSessionReady, latestVisibleJobCreatedAtMs, latestRewardCreatedAtMs])
+  }, [
+    familyId,
+    resolvedChild?.id,
+    kidSessionReady,
+    latestVisibleJobCreatedAtMs,
+    latestRewardCreatedAtMs,
+    jobsSeenKey,
+    rewardsSeenKey,
+    seenJobsAtMs,
+    seenRewardsAtMs,
+  ])
 
   useEffect(() => {
     if (!kidSessionReady || activeTab !== 'overview' || !familyId || !resolvedChild?.id) {

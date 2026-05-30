@@ -68,6 +68,7 @@ export default function OnboardingPage() {
   const [weeklyGoalCredits, setWeeklyGoalCredits] = useState('300')
   const [jobTitle, setJobTitle] = useState('')
   const [jobPoints, setJobPoints] = useState('50')
+  const [jobBadgeContribution, setJobBadgeContribution] = useState('none')
   const [rewardTitle, setRewardTitle] = useState('')
   const [rewardCost, setRewardCost] = useState('150')
   const [familyAnnouncement, setFamilyAnnouncement] = useState('')
@@ -87,6 +88,13 @@ export default function OnboardingPage() {
   const [dynamicPricingScarcityWeight, setDynamicPricingScarcityWeight] = useState('20')
   const [achievementsEnabled, setAchievementsEnabled] = useState(true)
   const [familyRecognitionEnabled, setFamilyRecognitionEnabled] = useState(true)
+  const [achievementFirstGoalTarget, setAchievementFirstGoalTarget] = useState('1')
+  const [achievementContributorCreditsTarget, setAchievementContributorCreditsTarget] = useState('100')
+  const [achievementHelperJobsTarget, setAchievementHelperJobsTarget] = useState('3')
+  const [achievementReadingJobsTarget, setAchievementReadingJobsTarget] = useState('5')
+  const [recognitionStreakDaysTarget, setRecognitionStreakDaysTarget] = useState('3')
+  const [recognitionHelpingHandJobsTarget, setRecognitionHelpingHandJobsTarget] = useState('1')
+  const [recognitionGoalGetterTarget, setRecognitionGoalGetterTarget] = useState('1')
   const [savingParentFeatures, setSavingParentFeatures] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -147,6 +155,13 @@ export default function OnboardingPage() {
         setDynamicPricingScarcityWeight(String(result.data.family?.dynamicPricingScarcityWeight || 20))
         setAchievementsEnabled(result.data.family?.achievementsEnabled !== false)
         setFamilyRecognitionEnabled(result.data.family?.familyRecognitionEnabled !== false)
+        setAchievementFirstGoalTarget(String(result.data.family?.achievementFirstGoalTarget || 1))
+        setAchievementContributorCreditsTarget(String(result.data.family?.achievementContributorCreditsTarget || 100))
+        setAchievementHelperJobsTarget(String(result.data.family?.achievementHelperJobsTarget || 3))
+        setAchievementReadingJobsTarget(String(result.data.family?.achievementReadingJobsTarget || 5))
+        setRecognitionStreakDaysTarget(String(result.data.family?.recognitionStreakDaysTarget || 3))
+        setRecognitionHelpingHandJobsTarget(String(result.data.family?.recognitionHelpingHandJobsTarget || 1))
+        setRecognitionGoalGetterTarget(String(result.data.family?.recognitionGoalGetterTarget || 1))
 
         setCurrentStep(getRecommendedStepIndex(result.data))
       } catch (caughtError) {
@@ -212,6 +227,13 @@ export default function OnboardingPage() {
       setDynamicPricingScarcityWeight(String(result.data.family?.dynamicPricingScarcityWeight || 20))
       setAchievementsEnabled(result.data.family?.achievementsEnabled !== false)
       setFamilyRecognitionEnabled(result.data.family?.familyRecognitionEnabled !== false)
+      setAchievementFirstGoalTarget(String(result.data.family?.achievementFirstGoalTarget || 1))
+      setAchievementContributorCreditsTarget(String(result.data.family?.achievementContributorCreditsTarget || 100))
+      setAchievementHelperJobsTarget(String(result.data.family?.achievementHelperJobsTarget || 3))
+      setAchievementReadingJobsTarget(String(result.data.family?.achievementReadingJobsTarget || 5))
+      setRecognitionStreakDaysTarget(String(result.data.family?.recognitionStreakDaysTarget || 3))
+      setRecognitionHelpingHandJobsTarget(String(result.data.family?.recognitionHelpingHandJobsTarget || 1))
+      setRecognitionGoalGetterTarget(String(result.data.family?.recognitionGoalGetterTarget || 1))
 
       setCurrentStep(getRecommendedStepIndex(result.data))
     } catch (caughtError) {
@@ -277,11 +299,16 @@ export default function OnboardingPage() {
 
     try {
       await createJob(
-        { title: jobTitle, points: Number(jobPoints) || 0 },
+        {
+          title: jobTitle,
+          points: Number(jobPoints) || 0,
+          badgeContribution: jobBadgeContribution,
+        },
         { familyId, userId, userRole },
       )
       setJobTitle('')
       setJobPoints('50')
+      setJobBadgeContribution('none')
       setStatus('Starter job added.')
       await loadOnboarding()
       setCurrentStep(3)
@@ -343,6 +370,13 @@ export default function OnboardingPage() {
           dynamicPricingScarcityWeight: Number(dynamicPricingScarcityWeight) || 0,
           achievementsEnabled,
           familyRecognitionEnabled,
+          achievementFirstGoalTarget: Math.max(1, Number(achievementFirstGoalTarget) || 1),
+          achievementContributorCreditsTarget: Math.max(1, Number(achievementContributorCreditsTarget) || 100),
+          achievementHelperJobsTarget: Math.max(1, Number(achievementHelperJobsTarget) || 3),
+          achievementReadingJobsTarget: Math.max(1, Number(achievementReadingJobsTarget) || 5),
+          recognitionStreakDaysTarget: Math.max(1, Number(recognitionStreakDaysTarget) || 3),
+          recognitionHelpingHandJobsTarget: Math.max(1, Number(recognitionHelpingHandJobsTarget) || 1),
+          recognitionGoalGetterTarget: Math.max(1, Number(recognitionGoalGetterTarget) || 1),
         },
         { familyId, userId, userRole, userEmail },
       )
@@ -580,6 +614,18 @@ export default function OnboardingPage() {
                 required
               />
             </label>
+            <label className="form-field">
+              <span className="form-label">Badge contribution</span>
+              <select
+                className="job-input"
+                value={jobBadgeContribution}
+                onChange={(event) => setJobBadgeContribution(event.target.value)}
+              >
+                <option value="none">None</option>
+                <option value="helper">Helper</option>
+                <option value="reading">Reading</option>
+              </select>
+            </label>
             <div className="button-row">
               <button
                 type="submit"
@@ -604,6 +650,13 @@ export default function OnboardingPage() {
                 <li key={job.id} className="profile-list-item">
                   <span>{job.title}</span>
                   <span className="job-status-label">{job.points} credits</span>
+                  <span className="job-status-label">
+                    {job.badgeContribution === 'helper'
+                      ? 'Helper tag'
+                      : job.badgeContribution === 'reading'
+                        ? 'Reading tag'
+                        : 'No tag'}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -699,7 +752,7 @@ export default function OnboardingPage() {
               placeholder="Ex: Grandparents visit Saturday."
               value={familyAnnouncement}
               onChange={setFamilyAnnouncement}
-              rows={3}
+              rows={5}
               disabled={savingParentFeatures}
             />
           </label>
@@ -897,6 +950,83 @@ export default function OnboardingPage() {
               <option value="on">On</option>
               <option value="off">Off</option>
             </select>
+          </label>
+
+          <label className="form-field">
+            <span className="form-label">First Goal badge target</span>
+            <input
+              className="job-input"
+              type="number"
+              min="1"
+              value={achievementFirstGoalTarget}
+              onChange={(event) => setAchievementFirstGoalTarget(event.target.value)}
+            />
+          </label>
+
+          <label className="form-field">
+            <span className="form-label">Contributor badge target (credits)</span>
+            <input
+              className="job-input"
+              type="number"
+              min="1"
+              value={achievementContributorCreditsTarget}
+              onChange={(event) => setAchievementContributorCreditsTarget(event.target.value)}
+            />
+          </label>
+
+          <label className="form-field">
+            <span className="form-label">Helper badge target (helper-tagged jobs)</span>
+            <input
+              className="job-input"
+              type="number"
+              min="1"
+              value={achievementHelperJobsTarget}
+              onChange={(event) => setAchievementHelperJobsTarget(event.target.value)}
+            />
+          </label>
+
+          <label className="form-field">
+            <span className="form-label">Reading badge target (reading-tagged jobs)</span>
+            <input
+              className="job-input"
+              type="number"
+              min="1"
+              value={achievementReadingJobsTarget}
+              onChange={(event) => setAchievementReadingJobsTarget(event.target.value)}
+            />
+          </label>
+
+          <label className="form-field">
+            <span className="form-label">Streak recognition target (days)</span>
+            <input
+              className="job-input"
+              type="number"
+              min="1"
+              value={recognitionStreakDaysTarget}
+              onChange={(event) => setRecognitionStreakDaysTarget(event.target.value)}
+            />
+          </label>
+
+          <label className="form-field">
+            <span className="form-label">Helping Hand recognition target</span>
+            <input
+              className="job-input"
+              type="number"
+              min="1"
+              value={recognitionHelpingHandJobsTarget}
+              onChange={(event) => setRecognitionHelpingHandJobsTarget(event.target.value)}
+            />
+          </label>
+
+          <label className="form-field">
+            <span className="form-label">Goal Getter recognition target</span>
+            <input
+              className="job-input"
+              type="number"
+              min="1"
+              value={recognitionGoalGetterTarget}
+              onChange={(event) => setRecognitionGoalGetterTarget(event.target.value)}
+            />
           </label>
 
           <div className="button-row">

@@ -94,6 +94,14 @@ export default function KidProfilePage() {
   const [familyRulesText, setFamilyRulesText] = useState('')
   const [achievementsEnabled, setAchievementsEnabled] = useState(true)
   const [familyRecognitionEnabled, setFamilyRecognitionEnabled] = useState(true)
+  const [achievementFirstGoalTarget, setAchievementFirstGoalTarget] = useState(1)
+  const [achievementContributorCreditsTarget, setAchievementContributorCreditsTarget] = useState(100)
+  const [achievementHelperJobsTarget, setAchievementHelperJobsTarget] = useState(3)
+  const [achievementReadingJobsTarget, setAchievementReadingJobsTarget] = useState(5)
+  const [recognitionStreakDaysTarget, setRecognitionStreakDaysTarget] = useState(3)
+  const [recognitionHelpingHandJobsTarget, setRecognitionHelpingHandJobsTarget] = useState(1)
+  const [recognitionGoalGetterTarget, setRecognitionGoalGetterTarget] = useState(1)
+  const [customBadges, setCustomBadges] = useState([])
   const [missedJobConsequenceEnabled, setMissedJobConsequenceEnabled] = useState(false)
   const [missedJobPenaltyCredits, setMissedJobPenaltyCredits] = useState(0)
   const [missedJobTimingEnabled, setMissedJobTimingEnabled] = useState(false)
@@ -276,6 +284,14 @@ export default function KidProfilePage() {
         setSavingsGoalApprovalMode(onboarding.data.family?.savingsGoalApprovalMode || 'claim_only')
         setAchievementsEnabled(onboarding.data.family?.achievementsEnabled !== false)
         setFamilyRecognitionEnabled(onboarding.data.family?.familyRecognitionEnabled !== false)
+        setAchievementFirstGoalTarget(Math.max(1, Number(onboarding.data.family?.achievementFirstGoalTarget) || 1))
+        setAchievementContributorCreditsTarget(Math.max(1, Number(onboarding.data.family?.achievementContributorCreditsTarget) || 100))
+        setAchievementHelperJobsTarget(Math.max(1, Number(onboarding.data.family?.achievementHelperJobsTarget) || 3))
+        setAchievementReadingJobsTarget(Math.max(1, Number(onboarding.data.family?.achievementReadingJobsTarget) || 5))
+        setRecognitionStreakDaysTarget(Math.max(1, Number(onboarding.data.family?.recognitionStreakDaysTarget) || 3))
+        setRecognitionHelpingHandJobsTarget(Math.max(1, Number(onboarding.data.family?.recognitionHelpingHandJobsTarget) || 1))
+        setRecognitionGoalGetterTarget(Math.max(1, Number(onboarding.data.family?.recognitionGoalGetterTarget) || 1))
+        setCustomBadges(Array.isArray(onboarding.data.family?.customBadges) ? onboarding.data.family.customBadges : [])
         setMissedJobConsequenceEnabled(Boolean(onboarding.data.family?.missedJobConsequenceEnabled))
         setMissedJobPenaltyCredits(Number(onboarding.data.family?.missedJobPenaltyCredits) || 0)
         setMissedJobTimingEnabled(Boolean(onboarding.data.family?.missedJobTimingEnabled))
@@ -1056,15 +1072,21 @@ export default function KidProfilePage() {
   const childFamilyContributionCredits = (familySavingsGoal?.contributionHistory || [])
     .filter((entry) => entry.childId === resolvedChild?.id)
     .reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0)
-  const childHelperPoolJobsCount = completedJobsHistory.filter((job) => !job.childId).length
+  const childHelperPoolJobsCount = completedJobsHistory.filter((job) => (
+    job.badgeContribution === 'helper'
+    || (job.badgeContribution !== 'reading' && !job.childId)
+  )).length
   const childReadingJobsCount = completedJobsHistory
-    .filter((job) => /read|book|reading/i.test(job.title || ''))
+    .filter((job) => (
+      job.badgeContribution === 'reading'
+      || (job.badgeContribution !== 'helper' && /read|book|reading/i.test(job.title || ''))
+    ))
     .length
   const childAchievements = [
-    childCompletedGoalsCount >= 1
+    childCompletedGoalsCount >= achievementFirstGoalTarget
       ? { id: 'first-goal', icon: '🏁', label: 'First Goal', category: 'achievement', score: 180 }
       : null,
-    childFamilyContributionCredits >= 100
+    childFamilyContributionCredits >= achievementContributorCreditsTarget
       ? {
         id: 'consistent-contributor',
         icon: '🤝',
@@ -1073,7 +1095,7 @@ export default function KidProfilePage() {
         score: 140 + Math.min(80, childFamilyContributionCredits),
       }
       : null,
-    childHelperPoolJobsCount >= 3
+    childHelperPoolJobsCount >= achievementHelperJobsTarget
       ? {
         id: 'family-helper',
         icon: '🛟',
@@ -1082,7 +1104,7 @@ export default function KidProfilePage() {
         score: 130 + Math.min(60, childHelperPoolJobsCount * 10),
       }
       : null,
-    childReadingJobsCount >= 5
+    childReadingJobsCount >= achievementReadingJobsTarget
       ? {
         id: 'reading-champion',
         icon: '📚',
@@ -1093,7 +1115,7 @@ export default function KidProfilePage() {
       : null,
   ].filter(Boolean)
   const childRecognitionBadges = [
-    dashboard.streakDays >= 3
+    dashboard.streakDays >= recognitionStreakDaysTarget
       ? {
         id: 'streak-star',
         icon: '🔥',
@@ -1102,7 +1124,7 @@ export default function KidProfilePage() {
         score: 100 + Math.min(90, dashboard.streakDays * 3),
       }
       : null,
-    childHelperPoolJobsCount >= 1
+    childHelperPoolJobsCount >= recognitionHelpingHandJobsTarget
       ? {
         id: 'helping-hand',
         icon: '🌟',
@@ -1111,7 +1133,7 @@ export default function KidProfilePage() {
         score: 90 + Math.min(70, childHelperPoolJobsCount * 8),
       }
       : null,
-    childCompletedGoalsCount >= 1
+    childCompletedGoalsCount >= recognitionGoalGetterTarget
       ? {
         id: 'goal-getter',
         icon: '🎯',
@@ -1121,9 +1143,44 @@ export default function KidProfilePage() {
       }
       : null,
   ].filter(Boolean)
+
+  const metricCounts = {
+    completed_goals: childCompletedGoalsCount,
+    contribution_credits: childFamilyContributionCredits,
+    helper_jobs: childHelperPoolJobsCount,
+    reading_jobs: childReadingJobsCount,
+    streak_days: dashboard.streakDays,
+  }
+  const customEarnedBadges = (customBadges || [])
+    .map((badge, index) => {
+      const metricKey = badge?.metric || 'completed_goals'
+      const target = Math.max(1, Number(badge?.target) || 1)
+      const progress = Number(metricCounts[metricKey]) || 0
+      if (progress < target) {
+        return null
+      }
+
+      const category = badge?.category === 'recognition' ? 'recognition' : 'achievement'
+      if (category === 'achievement' && !achievementsEnabled) {
+        return null
+      }
+      if (category === 'recognition' && !familyRecognitionEnabled) {
+        return null
+      }
+
+      return {
+        id: badge?.id || `custom-badge-${index + 1}`,
+        icon: badge?.icon || (category === 'recognition' ? '🌟' : '🏅'),
+        label: badge?.label || 'Custom Badge',
+        category,
+        score: 85 + Math.min(90, progress),
+      }
+    })
+    .filter(Boolean)
   const allEarnedBadges = [
     ...(achievementsEnabled ? childAchievements : []),
     ...(familyRecognitionEnabled ? childRecognitionBadges : []),
+    ...customEarnedBadges,
   ].sort((left, right) => right.score - left.score)
   const topHeroBadges = allEarnedBadges.slice(0, 3)
   const achievementBadgeCount = achievementsEnabled ? childAchievements.length : 0

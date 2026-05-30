@@ -113,7 +113,66 @@ function normalizeFamilyRecognitionSettings(familyData = {}) {
   return {
     achievementsEnabled: familyData.achievementsEnabled !== false,
     familyRecognitionEnabled: familyData.familyRecognitionEnabled !== false,
+    customBadges: normalizeCustomBadges(familyData.customBadges),
   }
+}
+
+function normalizeCustomBadgeMetric(metric) {
+  if (
+    metric === 'completed_goals'
+    || metric === 'contribution_credits'
+    || metric === 'helper_jobs'
+    || metric === 'reading_jobs'
+    || metric === 'streak_days'
+  ) {
+    return metric
+  }
+
+  return 'completed_goals'
+}
+
+function normalizeCustomBadges(customBadges = []) {
+  if (!Array.isArray(customBadges)) {
+    return []
+  }
+
+  return customBadges
+    .map((badge, index) => {
+      const label = String(badge?.label || '').trim()
+      if (!label) {
+        return null
+      }
+
+      const category = badge?.category === 'recognition' ? 'recognition' : 'achievement'
+      const metric = normalizeCustomBadgeMetric(badge?.metric)
+
+      return {
+        id: String(badge?.id || `custom-badge-${index + 1}`),
+        label,
+        icon: String(badge?.icon || (category === 'recognition' ? '🌟' : '🏅')).trim() || (category === 'recognition' ? '🌟' : '🏅'),
+        category,
+        metric,
+        target: Math.max(1, Number(badge?.target) || 1),
+      }
+    })
+    .filter(Boolean)
+    .slice(0, 30)
+}
+
+function normalizeBadgeThresholdSettings(familyData = {}) {
+  return {
+    achievementFirstGoalTarget: Math.max(1, Number(familyData.achievementFirstGoalTarget) || 1),
+    achievementContributorCreditsTarget: Math.max(1, Number(familyData.achievementContributorCreditsTarget) || 100),
+    achievementHelperJobsTarget: Math.max(1, Number(familyData.achievementHelperJobsTarget) || 3),
+    achievementReadingJobsTarget: Math.max(1, Number(familyData.achievementReadingJobsTarget) || 5),
+    recognitionStreakDaysTarget: Math.max(1, Number(familyData.recognitionStreakDaysTarget) || 3),
+    recognitionHelpingHandJobsTarget: Math.max(1, Number(familyData.recognitionHelpingHandJobsTarget) || 1),
+    recognitionGoalGetterTarget: Math.max(1, Number(familyData.recognitionGoalGetterTarget) || 1),
+  }
+}
+
+function normalizeJobBadgeContribution(value) {
+  return value === 'helper' || value === 'reading' ? value : 'none'
 }
 
 function normalizeConsequenceEvent(event, fallbackId) {
@@ -280,6 +339,7 @@ function normalizeJob(job) {
         : null,
     claimLimitKey: job.claimLimitKey || null,
     autoRecreate: Boolean(job.autoRecreate),
+    badgeContribution: normalizeJobBadgeContribution(job.badgeContribution),
     missedAfterHours:
       Number.isFinite(missedAfterHoursRaw) && missedAfterHoursRaw > 0
         ? missedAfterHoursRaw
@@ -780,6 +840,7 @@ export async function createJob(jobPayload, context = {}) {
       : null
   const claimLimitKey = normalizeJobLimitKey(title)
   const autoRecreate = Boolean(jobPayload.autoRecreate)
+  const badgeContribution = normalizeJobBadgeContribution(jobPayload.badgeContribution)
   const missedAfterHoursRaw = Number(jobPayload.missedAfterHours)
   const missedAfterHours =
     Number.isFinite(missedAfterHoursRaw) && missedAfterHoursRaw > 0
@@ -799,6 +860,7 @@ export async function createJob(jobPayload, context = {}) {
       familyClaimLimitCount > 0 ? familyClaimLimitPeriod || 'week' : null,
     claimLimitKey: claimLimitCount > 0 ? claimLimitKey : null,
     autoRecreate,
+    badgeContribution,
     missedAfterHours,
     status: 'open',
     order: Number(jobPayload.order) || Date.now(),
@@ -868,6 +930,7 @@ export async function updateJob(jobId, jobPayload, context = {}) {
       : null
   const claimLimitKey = normalizeJobLimitKey(title)
   const autoRecreate = Boolean(jobPayload.autoRecreate)
+  const badgeContribution = normalizeJobBadgeContribution(jobPayload.badgeContribution)
   const missedAfterHoursRaw = Number(jobPayload.missedAfterHours)
   const missedAfterHours =
     Number.isFinite(missedAfterHoursRaw) && missedAfterHoursRaw > 0
@@ -886,6 +949,7 @@ export async function updateJob(jobId, jobPayload, context = {}) {
       familyClaimLimitCount > 0 ? familyClaimLimitPeriod || 'week' : null,
     claimLimitKey: claimLimitCount > 0 ? claimLimitKey : null,
     autoRecreate,
+    badgeContribution,
     missedAfterHours,
     updatedAt: serverTimestamp(),
   })
@@ -2170,6 +2234,7 @@ export async function getHouseholdOnboardingData(context = {}) {
         ...normalizeFamilyJobFlowSettings(familyData),
         ...normalizeFamilyDashboardSettings(familyData),
         ...normalizeFamilyRecognitionSettings(familyData),
+        ...normalizeBadgeThresholdSettings(familyData),
       },
       childProfiles: childSnapshot.docs
         .map((item) => normalizeChildProfile({ id: item.id, ...item.data() }, item.id))
@@ -2220,6 +2285,9 @@ export async function createHousehold(household, context = {}) {
   const creatorMetricsEnabled =
     Boolean(existingFamilyData.creatorMetricsEnabled)
     || creatorOwnerEmail === CREATOR_OWNER_EMAIL
+  const customBadges = household.customBadges === undefined
+    ? normalizeCustomBadges(existingFamilyData.customBadges)
+    : normalizeCustomBadges(household.customBadges)
 
   await setDoc(
     familyRef,
@@ -2246,6 +2314,14 @@ export async function createHousehold(household, context = {}) {
       familyDashboardTopCardsEnabled: household.familyDashboardTopCardsEnabled !== false,
       achievementsEnabled: household.achievementsEnabled !== false,
       familyRecognitionEnabled: household.familyRecognitionEnabled !== false,
+      customBadges,
+      achievementFirstGoalTarget: Math.max(1, Number(household.achievementFirstGoalTarget) || 1),
+      achievementContributorCreditsTarget: Math.max(1, Number(household.achievementContributorCreditsTarget) || 100),
+      achievementHelperJobsTarget: Math.max(1, Number(household.achievementHelperJobsTarget) || 3),
+      achievementReadingJobsTarget: Math.max(1, Number(household.achievementReadingJobsTarget) || 5),
+      recognitionStreakDaysTarget: Math.max(1, Number(household.recognitionStreakDaysTarget) || 3),
+      recognitionHelpingHandJobsTarget: Math.max(1, Number(household.recognitionHelpingHandJobsTarget) || 1),
+      recognitionGoalGetterTarget: Math.max(1, Number(household.recognitionGoalGetterTarget) || 1),
       streakDays: 0,
       balance: { credits: 0 },
       level: { current: 1, xp: 0, nextXp: getNextXpThreshold(1) },

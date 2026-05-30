@@ -12,7 +12,10 @@
   --green: #0ca061;
   --green-soft: #e1f8ed;
   --top-header-height: 40px;
-  --bottom-nav-height: 84px;
+  --parent-session-banner-height: 30px;
+  --parent-session-banner-offset: 0px;
+  --parent-session-banner-gap: 8px;
+  --bottom-nav-height: 78px;
   --app-footer-height: 28px;
   --bottom-chrome-bg: rgba(250, 253, 255, 0.94);
   --bottom-chrome-border: #d7e1f0;
@@ -516,17 +519,35 @@ body.theme-playful .child-tile {
   grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
+.status-row-with-action .status-meta {
+  grid-column: 1;
+}
+
+.status-row-with-action .status-action {
+  grid-column: 3;
+  justify-self: end;
+}
+
 .status-meta {
   font-size: 0.78rem;
   opacity: 0.9;
   font-weight: 700;
+  position: relative;
+  z-index: 1;
 }
 
 .page-title {
   font-family: 'Nunito', sans-serif;
   font-weight: 700;
   text-align: center;
-  justify-self: center;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(62vw, 340px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 .status-action {
@@ -538,6 +559,8 @@ body.theme-playful .child-tile {
   padding: 0.12rem 0.15rem;
   border-radius: 8px;
   cursor: pointer;
+  position: relative;
+  z-index: 1;
 }
 
 .status-action:hover {
@@ -545,9 +568,33 @@ body.theme-playful .child-tile {
   background: rgba(242, 246, 255, 0.14);
 }
 
+.parent-session-banner {
+  position: fixed;
+  top: calc(var(--top-header-height) + env(safe-area-inset-top, 0px));
+  left: 0;
+  right: 0;
+  z-index: 14;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 0.25rem 0.75rem;
+  background: linear-gradient(180deg, #276f56, #205d49);
+  color: #effff8;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(186, 239, 217, 0.45);
+}
+
+body.parent-session-active {
+  --parent-session-banner-offset: calc(var(--parent-session-banner-height) + var(--parent-session-banner-gap));
+}
+
 .phone-content {
   flex: 1;
-  padding: 1.05rem;
+  padding: calc(1.05rem + var(--parent-session-banner-offset)) 1.05rem 1.05rem;
   overflow-y: auto;
   display: grid;
   gap: 1.05rem;
@@ -1500,7 +1547,7 @@ body.theme-playful .child-tile {
   border-top: 1px solid var(--bottom-chrome-border);
   border-bottom: 1px solid var(--bottom-chrome-border);
   background: var(--bottom-chrome-bg);
-  padding: 0.6rem 0.2rem 0.75rem;
+  padding: 0.45rem 0.2rem 0.55rem;
   display: grid;
   grid-template-columns: repeat(var(--tab-count, 5), minmax(0, 1fr));
   position: fixed;
@@ -1523,7 +1570,7 @@ body.theme-playful .child-tile {
   place-items: center;
   font-size: 0.74rem;
   font-weight: 700;
-  min-height: 52px;
+  min-height: 48px;
 }
 
 .tab-icon {
@@ -2634,7 +2681,7 @@ body.theme-playful .child-tile {
 @media (max-width: 640px) {
   :root {
     --top-header-height: 44px;
-    --bottom-nav-height: 90px;
+    --bottom-nav-height: 84px;
   }
 
   .status-row {
@@ -2759,7 +2806,7 @@ body.theme-playful .child-tile {
   }
 
   .phone-content {
-    padding: 1.1rem;
+    padding: calc(1.1rem + var(--parent-session-banner-offset)) 1.1rem 1.1rem;
     gap: 1.1rem;
   }
 
@@ -2811,7 +2858,7 @@ body.theme-playful .child-tile {
 
   .tab-link {
     font-size: 0.76rem;
-    min-height: 54px;
+    min-height: 50px;
   }
 
   .tab-icon {
@@ -2819,7 +2866,7 @@ body.theme-playful .child-tile {
   }
 
   .bottom-tabs {
-    padding: 0.7rem 0.25rem 0.85rem;
+    padding: 0.55rem 0.25rem 0.65rem;
   }
 
   .dialog-subsection-body .job-form {
@@ -2831,7 +2878,7 @@ body.theme-playful .child-tile {
 @media (min-width: 900px) {
   :root {
     --top-header-height: 52px;
-    --bottom-nav-height: 86px;
+    --bottom-nav-height: 80px;
   }
 
   .app-canvas {
@@ -2849,7 +2896,7 @@ body.theme-playful .child-tile {
   }
 
   .phone-content {
-    padding: 1rem;
+    padding: calc(1rem + var(--parent-session-banner-offset)) 1rem 1rem;
   }
 
   .phone-content:not(.home-grid) {
@@ -2881,7 +2928,7 @@ body.theme-playful .child-tile {
   }
 
   .bottom-tabs {
-    padding: 0.6rem 0.75rem 0.7rem;
+    padding: 0.5rem 0.75rem 0.58rem;
   }
 
   .tab-link {
@@ -2892,7 +2939,7 @@ body.theme-playful .child-tile {
 @media (max-width: 420px) {
   :root {
     --top-header-height: 46px;
-    --bottom-nav-height: 92px;
+    --bottom-nav-height: 86px;
   }
 
   .app-shell {
@@ -3002,7 +3049,7 @@ body.theme-playful .child-tile {
 
 .phone-content,
 .onboarding-shell {
-  padding-top: calc(var(--top-header-height) + env(safe-area-inset-top, 0px) + 0.9rem);
+  padding-top: calc(var(--top-header-height) + env(safe-area-inset-top, 0px) + var(--parent-session-banner-offset) + 0.9rem);
   padding-bottom: calc(var(--app-footer-height) + env(safe-area-inset-bottom, 0px) + 0.9rem);
 }
 

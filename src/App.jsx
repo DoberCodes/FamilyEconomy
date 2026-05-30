@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter, HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, HashRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 
 import BottomTabBar from './components/mobile/BottomTabBar'
 import PhoneFrame from './components/mobile/PhoneFrame'
@@ -149,8 +149,9 @@ function MobileAppRoutes() {
 }
 
 function ShellChrome() {
-  const { isAuthenticated, userRole, logout } = useAuth()
+  const { isAuthenticated, userRole, parentControlsUnlocked, lockParentControls } = useAuth()
   const location = useLocation()
+  const navigate = useNavigate()
   const { pathname } = location
 
   const parentNavPaths = new Set([
@@ -163,6 +164,15 @@ function ShellChrome() {
   ])
 
   const showParentShell = isAuthenticated && userRole === 'parent' && parentNavPaths.has(pathname)
+
+  useEffect(() => {
+    const shouldShowBanner = showParentShell && parentControlsUnlocked
+    document.body.classList.toggle('parent-session-active', shouldShowBanner)
+
+    return () => {
+      document.body.classList.remove('parent-session-active')
+    }
+  }, [showParentShell, parentControlsUnlocked])
 
   if (!showParentShell) {
     return null
@@ -177,15 +187,29 @@ function ShellChrome() {
     '/mobile/profile': 'Parent',
   }
 
-  const isParentProfileRoute = pathname === '/mobile/profile'
+  const headerActionLabel = parentControlsUnlocked ? 'Lock Parent Session' : 'Enable Parent Session'
+
+  function handleHeaderAction() {
+    if (parentControlsUnlocked) {
+      lockParentControls()
+      return
+    }
+
+    navigate('/mobile/profile')
+  }
 
   return (
     <>
       <TopStatusBar
         title={topTitleByPath[pathname] || 'Family Economy'}
-        actionLabel={isParentProfileRoute ? 'Sign out Parent' : undefined}
-        onAction={isParentProfileRoute ? logout : undefined}
+        actionLabel={headerActionLabel}
+        onAction={handleHeaderAction}
       />
+      {parentControlsUnlocked ? (
+        <div className="parent-session-banner" role="status" aria-live="polite">
+          Parent Session Active
+        </div>
+      ) : null}
       <BottomTabBar />
     </>
   )

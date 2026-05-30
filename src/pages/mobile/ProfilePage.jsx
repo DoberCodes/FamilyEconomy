@@ -69,7 +69,7 @@ export default function ProfilePage() {
     setParentPin,
     unlockParentControls,
     unlockParentWithPassword,
-    lockParentControls,
+    logout,
   } = useAuth()
 
   const [email, setEmail] = useState('')
@@ -95,6 +95,14 @@ export default function ProfilePage() {
     familyDashboardTopCardsEnabled: true,
     achievementsEnabled: true,
     familyRecognitionEnabled: true,
+    customBadges: [],
+    achievementFirstGoalTarget: 1,
+    achievementContributorCreditsTarget: 100,
+    achievementHelperJobsTarget: 3,
+    achievementReadingJobsTarget: 5,
+    recognitionStreakDaysTarget: 3,
+    recognitionHelpingHandJobsTarget: 1,
+    recognitionGoalGetterTarget: 1,
     dynamicPricingEnabled: false,
     dynamicPricingWindowPeriod: 'week',
     dynamicPricingDemandWeight: 10,
@@ -123,6 +131,7 @@ export default function ProfilePage() {
   const [jobFamilyLimitPeriod, setJobFamilyLimitPeriod] = useState('week')
   const [jobRecurrenceFrequency, setJobRecurrenceFrequency] = useState('none')
   const [jobMissedAfterHours, setJobMissedAfterHours] = useState('')
+  const [jobBadgeContribution, setJobBadgeContribution] = useState('none')
   const [rewardTitle, setRewardTitle] = useState('')
   const [rewardCost, setRewardCost] = useState('150')
   const [rewardRecurrenceFrequency, setRewardRecurrenceFrequency] = useState('weekly')
@@ -168,6 +177,19 @@ export default function ProfilePage() {
   const [familyDashboardTopCardsEnabled, setFamilyDashboardTopCardsEnabled] = useState(true)
   const [achievementsEnabled, setAchievementsEnabled] = useState(true)
   const [familyRecognitionEnabled, setFamilyRecognitionEnabled] = useState(true)
+  const [achievementFirstGoalTarget, setAchievementFirstGoalTarget] = useState('1')
+  const [achievementContributorCreditsTarget, setAchievementContributorCreditsTarget] = useState('100')
+  const [achievementHelperJobsTarget, setAchievementHelperJobsTarget] = useState('3')
+  const [achievementReadingJobsTarget, setAchievementReadingJobsTarget] = useState('5')
+  const [recognitionStreakDaysTarget, setRecognitionStreakDaysTarget] = useState('3')
+  const [recognitionHelpingHandJobsTarget, setRecognitionHelpingHandJobsTarget] = useState('1')
+  const [recognitionGoalGetterTarget, setRecognitionGoalGetterTarget] = useState('1')
+  const [customBadges, setCustomBadges] = useState([])
+  const [customBadgeLabel, setCustomBadgeLabel] = useState('')
+  const [customBadgeIcon, setCustomBadgeIcon] = useState('🏅')
+  const [customBadgeCategory, setCustomBadgeCategory] = useState('achievement')
+  const [customBadgeMetric, setCustomBadgeMetric] = useState('completed_goals')
+  const [customBadgeTarget, setCustomBadgeTarget] = useState('1')
   const [dynamicPricingWindowPeriod, setDynamicPricingWindowPeriod] = useState('week')
   const [dynamicPricingDemandWeight, setDynamicPricingDemandWeight] = useState('10')
   const [dynamicPricingScarcityWeight, setDynamicPricingScarcityWeight] = useState('20')
@@ -201,6 +223,26 @@ export default function ProfilePage() {
   function formatJobReward(job) {
     const amount = Number(job.points) || 0
     return job.rewardType === 'xp' ? `+ ${amount} XP` : `+ ${amount} credits`
+  }
+
+  function customBadgeMetricLabel(metric) {
+    if (metric === 'contribution_credits') {
+      return 'Contribution credits'
+    }
+
+    if (metric === 'helper_jobs') {
+      return 'Helper jobs'
+    }
+
+    if (metric === 'reading_jobs') {
+      return 'Reading jobs'
+    }
+
+    if (metric === 'streak_days') {
+      return 'Streak days'
+    }
+
+    return 'Completed goals'
   }
 
   function getWeekStart(value = new Date()) {
@@ -247,6 +289,13 @@ export default function ProfilePage() {
   const maxPoolClaimsValue = Math.max(1, Number(maxActivePoolClaimsPerChild) || 1)
   const demandWeightValue = Math.max(0, Number(dynamicPricingDemandWeight) || 0)
   const scarcityWeightValue = Math.max(0, Number(dynamicPricingScarcityWeight) || 0)
+  const firstGoalTargetValue = Math.max(1, Number(achievementFirstGoalTarget) || 1)
+  const contributorCreditsTargetValue = Math.max(1, Number(achievementContributorCreditsTarget) || 100)
+  const helperJobsTargetValue = Math.max(1, Number(achievementHelperJobsTarget) || 3)
+  const readingJobsTargetValue = Math.max(1, Number(achievementReadingJobsTarget) || 5)
+  const streakDaysTargetValue = Math.max(1, Number(recognitionStreakDaysTarget) || 3)
+  const helpingHandTargetValue = Math.max(1, Number(recognitionHelpingHandJobsTarget) || 1)
+  const goalGetterTargetValue = Math.max(1, Number(recognitionGoalGetterTarget) || 1)
   const childNameById = childProfiles.reduce((accumulator, child) => {
     accumulator[child.id] = `${child.avatar || '🧒'} ${child.displayName || 'Kid'}`
     return accumulator
@@ -578,6 +627,14 @@ export default function ProfilePage() {
             familyDashboardTopCardsEnabled: result.data.family?.familyDashboardTopCardsEnabled !== false,
             achievementsEnabled: result.data.family?.achievementsEnabled !== false,
             familyRecognitionEnabled: result.data.family?.familyRecognitionEnabled !== false,
+            customBadges: Array.isArray(result.data.family?.customBadges) ? result.data.family.customBadges : [],
+            achievementFirstGoalTarget: Number(result.data.family?.achievementFirstGoalTarget) || 1,
+            achievementContributorCreditsTarget: Number(result.data.family?.achievementContributorCreditsTarget) || 100,
+            achievementHelperJobsTarget: Number(result.data.family?.achievementHelperJobsTarget) || 3,
+            achievementReadingJobsTarget: Number(result.data.family?.achievementReadingJobsTarget) || 5,
+            recognitionStreakDaysTarget: Number(result.data.family?.recognitionStreakDaysTarget) || 3,
+            recognitionHelpingHandJobsTarget: Number(result.data.family?.recognitionHelpingHandJobsTarget) || 1,
+            recognitionGoalGetterTarget: Number(result.data.family?.recognitionGoalGetterTarget) || 1,
             dynamicPricingEnabled: Boolean(result.data.family?.dynamicPricingEnabled),
             dynamicPricingWindowPeriod: result.data.family?.dynamicPricingWindowPeriod || 'week',
             dynamicPricingDemandWeight: Number(result.data.family?.dynamicPricingDemandWeight) || 10,
@@ -817,6 +874,7 @@ export default function ProfilePage() {
       setNewChildName('')
       setNewChildAvatar('🧒')
       await refreshChildProfiles()
+      closeDialog()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not add child profile.')
     } finally {
@@ -935,6 +993,7 @@ export default function ProfilePage() {
     ) {
       if (dialog === 'jobs') {
         setJobScopeChildId('')
+        setJobBadgeContribution('none')
       }
       if (dialog === 'rewards') {
         setRewardScopeChildId('')
@@ -962,18 +1021,39 @@ export default function ProfilePage() {
       setMaxActivePoolClaimsPerChild(String(familySummary.maxActivePoolClaimsPerChild || 1))
       setAllowClaimingWithPendingChecks(Boolean(familySummary.allowClaimingWithPendingChecks))
       setFamilyDashboardTopCardsEnabled(familySummary.familyDashboardTopCardsEnabled !== false)
-      setAchievementsEnabled(familySummary.achievementsEnabled !== false)
-      setFamilyRecognitionEnabled(familySummary.familyRecognitionEnabled !== false)
       setDynamicPricingEnabled(Boolean(familySummary.dynamicPricingEnabled))
       setDynamicPricingWindowPeriod(familySummary.dynamicPricingWindowPeriod || 'week')
       setDynamicPricingDemandWeight(String(familySummary.dynamicPricingDemandWeight || 10))
       setDynamicPricingScarcityWeight(String(familySummary.dynamicPricingScarcityWeight || 20))
     }
 
+    if (dialog === 'badges') {
+      setAchievementsEnabled(familySummary.achievementsEnabled !== false)
+      setFamilyRecognitionEnabled(familySummary.familyRecognitionEnabled !== false)
+      setAchievementFirstGoalTarget(String(familySummary.achievementFirstGoalTarget || 1))
+      setAchievementContributorCreditsTarget(String(familySummary.achievementContributorCreditsTarget || 100))
+      setAchievementHelperJobsTarget(String(familySummary.achievementHelperJobsTarget || 3))
+      setAchievementReadingJobsTarget(String(familySummary.achievementReadingJobsTarget || 5))
+      setRecognitionStreakDaysTarget(String(familySummary.recognitionStreakDaysTarget || 3))
+      setRecognitionHelpingHandJobsTarget(String(familySummary.recognitionHelpingHandJobsTarget || 1))
+      setRecognitionGoalGetterTarget(String(familySummary.recognitionGoalGetterTarget || 1))
+      setCustomBadges(Array.isArray(familySummary.customBadges) ? familySummary.customBadges : [])
+      setCustomBadgeLabel('')
+      setCustomBadgeIcon('🏅')
+      setCustomBadgeCategory('achievement')
+      setCustomBadgeMetric('completed_goals')
+      setCustomBadgeTarget('1')
+    }
+
     if (dialog === 'savings') {
       setSavingsGoalName('')
       setSavingsGoalTarget('500')
       setSavingsGoalScope('family')
+    }
+
+    if (dialog === 'add-child') {
+      setNewChildName('')
+      setNewChildAvatar('🧒')
     }
   }
 
@@ -1092,6 +1172,34 @@ export default function ProfilePage() {
     }
   }
 
+  function handleAddCustomBadge() {
+    const label = String(customBadgeLabel || '').trim()
+    if (!label) {
+      return
+    }
+
+    setCustomBadges((current) => ([
+      ...current,
+      {
+        id: `custom-${Date.now()}-${Math.round(Math.random() * 10000)}`,
+        label,
+        icon: String(customBadgeIcon || '').trim() || '🏅',
+        category: customBadgeCategory === 'recognition' ? 'recognition' : 'achievement',
+        metric: customBadgeMetric,
+        target: Math.max(1, Number(customBadgeTarget) || 1),
+      },
+    ]))
+
+    setCustomBadgeLabel('')
+    setCustomBadgeIcon(customBadgeCategory === 'recognition' ? '🌟' : '🏅')
+    setCustomBadgeMetric('completed_goals')
+    setCustomBadgeTarget('1')
+  }
+
+  function handleRemoveCustomBadge(badgeId) {
+    setCustomBadges((current) => current.filter((badge) => badge.id !== badgeId))
+  }
+
   async function handleCreateJob(event) {
     event.preventDefault()
     setDialogBusy(true)
@@ -1109,6 +1217,7 @@ export default function ProfilePage() {
         familyClaimLimitPeriod: jobFamilyLimitPeriod,
         autoRecreate: jobRecurrenceFrequency !== 'none',
         missedAfterHours: Number(jobMissedAfterHours) || 0,
+        badgeContribution: jobBadgeContribution,
       }
 
       if (editingJobId) {
@@ -1127,6 +1236,7 @@ export default function ProfilePage() {
       setJobFamilyLimitPeriod('week')
       setJobRecurrenceFrequency('none')
       setJobMissedAfterHours('')
+      setJobBadgeContribution('none')
       await loadDialogData()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not create job.')
@@ -1220,8 +1330,6 @@ export default function ProfilePage() {
           maxActivePoolClaimsPerChild: Number(maxActivePoolClaimsPerChild) || 1,
           allowClaimingWithPendingChecks,
           familyDashboardTopCardsEnabled,
-          achievementsEnabled,
-          familyRecognitionEnabled,
           dynamicPricingEnabled,
           dynamicPricingWindowPeriod,
           dynamicPricingDemandWeight: Number(dynamicPricingDemandWeight) || 0,
@@ -1245,8 +1353,16 @@ export default function ProfilePage() {
         maxActivePoolClaimsPerChild: Number(maxActivePoolClaimsPerChild) || 1,
         allowClaimingWithPendingChecks,
         familyDashboardTopCardsEnabled,
-        achievementsEnabled,
-        familyRecognitionEnabled,
+        achievementsEnabled: familySummary.achievementsEnabled !== false,
+        familyRecognitionEnabled: familySummary.familyRecognitionEnabled !== false,
+        customBadges: Array.isArray(familySummary.customBadges) ? familySummary.customBadges : [],
+        achievementFirstGoalTarget: Number(familySummary.achievementFirstGoalTarget) || 1,
+        achievementContributorCreditsTarget: Number(familySummary.achievementContributorCreditsTarget) || 100,
+        achievementHelperJobsTarget: Number(familySummary.achievementHelperJobsTarget) || 3,
+        achievementReadingJobsTarget: Number(familySummary.achievementReadingJobsTarget) || 5,
+        recognitionStreakDaysTarget: Number(familySummary.recognitionStreakDaysTarget) || 3,
+        recognitionHelpingHandJobsTarget: Number(familySummary.recognitionHelpingHandJobsTarget) || 1,
+        recognitionGoalGetterTarget: Number(familySummary.recognitionGoalGetterTarget) || 1,
         dynamicPricingEnabled,
         dynamicPricingWindowPeriod,
         dynamicPricingDemandWeight: Number(dynamicPricingDemandWeight) || 0,
@@ -1255,6 +1371,50 @@ export default function ProfilePage() {
       closeDialog()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not save household settings.')
+    } finally {
+      setDialogBusy(false)
+    }
+  }
+
+  async function handleSaveBadgeSettings(event) {
+    event.preventDefault()
+    setDialogBusy(true)
+    setError('')
+
+    try {
+      await createHousehold(
+        {
+          profileName: familySummary.profileName || householdName || 'My Family',
+          achievementsEnabled,
+          familyRecognitionEnabled,
+          customBadges,
+          achievementFirstGoalTarget: firstGoalTargetValue,
+          achievementContributorCreditsTarget: contributorCreditsTargetValue,
+          achievementHelperJobsTarget: helperJobsTargetValue,
+          achievementReadingJobsTarget: readingJobsTargetValue,
+          recognitionStreakDaysTarget: streakDaysTargetValue,
+          recognitionHelpingHandJobsTarget: helpingHandTargetValue,
+          recognitionGoalGetterTarget: goalGetterTargetValue,
+        },
+        { familyId, userId, userRole, userEmail },
+      )
+
+      setFamilySummary((current) => ({
+        ...current,
+        achievementsEnabled,
+        familyRecognitionEnabled,
+        customBadges,
+        achievementFirstGoalTarget: firstGoalTargetValue,
+        achievementContributorCreditsTarget: contributorCreditsTargetValue,
+        achievementHelperJobsTarget: helperJobsTargetValue,
+        achievementReadingJobsTarget: readingJobsTargetValue,
+        recognitionStreakDaysTarget: streakDaysTargetValue,
+        recognitionHelpingHandJobsTarget: helpingHandTargetValue,
+        recognitionGoalGetterTarget: goalGetterTargetValue,
+      }))
+      closeDialog()
+    } catch (caughtError) {
+      setError(caughtError.message || 'Could not save badge settings.')
     } finally {
       setDialogBusy(false)
     }
@@ -1573,6 +1733,7 @@ export default function ProfilePage() {
       setJobRecurrenceFrequency('weekly')
     }
     setJobMissedAfterHours(job.missedAfterHours > 0 ? String(job.missedAfterHours) : '')
+    setJobBadgeContribution(job.badgeContribution || 'none')
   }
 
   function startEditReward(reward) {
@@ -1609,6 +1770,7 @@ export default function ProfilePage() {
     setJobFamilyLimitPeriod('week')
     setJobRecurrenceFrequency('none')
     setJobMissedAfterHours('')
+    setJobBadgeContribution('none')
   }
 
   function cancelEditReward() {
@@ -1763,7 +1925,7 @@ export default function ProfilePage() {
                   placeholder="Example: Grandparents will be in town on Saturday."
                   value={familyAnnouncementDraft}
                   onChange={setFamilyAnnouncementDraft}
-                  rows={3}
+                  rows={5}
                   disabled={savingFamilyAnnouncement}
                 />
                 <div className="button-row announcement-actions">
@@ -1782,6 +1944,9 @@ export default function ProfilePage() {
                 </button>
                 <button type="button" className="text-button" onClick={() => openDialog('setup')}>
                   Household setup
+                </button>
+                <button type="button" className="text-button" onClick={() => openDialog('badges')}>
+                  Badges and achievements
                 </button>
                 <button type="button" className="text-button" onClick={() => openDialog('jobs')}>
                   Jobs manager
@@ -1824,34 +1989,16 @@ export default function ProfilePage() {
                 {childSessionSecurityEnabled ? 'Disable Child Session Lock' : 'Enable Child Session Lock'}
               </button>
 
-              <form className="auth-form child-manage-form" onSubmit={handleAddChildProfile}>
-                <p className="panel-label child-manage-subtitle">Add Child</p>
-                <input
-                  className="job-input"
-                  placeholder="Child name"
-                  value={newChildName}
-                  onChange={(event) => setNewChildName(event.target.value)}
+              <div className="button-row child-manage-actions">
+                <button
+                  type="button"
+                  className="claim-button"
                   disabled={saving}
-                  required
-                />
-                <select
-                  className="job-input"
-                  value={newChildAvatar}
-                  onChange={(event) => setNewChildAvatar(event.target.value)}
-                  disabled={saving}
+                  onClick={() => openDialog('add-child')}
                 >
-                  {CHILD_AVATAR_OPTIONS.map((avatar) => (
-                    <option key={`add-avatar:${avatar}`} value={avatar}>
-                      {avatar}
-                    </option>
-                  ))}
-                </select>
-                <div className="button-row child-manage-actions">
-                  <button type="submit" className="claim-button" disabled={saving}>
-                    Add Child
-                  </button>
-                </div>
-              </form>
+                  Add Child
+                </button>
+              </div>
 
               {childProfiles.length > 0 ? (
                 <ul className="profile-list child-security-list">
@@ -1990,12 +2137,18 @@ export default function ProfilePage() {
 
             {error ? <p className="status-note status-error">{error}</p> : null}
 
-            <section className="panel lock-command-card">
-              <p className="panel-label">Session Security</p>
-              <p className="panel-muted">Lock the command center before handing the device back.</p>
-              <div className="button-row lock-command-actions">
-                <button type="button" className="claim-button lock-command-button" onClick={lockParentControls}>
-                  Lock Command Center
+            <section className="panel">
+              <p className="panel-label">Parent Account</p>
+              <p className="panel-muted">Manage account access and credentials.</p>
+              <div className="button-row">
+                <button type="button" className="text-button" onClick={() => openDialog('settings')}>
+                  Change Password
+                </button>
+                <button type="button" className="text-button" onClick={() => openDialog('settings')}>
+                  Change Account Email
+                </button>
+                <button type="button" className="claim-button claim-button-deny" onClick={logout}>
+                  Sign Out Parent
                 </button>
               </div>
             </section>
@@ -2008,7 +2161,9 @@ export default function ProfilePage() {
               <div className="panel-head">
                 <p className="panel-label">
                   {activeDialog === 'overview' ? 'Family Overview' : null}
+                  {activeDialog === 'add-child' ? 'Add Child' : null}
                   {activeDialog === 'setup' ? 'Household Setup' : null}
+                  {activeDialog === 'badges' ? 'Badges and Achievements' : null}
                   {activeDialog === 'requests' ? 'Pending Requests' : null}
                   {activeDialog === 'jobs' ? 'Jobs Manager' : null}
                   {activeDialog === 'rewards' ? 'Rewards Manager' : null}
@@ -2074,6 +2229,47 @@ export default function ProfilePage() {
                     Family recognition cards: {familySummary.familyRecognitionEnabled ? 'On' : 'Off'}
                   </p>
                   <p className="panel-muted">Children: {childProfiles.length}</p>
+                </div>
+              ) : null}
+
+              {activeDialog === 'add-child' ? (
+                <div className="dialog-content">
+                  <form className="auth-form" onSubmit={handleAddChildProfile}>
+                    <label className="form-field">
+                      <span className="form-label">Child name</span>
+                      <input
+                        className="job-input"
+                        placeholder="Child name"
+                        value={newChildName}
+                        onChange={(event) => setNewChildName(event.target.value)}
+                        disabled={saving}
+                        required
+                      />
+                    </label>
+                    <label className="form-field">
+                      <span className="form-label">Avatar</span>
+                      <select
+                        className="job-input"
+                        value={newChildAvatar}
+                        onChange={(event) => setNewChildAvatar(event.target.value)}
+                        disabled={saving}
+                      >
+                        {CHILD_AVATAR_OPTIONS.map((avatar) => (
+                          <option key={`add-dialog-avatar:${avatar}`} value={avatar}>
+                            {avatar}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="button-row child-manage-actions">
+                      <button type="submit" className="claim-button" disabled={saving}>
+                        {saving ? 'Adding...' : 'Add Child'}
+                      </button>
+                      <button type="button" className="text-button" onClick={closeDialog} disabled={saving}>
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
                 </div>
               ) : null}
 
@@ -2280,29 +2476,12 @@ export default function ProfilePage() {
 
                   <section className="dialog-section">
                     <p className="dialog-section-title">Recognition and Achievements</p>
-                    <p className="dialog-section-subtitle">Control badges and recognition callouts in kid and family views.</p>
-                    <label className="form-field">
-                      <span className="form-label">Show kid achievements</span>
-                      <select
-                        className="job-input"
-                        value={achievementsEnabled ? 'on' : 'off'}
-                        onChange={(event) => setAchievementsEnabled(event.target.value === 'on')}
-                      >
-                        <option value="on">On</option>
-                        <option value="off">Off</option>
-                      </select>
-                    </label>
-                    <label className="form-field">
-                      <span className="form-label">Show family recognition cards</span>
-                      <select
-                        className="job-input"
-                        value={familyRecognitionEnabled ? 'on' : 'off'}
-                        onChange={(event) => setFamilyRecognitionEnabled(event.target.value === 'on')}
-                      >
-                        <option value="on">On</option>
-                        <option value="off">Off</option>
-                      </select>
-                    </label>
+                    <p className="dialog-section-subtitle">Thresholds and custom badge builder moved to the dedicated Badges and Achievements dialog.</p>
+                    <div className="button-row">
+                      <button type="button" className="text-button" onClick={() => openDialog('badges')}>
+                        Open Badges and Achievements
+                      </button>
+                    </div>
                   </section>
 
                   <section className="dialog-section">
@@ -2731,6 +2910,204 @@ export default function ProfilePage() {
                 </div>
               ) : null}
 
+              {activeDialog === 'badges' ? (
+                <div className="dialog-content">
+                  <form className="auth-form" onSubmit={handleSaveBadgeSettings}>
+                    <section className="dialog-section">
+                      <p className="dialog-section-title">Display Controls</p>
+                      <p className="dialog-section-subtitle">Choose where badges show up.</p>
+                      <label className="form-field">
+                        <span className="form-label">Show kid achievements</span>
+                        <select
+                          className="job-input"
+                          value={achievementsEnabled ? 'on' : 'off'}
+                          onChange={(event) => setAchievementsEnabled(event.target.value === 'on')}
+                        >
+                          <option value="on">On</option>
+                          <option value="off">Off</option>
+                        </select>
+                      </label>
+                      <label className="form-field">
+                        <span className="form-label">Show family recognition cards</span>
+                        <select
+                          className="job-input"
+                          value={familyRecognitionEnabled ? 'on' : 'off'}
+                          onChange={(event) => setFamilyRecognitionEnabled(event.target.value === 'on')}
+                        >
+                          <option value="on">On</option>
+                          <option value="off">Off</option>
+                        </select>
+                      </label>
+                    </section>
+
+                    <section className="dialog-section">
+                      <p className="dialog-section-title">Built-in Badge Thresholds</p>
+                      <p className="dialog-section-subtitle">Adjust defaults for built-in badges.</p>
+                      <label className="form-field">
+                        <span className="form-label">First Goal target</span>
+                        <input
+                          className="job-input"
+                          type="number"
+                          min="1"
+                          value={achievementFirstGoalTarget}
+                          onChange={(event) => setAchievementFirstGoalTarget(event.target.value)}
+                        />
+                      </label>
+                      <label className="form-field">
+                        <span className="form-label">Contributor target (credits earned)</span>
+                        <input
+                          className="job-input"
+                          type="number"
+                          min="1"
+                          value={achievementContributorCreditsTarget}
+                          onChange={(event) => setAchievementContributorCreditsTarget(event.target.value)}
+                        />
+                      </label>
+                      <label className="form-field">
+                        <span className="form-label">Helper target (helper-tagged jobs)</span>
+                        <input
+                          className="job-input"
+                          type="number"
+                          min="1"
+                          value={achievementHelperJobsTarget}
+                          onChange={(event) => setAchievementHelperJobsTarget(event.target.value)}
+                        />
+                      </label>
+                      <label className="form-field">
+                        <span className="form-label">Reading target (reading-tagged jobs)</span>
+                        <input
+                          className="job-input"
+                          type="number"
+                          min="1"
+                          value={achievementReadingJobsTarget}
+                          onChange={(event) => setAchievementReadingJobsTarget(event.target.value)}
+                        />
+                      </label>
+                      <label className="form-field">
+                        <span className="form-label">Streak target (days)</span>
+                        <input
+                          className="job-input"
+                          type="number"
+                          min="1"
+                          value={recognitionStreakDaysTarget}
+                          onChange={(event) => setRecognitionStreakDaysTarget(event.target.value)}
+                        />
+                      </label>
+                      <label className="form-field">
+                        <span className="form-label">Helping Hand target</span>
+                        <input
+                          className="job-input"
+                          type="number"
+                          min="1"
+                          value={recognitionHelpingHandJobsTarget}
+                          onChange={(event) => setRecognitionHelpingHandJobsTarget(event.target.value)}
+                        />
+                      </label>
+                      <label className="form-field">
+                        <span className="form-label">Goal Getter target</span>
+                        <input
+                          className="job-input"
+                          type="number"
+                          min="1"
+                          value={recognitionGoalGetterTarget}
+                          onChange={(event) => setRecognitionGoalGetterTarget(event.target.value)}
+                        />
+                      </label>
+                    </section>
+
+                    <section className="dialog-section">
+                      <p className="dialog-section-title">Custom Badge Builder</p>
+                      <p className="dialog-section-subtitle">Create your own achievement or recognition badges.</p>
+                      <label className="form-field">
+                        <span className="form-label">Badge label</span>
+                        <input
+                          className="job-input"
+                          placeholder="Ex: Weekend Warrior"
+                          value={customBadgeLabel}
+                          onChange={(event) => setCustomBadgeLabel(event.target.value)}
+                        />
+                      </label>
+                      <label className="form-field">
+                        <span className="form-label">Icon</span>
+                        <input
+                          className="job-input"
+                          placeholder="🏅"
+                          value={customBadgeIcon}
+                          onChange={(event) => setCustomBadgeIcon(event.target.value)}
+                        />
+                      </label>
+                      <label className="form-field">
+                        <span className="form-label">Category</span>
+                        <select
+                          className="job-input"
+                          value={customBadgeCategory}
+                          onChange={(event) => setCustomBadgeCategory(event.target.value)}
+                        >
+                          <option value="achievement">Achievement</option>
+                          <option value="recognition">Recognition</option>
+                        </select>
+                      </label>
+                      <label className="form-field">
+                        <span className="form-label">Track metric</span>
+                        <select
+                          className="job-input"
+                          value={customBadgeMetric}
+                          onChange={(event) => setCustomBadgeMetric(event.target.value)}
+                        >
+                          <option value="completed_goals">Completed goals</option>
+                          <option value="contribution_credits">Contribution credits</option>
+                          <option value="helper_jobs">Helper jobs</option>
+                          <option value="reading_jobs">Reading jobs</option>
+                          <option value="streak_days">Streak days</option>
+                        </select>
+                      </label>
+                      <label className="form-field">
+                        <span className="form-label">Target</span>
+                        <input
+                          className="job-input"
+                          type="number"
+                          min="1"
+                          value={customBadgeTarget}
+                          onChange={(event) => setCustomBadgeTarget(event.target.value)}
+                        />
+                      </label>
+                      <div className="button-row">
+                        <button type="button" className="text-button" onClick={handleAddCustomBadge}>
+                          Add custom badge
+                        </button>
+                      </div>
+
+                      {customBadges.length > 0 ? (
+                        <ul className="profile-list">
+                          {customBadges.map((badge) => (
+                            <li key={badge.id} className="profile-list-item">
+                              <span>{badge.icon} {badge.label}</span>
+                              <span className="job-status-label">{badge.category}</span>
+                              <span className="job-status-label">{customBadgeMetricLabel(badge.metric)}: {badge.target}</span>
+                              <button
+                                type="button"
+                                className="text-button"
+                                onClick={() => handleRemoveCustomBadge(badge.id)}
+                              >
+                                Remove
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="panel-muted">No custom badges yet.</p>
+                      )}
+                    </section>
+
+                    <div className="button-row">
+                      <button type="submit" className="claim-button" disabled={dialogBusy}>
+                        {dialogBusy ? 'Saving...' : 'Save Badge Settings'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              ) : null}
+
               {activeDialog === 'jobs' ? (
                 <div className="dialog-content">
                   <form className="auth-form dialog-section" onSubmit={handleCreateJob}>
@@ -2859,6 +3236,19 @@ export default function ProfilePage() {
                         onChange={(event) => setJobMissedAfterHours(event.target.value)}
                       />
                     </label>
+                    <label className="form-field">
+                      <span className="form-label">Badge contribution tag</span>
+                      <select
+                        className="job-input"
+                        value={jobBadgeContribution}
+                        onChange={(event) => setJobBadgeContribution(event.target.value)}
+                      >
+                        <option value="none">None</option>
+                        <option value="helper">Helper</option>
+                        <option value="reading">Reading</option>
+                      </select>
+                      <p className="form-help">Tagged jobs feed achievement and recognition counts for kids.</p>
+                    </label>
                     <div className="button-row">
                       <button type="submit" className="claim-button" disabled={dialogBusy}>
                         {editingJobId ? 'Save job' : 'Add job'}
@@ -2900,6 +3290,13 @@ export default function ProfilePage() {
                           {job.missedAfterHours > 0
                             ? `Missed after ${job.missedAfterHours}h`
                             : 'Missed timeout: family default'}
+                        </span>
+                        <span className="job-status-label">
+                          Badge tag: {job.badgeContribution === 'helper'
+                            ? 'Helper'
+                            : job.badgeContribution === 'reading'
+                              ? 'Reading'
+                              : 'None'}
                         </span>
                         <button
                           type="button"

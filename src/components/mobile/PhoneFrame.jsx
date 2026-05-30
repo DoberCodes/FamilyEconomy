@@ -5,7 +5,7 @@ export default function PhoneFrame({ children }) {
         <div className="phone-screen">
           {children}
           <footer className="app-footer-brand" aria-label="Application brand">
-            Family Economy Early Access
+            Family Economy Alpha
           </footer>
         </div>
       </div>

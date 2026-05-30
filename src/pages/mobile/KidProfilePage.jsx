@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
+import FormattedRichText from '../../components/shared/FormattedRichText'
 import BalanceCard from '../../components/mobile/cards/BalanceCard'
 import LevelCard from '../../components/mobile/cards/LevelCard'
 import StreakCard from '../../components/mobile/cards/StreakCard'
@@ -1130,6 +1131,7 @@ export default function KidProfilePage() {
   const hasPoolClaimLimitReached = blockingPoolJobs.length >= maxActivePoolClaimsPerChild
   const hasOpenPoolJobs = jobPool.length > 0
   const kidSessionReady = !loading && !error && (!requiresSessionCode || sessionUnlocked)
+  const showUnlockGate = !loading && !error && requiresSessionCode && !sessionUnlocked
   const savingsApprovalHint =
     savingsGoalApprovalMode === 'create_and_claim'
       ? 'Parent approves when you start and when you finish a savings goal.'
@@ -1619,56 +1621,60 @@ export default function KidProfilePage() {
     <>
       <TopStatusBar title="Child Profile" actionLabel="End Session" onAction={handleExitProfile} />
       <main className="phone-content kid-session-shell">
-        <LevelCard
-          level={dashboard.level}
-          profileName={resolvedChild?.displayName || dashboard.profileName}
-          subtitle="Your kid session is active. This space is just for you."
-        >
-          {achievementsEnabled || familyRecognitionEnabled ? (
-            <section className="hero-badge-strip" aria-label="Top badges and recognition">
-              <div className="hero-badge-head">
-                <p className="hero-badge-heading">Top badges</p>
-                <span className="hero-badge-total">{allEarnedBadges.length} earned</span>
-              </div>
-              {topHeroBadges.length === 0 ? (
-                <p className="hero-badge-empty">Complete goals and help your family to unlock badges.</p>
-              ) : (
-                <div className="hero-badge-row">
-                  {topHeroBadges.map((badge) => (
-                    <span key={`hero:${badge.id}`} className="hero-badge-chip">
-                      {badge.icon} {badge.label}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </section>
-          ) : null}
-        </LevelCard>
+        {kidSessionReady ? (
+          <>
+            <LevelCard
+              level={dashboard.level}
+              profileName={resolvedChild?.displayName || dashboard.profileName}
+              subtitle="Your kid session is active. This space is just for you."
+            >
+              {achievementsEnabled || familyRecognitionEnabled ? (
+                <section className="hero-badge-strip" aria-label="Top badges and recognition">
+                  <div className="hero-badge-head">
+                    <p className="hero-badge-heading">Top badges</p>
+                    <span className="hero-badge-total">{allEarnedBadges.length} earned</span>
+                  </div>
+                  {topHeroBadges.length === 0 ? (
+                    <p className="hero-badge-empty">Complete goals and help your family to unlock badges.</p>
+                  ) : (
+                    <div className="hero-badge-row">
+                      {topHeroBadges.map((badge) => (
+                        <span key={`hero:${badge.id}`} className="hero-badge-chip">
+                          {badge.icon} {badge.label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              ) : null}
+            </LevelCard>
 
-        <section className="panel quick-nav-panel" aria-label="Quick navigation">
-          <p className="panel-label quick-nav-title">Quick Adventure Nav</p>
-          <p className="panel-muted quick-nav-subtitle">Jump to what you want to do next.</p>
-          <div className="quick-nav-row" role="tablist" aria-label="Child dashboard sections">
-            {tabs.map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                className={activeTab === tab.key ? 'quick-nav-tab quick-nav-tab-active' : 'quick-nav-tab'}
-                onClick={() => handleTabChange(tab.key)}
-                role="tab"
-                aria-selected={activeTab === tab.key}
-              >
-                {activeTab === tab.key ? <span className="quick-nav-active-icon" aria-hidden="true">✦</span> : null}
-                {tab.label}
-                {(tab.key === 'rules' && hasUnreadHouseRulesUpdate)
-                || (tab.key === 'jobs' && hasUnreadJobsUpdate)
-                || (tab.key === 'rewards' && hasUnreadRewardsUpdate) ? (
-                  <span className="quick-nav-badge">New</span>
-                ) : null}
-              </button>
-            ))}
-          </div>
-        </section>
+            <section className="panel quick-nav-panel" aria-label="Quick navigation">
+              <p className="panel-label quick-nav-title">Quick Adventure Nav</p>
+              <p className="panel-muted quick-nav-subtitle">Jump to what you want to do next.</p>
+              <div className="quick-nav-row" role="tablist" aria-label="Child dashboard sections">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    className={activeTab === tab.key ? 'quick-nav-tab quick-nav-tab-active' : 'quick-nav-tab'}
+                    onClick={() => handleTabChange(tab.key)}
+                    role="tab"
+                    aria-selected={activeTab === tab.key}
+                  >
+                    {activeTab === tab.key ? <span className="quick-nav-active-icon" aria-hidden="true">✦</span> : null}
+                    {tab.label}
+                    {(tab.key === 'rules' && hasUnreadHouseRulesUpdate)
+                    || (tab.key === 'jobs' && hasUnreadJobsUpdate)
+                    || (tab.key === 'rewards' && hasUnreadRewardsUpdate) ? (
+                      <span className="quick-nav-badge">New</span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            </section>
+          </>
+        ) : null}
 
         {loading ? <p className="status-note">Loading child data...</p> : null}
         {error ? <p className="status-note status-error">{error}</p> : null}
@@ -1694,13 +1700,24 @@ export default function KidProfilePage() {
           </section>
         ) : null}
 
-        {!loading && !error && requiresSessionCode && !sessionUnlocked ? (
-          <section className="panel">
-            <p className="panel-label">Session Locked</p>
+        {showUnlockGate ? (
+          <section className="panel kid-lock-card">
+            <p className="unlock-welcome-kicker">
+              {resolvedChild?.avatar || '🌟'} {resolvedChild?.displayName ? `${resolvedChild.displayName}'s space` : 'Your space'}
+            </p>
+            <p className="panel-label unlock-welcome-title">
+              {resolvedChild?.displayName
+                ? `Welcome back, ${resolvedChild.displayName}`
+                : 'Welcome back'}
+            </p>
+            <p className="panel-muted unlock-welcome-copy">
+              {childHasSessionCode
+                ? 'Enter your 4-digit code to jump back into your dashboard.'
+                : 'Create your 4-digit code so your dashboard stays protected.'}
+            </p>
             {childHasSessionCode ? (
               <>
-                <p className="panel-muted">Enter child session code to continue.</p>
-                <form className="auth-form" onSubmit={handleUnlockSession}>
+                <form className="auth-form kid-lock-form" onSubmit={handleUnlockSession}>
                   <input
                     className="job-input"
                     type="password"
@@ -1711,13 +1728,12 @@ export default function KidProfilePage() {
                     onChange={(event) => setSessionCodeInput(event.target.value)}
                     required
                   />
-                  <button type="submit" className="claim-button">Unlock</button>
+                  <button type="submit" className="claim-button kid-lock-button">Unlock</button>
                 </form>
               </>
             ) : resolvedChild?.allowChildSetSessionCode ? (
               <>
-                <p className="panel-muted">Set your 4-digit child session code to continue.</p>
-                <form className="auth-form" onSubmit={handleCreateChildSessionCode}>
+                <form className="auth-form kid-lock-form" onSubmit={handleCreateChildSessionCode}>
                   <input
                     className="job-input"
                     type="password"
@@ -1728,7 +1744,7 @@ export default function KidProfilePage() {
                     onChange={(event) => setSessionCodeInput(event.target.value)}
                     required
                   />
-                  <button type="submit" className="claim-button">Save Code</button>
+                  <button type="submit" className="claim-button kid-lock-button">Save Code</button>
                 </form>
               </>
             ) : (
@@ -1745,12 +1761,12 @@ export default function KidProfilePage() {
         !childHasSessionCode &&
         resolvedChild?.allowChildSetSessionCode &&
         (!requiresSessionCode || sessionUnlocked) ? (
-          <section className="panel">
+          <section className="panel kid-lock-card kid-pin-setup-card">
             <p className="panel-label">Set PIN</p>
             <p className="panel-muted">
               You can set a 4-digit PIN to protect your session next time.
             </p>
-            <form className="auth-form" onSubmit={handleCreateChildSessionCode}>
+            <form className="auth-form kid-lock-form" onSubmit={handleCreateChildSessionCode}>
               <input
                 className="job-input"
                 type="password"
@@ -1761,7 +1777,7 @@ export default function KidProfilePage() {
                 onChange={(event) => setSessionCodeInput(event.target.value)}
                 required
               />
-              <button type="submit" className="claim-button">
+              <button type="submit" className="claim-button kid-lock-button">
                 Save My PIN
               </button>
             </form>
@@ -1970,13 +1986,17 @@ export default function KidProfilePage() {
 
             <div className="money-block">
               <p className="panel-label money-section-title">Family Announcement</p>
-              <p className="panel-muted">{familyAnnouncementText || 'No new announcement right now.'}</p>
+              {familyAnnouncementText ? (
+                <FormattedRichText className="panel-muted" value={familyAnnouncementText} />
+              ) : (
+                <p className="panel-muted">No new announcement right now.</p>
+              )}
             </div>
 
             {familyRulesText ? (
               <div className="money-block">
                 <p className="panel-label money-section-title">Family Note</p>
-                <p className="panel-muted">{familyRulesText}</p>
+                <FormattedRichText className="panel-muted" value={familyRulesText} />
               </div>
             ) : null}
 

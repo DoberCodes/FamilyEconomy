@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import BottomTabBar from '../../components/mobile/BottomTabBar'
-import TopStatusBar from '../../components/mobile/TopStatusBar'
 import { useAuth } from '../../context/AuthContext'
 import {
   getHouseholdOnboardingData,
@@ -79,7 +77,6 @@ export default function ChildProfilesPage() {
 
   return (
     <>
-      <TopStatusBar title="Kids" />
       <main className="phone-content">
         <section className="panel">
           <p className="panel-label">Choose Child</p>
@@ -126,7 +123,6 @@ export default function ChildProfilesPage() {
           </p>
         ) : null}
       </main>
-      <BottomTabBar />
     </>
   )
 }

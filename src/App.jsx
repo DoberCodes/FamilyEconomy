@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { BrowserRouter, HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 
+import BottomTabBar from './components/mobile/BottomTabBar'
 import PhoneFrame from './components/mobile/PhoneFrame'
+import TopStatusBar from './components/mobile/TopStatusBar'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import AuthPage from './pages/AuthPage'
 import ChildProfilesPage from './pages/mobile/ChildProfilesPage'
@@ -149,6 +151,49 @@ function MobileAppRoutes() {
   )
 }
 
+function ShellChrome() {
+  const { isAuthenticated, userRole, logout } = useAuth()
+  const location = useLocation()
+  const { pathname } = location
+
+  const parentNavPaths = new Set([
+    '/mobile/home',
+    '/mobile/children',
+    '/mobile/jobs',
+    '/mobile/store',
+    '/mobile/savings',
+    '/mobile/profile',
+  ])
+
+  const showParentShell = isAuthenticated && userRole === 'parent' && parentNavPaths.has(pathname)
+
+  if (!showParentShell) {
+    return null
+  }
+
+  const topTitleByPath = {
+    '/mobile/home': 'Family Dashboard',
+    '/mobile/children': 'Kids',
+    '/mobile/jobs': 'Jobs',
+    '/mobile/store': 'Store',
+    '/mobile/savings': 'Savings',
+    '/mobile/profile': 'Parent',
+  }
+
+  const isParentProfileRoute = pathname === '/mobile/profile'
+
+  return (
+    <>
+      <TopStatusBar
+        title={topTitleByPath[pathname] || 'Family Economy'}
+        actionLabel={isParentProfileRoute ? 'Sign out Parent' : undefined}
+        onAction={isParentProfileRoute ? logout : undefined}
+      />
+      <BottomTabBar />
+    </>
+  )
+}
+
 function App() {
   const Router = import.meta.env.VITE_USE_HASH_ROUTER === 'true' ? HashRouter : BrowserRouter
 
@@ -157,6 +202,7 @@ function App() {
       <AuthProvider>
         <UiThemeSync />
         <PhoneFrame>
+          <ShellChrome />
           <Routes>
             <Route path="/auth" element={<AuthPage />} />
             <Route path="*" element={<MobileAppRoutes />} />

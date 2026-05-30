@@ -11,6 +11,11 @@
   --brand-2: #2b2b93;
   --green: #0ca061;
   --green-soft: #e1f8ed;
+  --top-header-height: 40px;
+  --bottom-nav-height: 84px;
+  --app-footer-height: 28px;
+  --bottom-chrome-bg: rgba(250, 253, 255, 0.94);
+  --bottom-chrome-border: #d7e1f0;
 }
 
 * {
@@ -152,6 +157,66 @@ body.theme-parent .status-note {
   border-color: #d1dff2;
   background: #edf4ff;
   color: #2f537d;
+}
+
+body.theme-parent .lock-access-card {
+  background:
+    radial-gradient(circle at 94% 8%, rgba(122, 156, 209, 0.2), transparent 36%),
+    linear-gradient(180deg, #ffffff, #f6f9ff);
+  border-color: #cfdceb;
+  box-shadow: 0 10px 24px rgba(20, 46, 84, 0.08);
+}
+
+body.theme-parent .lock-access-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #234f83;
+  background: #e7f0ff;
+  border: 1px solid #c7d9f3;
+}
+
+body.theme-parent .lock-command-card {
+  border-color: #d5e2f1;
+  background: linear-gradient(180deg, #f9fbff, #f1f6ff);
+  display: grid;
+  gap: 0.2rem;
+}
+
+body.theme-parent .lock-command-card .lock-command-actions {
+  margin-top: 0.58rem;
+  padding-top: 0.72rem;
+  border-top: 1px solid #d9e5f4;
+  justify-content: flex-start;
+}
+
+body.theme-parent .lock-command-card .lock-command-button {
+  border-color: #8eb9dc;
+  background: linear-gradient(145deg, #e6f2ff, #dff8ef);
+  color: #1a416b;
+  min-height: 42px;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.84rem;
+  font-weight: 800;
+  min-width: 190px;
+}
+
+body.theme-parent .lock-command-card .lock-command-button:hover {
+  background: linear-gradient(145deg, #deeeff, #d6f2e7);
+}
+
+@media (max-width: 560px) {
+  body.theme-parent .lock-command-card .lock-command-button {
+    width: 100%;
+    min-width: 0;
+  }
 }
 
 body.theme-parent .dialog-overlay {
@@ -412,18 +477,26 @@ body.theme-playful .child-tile {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 24px;
-  padding: 0.2rem 0.6rem 0.45rem;
+  min-height: var(--app-footer-height);
+  padding: 0.2rem 0.6rem calc(0.45rem + env(safe-area-inset-bottom, 0px));
   font-size: 0.68rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: #7b8ca7;
   font-weight: 800;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 14;
+  background: var(--bottom-chrome-bg);
+  border-top: 1px solid var(--bottom-chrome-border);
+  backdrop-filter: blur(6px);
 }
 
 .status-row {
-  height: 40px;
-  padding: 10px 14px 0;
+  height: var(--top-header-height);
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 0;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
@@ -432,6 +505,11 @@ body.theme-playful .child-tile {
   column-gap: 0.5rem;
   background: linear-gradient(180deg, #2d2a99, #1f2368);
   color: #f8f9ff;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 15;
 }
 
 .status-row-with-action {
@@ -873,6 +951,125 @@ body.theme-playful .child-tile {
   min-height: 88px;
 }
 
+.markdown-textarea-wrap {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.markdown-toolbar {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.markdown-tool-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 32px;
+  padding: 0.2rem 0.62rem;
+  font-size: 0.78rem;
+}
+
+.markdown-tool-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  font-size: 0.76rem;
+  font-weight: 800;
+  border-radius: 4px;
+  background: #e5eefb;
+  color: #2d4e7a;
+}
+
+.markdown-tool-icon-italic {
+  font-style: italic;
+}
+
+.markdown-tool-label {
+  line-height: 1;
+}
+
+.announcement-actions {
+  justify-content: flex-end;
+}
+
+.announcement-actions .claim-button {
+  min-width: 176px;
+}
+
+.formatted-rich-text {
+  display: grid;
+  gap: 0.38rem;
+}
+
+.formatted-rich-text-paragraph {
+  margin: 0;
+}
+
+.formatted-rich-text-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.24rem;
+}
+
+.formatted-rich-text-list li {
+  line-height: 1.45;
+}
+
+.formatted-rich-text-spacer {
+  height: 0.3rem;
+}
+
+@media (max-width: 560px) {
+  .markdown-textarea-wrap {
+    gap: 0.35rem;
+  }
+
+  .markdown-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.1rem;
+  }
+
+  .markdown-tool-button {
+    min-height: 30px;
+    padding: 0.14rem 0.52rem;
+    font-size: 0.72rem;
+    flex: 0 0 auto;
+  }
+
+  .markdown-tool-icon {
+    width: 15px;
+    height: 15px;
+    font-size: 0.72rem;
+  }
+
+  .markdown-textarea-wrap .form-help {
+    font-size: 0.72rem;
+    line-height: 1.35;
+  }
+
+  .announcement-actions .claim-button {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .markdown-tool-button {
+    min-width: 34px;
+    justify-content: center;
+    padding-left: 0.38rem;
+    padding-right: 0.38rem;
+  }
+
+  .markdown-tool-label {
+    display: none;
+  }
+}
+
 .button-row {
   display: flex;
   gap: 0.45rem;
@@ -1262,11 +1459,22 @@ body.theme-playful .child-tile {
 }
 
 .bottom-tabs {
-  border-top: 1px solid var(--line);
-  background: #fff;
+  border-top: 1px solid var(--bottom-chrome-border);
+  border-bottom: 1px solid var(--bottom-chrome-border);
+  background: var(--bottom-chrome-bg);
   padding: 0.6rem 0.2rem 0.75rem;
   display: grid;
   grid-template-columns: repeat(var(--tab-count, 5), minmax(0, 1fr));
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--app-footer-height);
+  z-index: 15;
+  backdrop-filter: blur(6px);
+}
+
+.phone-screen:has(.bottom-tabs) .app-footer-brand {
+  border-top: 0;
 }
 
 .tab-link {
@@ -1484,6 +1692,68 @@ body.theme-playful .child-tile {
 
 .kid-session-shell .panel-label {
   font-size: 1.15rem;
+}
+
+.unlock-welcome-title {
+  color: #163c73;
+}
+
+.unlock-welcome-kicker {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid #ccdaf2;
+  background: #edf4ff;
+  color: #355f97;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.unlock-welcome-copy {
+  margin-top: 0;
+  color: #3f5f8f;
+}
+
+.kid-lock-card {
+  border-color: #cddcf4;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(173, 204, 245, 0.24), transparent 34%),
+    linear-gradient(180deg, #ffffff, #f6f9ff);
+  box-shadow: 0 6px 14px rgba(36, 76, 138, 0.06);
+  display: grid;
+  gap: 0.5rem;
+}
+
+.kid-lock-card > .panel-label {
+  margin-top: 0;
+}
+
+.kid-lock-form {
+  gap: 0.62rem;
+}
+
+.kid-lock-button {
+  min-height: 42px;
+  padding: 0.52rem 0.9rem;
+  font-size: 0.88rem;
+  font-weight: 800;
+  border-radius: 12px;
+}
+
+.kid-pin-setup-card {
+  background:
+    radial-gradient(circle at 88% 16%, rgba(161, 230, 197, 0.24), transparent 35%),
+    linear-gradient(165deg, #ffffff, #f2fbf7);
+  border-color: #cae7da;
+}
+
+@media (max-width: 560px) {
+  .kid-lock-button {
+    width: 100%;
+  }
 }
 
 .celebration-panel {
@@ -2324,6 +2594,11 @@ body.theme-playful .child-tile {
 }
 
 @media (max-width: 640px) {
+  :root {
+    --top-header-height: 44px;
+    --bottom-nav-height: 90px;
+  }
+
   .status-row {
     height: 44px;
     padding: 11px 15px 0;
@@ -2516,6 +2791,11 @@ body.theme-playful .child-tile {
 }
 
 @media (min-width: 900px) {
+  :root {
+    --top-header-height: 52px;
+    --bottom-nav-height: 86px;
+  }
+
   .app-canvas {
     min-height: 100vh;
   }
@@ -2572,6 +2852,11 @@ body.theme-playful .child-tile {
 }
 
 @media (max-width: 420px) {
+  :root {
+    --top-header-height: 46px;
+    --bottom-nav-height: 92px;
+  }
+
   .app-shell {
     padding: 0;
   }
@@ -2675,4 +2960,15 @@ body.theme-playful .child-tile {
   .kid-savings-panel .statement-spend {
     font-size: 1.1rem;
   }
+}
+
+.phone-content,
+.onboarding-shell {
+  padding-top: calc(var(--top-header-height) + env(safe-area-inset-top, 0px) + 0.9rem);
+  padding-bottom: calc(var(--app-footer-height) + env(safe-area-inset-bottom, 0px) + 0.9rem);
+}
+
+.phone-screen:has(.bottom-tabs) .phone-content,
+.phone-screen:has(.bottom-tabs) .onboarding-shell {
+  padding-bottom: calc(var(--bottom-nav-height) + var(--app-footer-height) + env(safe-area-inset-bottom, 0px) + 0.95rem);
 }

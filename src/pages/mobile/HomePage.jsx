@@ -1,6 +1,4 @@
 import { useEffect, useState } from 'react'
-import BottomTabBar from '../../components/mobile/BottomTabBar'
-import TopStatusBar from '../../components/mobile/TopStatusBar'
 import BalanceCard from '../../components/mobile/cards/BalanceCard'
 import LevelCard from '../../components/mobile/cards/LevelCard'
 import JobsCard from '../../components/mobile/cards/MissionsCard'
@@ -935,7 +933,6 @@ export default function HomePage() {
 
   return (
     <>
-      <TopStatusBar title={isParent ? 'Family Dashboard' : 'Home'} />
       <main className="phone-content home-grid">
         {loading ? <p className="status-note">Loading dashboard...</p> : null}
         {error ? <p className="status-note status-error">{error}</p> : null}
@@ -1316,7 +1313,6 @@ export default function HomePage() {
           </>
         )}
       </main>
-      <BottomTabBar />
     </>
   )
 }

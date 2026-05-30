@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+import MarkdownTextArea from '../../components/shared/MarkdownTextArea'
 import { useAuth } from '../../context/AuthContext'
 import {
   createChildProfile,
@@ -361,16 +362,13 @@ export default function OnboardingPage() {
             </label>
             <label className="form-field">
               <span className="form-label">Family news, rules, or expectations</span>
-              <textarea
-                className="job-input form-textarea"
+              <MarkdownTextArea
                 placeholder="Ex: Finish jobs before screen time. Be kind. Keep your room tidy."
                 value={familyRules}
-                onChange={(event) => setFamilyRules(event.target.value)}
-                rows="4"
+                onChange={setFamilyRules}
+                rows={4}
+                disabled={savingHousehold || loading}
               />
-              <span className="form-help">
-                This gives your family a shared starting playbook.
-              </span>
             </label>
             <div className="button-row">
               <button

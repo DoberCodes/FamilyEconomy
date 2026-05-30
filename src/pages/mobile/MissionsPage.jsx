@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react'
 
-import BottomTabBar from '../../components/mobile/BottomTabBar'
-import TopStatusBar from '../../components/mobile/TopStatusBar'
 import JobsCard from '../../components/mobile/cards/MissionsCard'
 import { useAuth } from '../../context/AuthContext'
 import {
@@ -85,7 +83,6 @@ export default function JobsPage() {
 
   return (
     <>
-      <TopStatusBar title="Jobs" />
       <main className="phone-content">
         {effectiveRole === 'parent' && activeChildProfile ? (
           <p className="status-note">
@@ -107,7 +104,6 @@ export default function JobsPage() {
           claimingJobId={claimingJobId}
         />
       </main>
-      <BottomTabBar />
     </>
   )
 }

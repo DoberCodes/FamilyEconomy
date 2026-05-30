@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react'
 
-import BottomTabBar from '../../components/mobile/BottomTabBar'
-import TopStatusBar from '../../components/mobile/TopStatusBar'
 import { useAuth } from '../../context/AuthContext'
 import { getFamilyDashboard } from '../../services/familyEconomyService'
 
@@ -107,7 +105,6 @@ export default function SavingsPage() {
 
   return (
     <>
-      <TopStatusBar title="Savings" />
       <main className="phone-content">
         {userRole === 'parent' && activeChildProfile ? (
           <p className="status-note">
@@ -166,7 +163,6 @@ export default function SavingsPage() {
         </section>
 
       </main>
-      <BottomTabBar />
     </>
   )
 }

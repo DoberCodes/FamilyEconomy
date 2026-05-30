@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import BottomTabBar from '../../components/mobile/BottomTabBar'
-import TopStatusBar from '../../components/mobile/TopStatusBar'
+import MarkdownTextArea from '../../components/shared/MarkdownTextArea'
 import { useAuth } from '../../context/AuthContext'
 import {
   approveSavingsGoalCompletion,
@@ -67,7 +66,6 @@ export default function ProfilePage() {
     unlockParentControls,
     unlockParentWithPassword,
     lockParentControls,
-    logout,
   } = useAuth()
 
   const [email, setEmail] = useState('')
@@ -1586,7 +1584,6 @@ export default function ProfilePage() {
 
   return (
     <>
-      <TopStatusBar title="Parent • Family Economy Early Access" />
       <main className="phone-content">
         {!isParent ? (
           <section className="panel">
@@ -1620,7 +1617,8 @@ export default function ProfilePage() {
         ) : null}
 
         {isParent && !parentControlsUnlocked ? (
-          <section className="panel">
+          <section className="panel lock-access-card">
+            <p className="lock-access-chip">Secure Mode</p>
             <p className="panel-label">Parent Access Locked</p>
             <p className="panel-muted">Enter PIN or password to open command center.</p>
 
@@ -1657,10 +1655,6 @@ export default function ProfilePage() {
             )}
 
             {error ? <p className="status-note status-error">{error}</p> : null}
-
-            <button type="button" className="text-button" onClick={logout}>
-              Sign out Parent
-            </button>
           </section>
         ) : null}
 
@@ -1676,24 +1670,16 @@ export default function ProfilePage() {
               <p className="panel-label">Family Announcement</p>
               <p className="panel-muted">Quick action: post a headline update kids will see first in Family News.</p>
               <form className="auth-form" onSubmit={handleSaveFamilyAnnouncement}>
-                <textarea
-                  className="job-input form-textarea"
+                <MarkdownTextArea
                   placeholder="Example: Grandparents will be in town on Saturday."
                   value={familyAnnouncementDraft}
-                  onChange={(event) => setFamilyAnnouncementDraft(event.target.value)}
-                  rows="3"
+                  onChange={setFamilyAnnouncementDraft}
+                  rows={3}
+                  disabled={savingFamilyAnnouncement}
                 />
-                <div className="button-row">
+                <div className="button-row announcement-actions">
                   <button type="submit" className="claim-button" disabled={savingFamilyAnnouncement}>
                     {savingFamilyAnnouncement ? 'Saving...' : 'Post Announcement'}
-                  </button>
-                  <button
-                    type="button"
-                    className="text-button"
-                    onClick={() => setFamilyAnnouncementDraft(familySummary.familyAnnouncement || '')}
-                    disabled={savingFamilyAnnouncement}
-                  >
-                    Reset
                   </button>
                 </div>
               </form>
@@ -1819,13 +1805,12 @@ export default function ProfilePage() {
 
             {error ? <p className="status-note status-error">{error}</p> : null}
 
-            <section className="panel">
-              <div className="button-row">
-                <button type="button" className="claim-button" onClick={lockParentControls}>
+            <section className="panel lock-command-card">
+              <p className="panel-label">Session Security</p>
+              <p className="panel-muted">Lock the command center before handing the device back.</p>
+              <div className="button-row lock-command-actions">
+                <button type="button" className="claim-button lock-command-button" onClick={lockParentControls}>
                   Lock Command Center
-                </button>
-                <button type="button" className="text-button" onClick={logout}>
-                  Sign out Parent
                 </button>
               </div>
             </section>
@@ -1919,12 +1904,11 @@ export default function ProfilePage() {
                       onChange={(event) => setHouseholdName(event.target.value)}
                       required
                     />
-                    <textarea
-                      className="job-input form-textarea"
+                    <MarkdownTextArea
                       placeholder="Family News message"
                       value={familyRules}
-                      onChange={(event) => setFamilyRules(event.target.value)}
-                      rows="4"
+                      onChange={setFamilyRules}
+                      rows={4}
                     />
                   </section>
 
@@ -3395,7 +3379,6 @@ export default function ProfilePage() {
           </section>
         ) : null}
       </main>
-      <BottomTabBar />
     </>
   )
 }

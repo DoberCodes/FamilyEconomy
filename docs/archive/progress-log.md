@@ -92,7 +92,7 @@ Use this log to track execution updates by date and session.
 
 ### Session Update 02
 
-- Drafted the Phase 10 analytics event tracking plan in `docs/analytics-plan.md`.
+- Drafted the Phase 10 analytics event tracking plan in `docs/archive/analytics-plan.md`.
 - Defined the core event schema, event taxonomy, and first metrics for onboarding completion and weekly active families.
 - Marked the planning backlog item complete and moved Phase 10 to in-progress.
 

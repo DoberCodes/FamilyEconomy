@@ -25,9 +25,28 @@ const DEFAULT_FAMILY_ID = 'family-main'
 const DEFAULT_USER_ID = 'kid-alex'
 const DEFAULT_ROLE = 'kid'
 const CREATOR_OWNER_EMAIL = 'austin.dober@gmail.com'
-const SAVINGS_GOAL_COMPLETION_XP = 100
+const SAVINGS_GOAL_COMPLETION_XP = 140
 const WEEKLY_STREAK_MIN_DAYS = 5
-const WEEKLY_STREAK_BONUS_XP = 150
+const WEEKLY_STREAK_BONUS_XP = 200
+
+function getNextXpThreshold(currentLevel) {
+  const level = Math.max(1, Number(currentLevel) || 1)
+
+  // Early levels are intentionally easier, then ramp difficulty over time.
+  if (level <= 5) {
+    return 180 + (level - 1) * 45
+  }
+
+  if (level <= 10) {
+    return 360 + (level - 5) * 70
+  }
+
+  if (level <= 20) {
+    return 710 + (level - 10) * 95
+  }
+
+  return 1660 + (level - 20) * 120
+}
 
 function normalizeSavingsGoalApprovalMode(value) {
   if (
@@ -89,6 +108,13 @@ function normalizeFamilyDashboardSettings(familyData = {}) {
   }
 }
 
+function normalizeFamilyRecognitionSettings(familyData = {}) {
+  return {
+    achievementsEnabled: familyData.achievementsEnabled !== false,
+    familyRecognitionEnabled: familyData.familyRecognitionEnabled !== false,
+  }
+}
+
 function normalizeConsequenceEvent(event, fallbackId) {
   return {
     id: event.id || fallbackId,
@@ -117,15 +143,13 @@ async function addConsequenceEvent(familyId, eventPayload = {}) {
 }
 
 function normalizeLevel(levelData = {}) {
-  return {
-    current: Math.max(1, Number(levelData.current) || 1),
-    xp: Math.max(0, Number(levelData.xp) || 0),
-    nextXp: Math.max(100, Number(levelData.nextXp) || 500),
-  }
-}
+  const current = Math.max(1, Number(levelData.current) || 1)
 
-function getNextXpThreshold(currentLevel) {
-  return 500 + Math.max(0, currentLevel - 1) * 120
+  return {
+    current,
+    xp: Math.max(0, Number(levelData.xp) || 0),
+    nextXp: Math.max(100, Number(levelData.nextXp) || getNextXpThreshold(current)),
+  }
 }
 
 function applyXpGain(levelData, gainAmount) {
@@ -312,6 +336,14 @@ function normalizeGoal(goal, fallbackId) {
     counterNote: goal.counterNote || '',
     counteredAt: goal.counteredAt || null,
     counteredBy: goal.counteredBy || null,
+    contributionHistory: Array.isArray(goal.contributionHistory)
+      ? goal.contributionHistory.map((entry, index) => ({
+        id: entry.id || `${fallbackId || goal.id || 'goal'}:contribution:${index}`,
+        childId: entry.childId || null,
+        amount: Math.max(0, Number(entry.amount) || 0),
+        createdAt: entry.createdAt || null,
+      }))
+      : [],
     negotiationHistory: Array.isArray(goal.negotiationHistory)
       ? goal.negotiationHistory
       : [],
@@ -615,7 +647,7 @@ function emptyDashboardResult() {
       level: {
         current: 1,
         xp: 0,
-        nextXp: 500,
+        nextXp: getNextXpThreshold(1),
       },
       balance: {
         credits: 0,
@@ -695,7 +727,9 @@ export async function getFamilyDashboard(context = {}) {
       level: {
         current: Number(familyData.level?.current) || 1,
         xp: Number(familyData.level?.xp) || 0,
-        nextXp: Number(familyData.level?.nextXp) || 500,
+        nextXp:
+          Number(familyData.level?.nextXp)
+          || getNextXpThreshold(Number(familyData.level?.current) || 1),
       },
       balance: {
         credits: selectedChild ? Number(selectedChild.credits) || 0 : Number(familyData.balance?.credits) || 0,
@@ -2124,6 +2158,7 @@ export async function getHouseholdOnboardingData(context = {}) {
       family: {
         profileName: familyData.profileName || 'My Family',
         familyRules: familyData.familyRules || '',
+        familyAnnouncement: familyData.familyAnnouncement || '',
         updatedAt: familyData.updatedAt || null,
         childSessionSecurityEnabled: Boolean(familyData.childSessionSecurityEnabled),
         creatorOwnerEmail: familyData.creatorOwnerEmail || '',
@@ -2133,6 +2168,7 @@ export async function getHouseholdOnboardingData(context = {}) {
         ...normalizeFamilyJobConsequenceSettings(familyData),
         ...normalizeFamilyJobFlowSettings(familyData),
         ...normalizeFamilyDashboardSettings(familyData),
+        ...normalizeFamilyRecognitionSettings(familyData),
       },
       childProfiles: childSnapshot.docs
         .map((item) => normalizeChildProfile({ id: item.id, ...item.data() }, item.id))
@@ -2167,6 +2203,7 @@ export async function createHousehold(household, context = {}) {
   }
 
   const familyRules = (household.familyRules || '').trim()
+  const familyAnnouncement = (household.familyAnnouncement || '').trim()
   const familyRef = doc(db, 'families', activeFamilyId)
   const familySnap = await getDoc(familyRef)
   const familyDidNotExist = !familySnap.exists()
@@ -2188,6 +2225,7 @@ export async function createHousehold(household, context = {}) {
     {
       profileName,
       familyRules,
+      familyAnnouncement,
       childSessionSecurityEnabled: Boolean(household.childSessionSecurityEnabled),
       dynamicPricingEnabled: Boolean(household.dynamicPricingEnabled),
       dynamicPricingWindowPeriod: normalizePricingWindow(household.dynamicPricingWindowPeriod),
@@ -2205,9 +2243,11 @@ export async function createHousehold(household, context = {}) {
       maxActivePoolClaimsPerChild: Math.max(1, Number(household.maxActivePoolClaimsPerChild) || 1),
       allowClaimingWithPendingChecks: Boolean(household.allowClaimingWithPendingChecks),
       familyDashboardTopCardsEnabled: household.familyDashboardTopCardsEnabled !== false,
+      achievementsEnabled: household.achievementsEnabled !== false,
+      familyRecognitionEnabled: household.familyRecognitionEnabled !== false,
       streakDays: 0,
       balance: { credits: 0 },
-      level: { current: 1, xp: 0, nextXp: 500 },
+      level: { current: 1, xp: 0, nextXp: getNextXpThreshold(1) },
       creatorOwnerEmail: creatorOwnerEmail || null,
       creatorMetricsEnabled,
       createdBy: userId,
@@ -2314,6 +2354,27 @@ export async function setChildSessionSecurity(enabled, context = {}) {
     doc(db, 'families', activeFamilyId),
     {
       childSessionSecurityEnabled: Boolean(enabled),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  )
+}
+
+export async function setFamilyAnnouncement(announcement, context = {}) {
+  const { familyId: activeFamilyId, userRole } = getActiveFamilyContext(context)
+
+  if (userRole !== 'parent') {
+    throw new Error('Only parents can update family announcements.')
+  }
+
+  if (!hasFirebaseConfig || !db) {
+    throw new Error('Firebase is not configured.')
+  }
+
+  await setDoc(
+    doc(db, 'families', activeFamilyId),
+    {
+      familyAnnouncement: String(announcement || '').trim(),
       updatedAt: serverTimestamp(),
     },
     { merge: true },
@@ -2592,6 +2653,7 @@ export async function createGoal(goalPayload, context = {}) {
           },
         ]
         : [],
+      contributionHistory: [],
     createdBy: userId,
     createdAt: serverTimestamp(),
   })
@@ -2721,7 +2783,9 @@ export async function contributeToSavingsGoal(goalId, amountValue, context = {})
 
     const goalData = normalizeGoal({ id: goalSnap.id, ...goalSnap.data() }, goalSnap.id)
 
-    if (!goalData.childId) {
+    const contributorChildId = goalData.childId || context.selectedChildId || (userRole === 'kid' ? userId : null)
+
+    if (!contributorChildId) {
       throw new Error('This savings goal is not tied to a child profile.')
     }
 
@@ -2737,11 +2801,11 @@ export async function contributeToSavingsGoal(goalId, amountValue, context = {})
       throw new Error('This savings goal request was denied. Create a new goal request first.')
     }
 
-    if (userRole === 'kid' && goalData.childId !== userId) {
+    if (userRole === 'kid' && goalData.childId && goalData.childId !== contributorChildId) {
       throw new Error('You can only contribute to your own savings goal.')
     }
 
-    const childRef = doc(db, 'families', activeFamilyId, 'children', goalData.childId)
+    const childRef = doc(db, 'families', activeFamilyId, 'children', contributorChildId)
     const childSnap = await transaction.get(childRef)
 
     if (!childSnap.exists()) {
@@ -2769,6 +2833,15 @@ export async function contributeToSavingsGoal(goalId, amountValue, context = {})
     const nextCredits = currentCredits - amount
     const nextSaved = currentSaved + amount
     const nextStatus = completesGoal ? 'ready_to_claim' : 'active'
+    const contributionHistory = Array.isArray(goalSnap.data().contributionHistory)
+      ? goalSnap.data().contributionHistory
+      : []
+    const contributorEntry = {
+      id: `${contributorChildId}:${Date.now()}`,
+      childId: contributorChildId,
+      amount,
+      createdAt: Date.now(),
+    }
 
     transaction.update(childRef, {
       credits: nextCredits,
@@ -2783,11 +2856,12 @@ export async function contributeToSavingsGoal(goalId, amountValue, context = {})
       completedAt: null,
       approvedAt: null,
       approvedBy: null,
+      contributionHistory: [...contributionHistory, contributorEntry],
       updatedAt: serverTimestamp(),
     })
 
     return {
-      childId: goalData.childId,
+      childId: contributorChildId,
       credits: nextCredits,
       saved: nextSaved,
       completesGoal,

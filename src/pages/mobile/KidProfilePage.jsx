@@ -30,7 +30,7 @@ import { computeClaimCountdownData } from '../../services/policyUtils.js'
 
 const tabs = [
   { key: 'overview', label: 'Overview' },
-  { key: 'rules', label: 'House Rules' },
+  { key: 'rules', label: 'Family News' },
   { key: 'jobs', label: 'Jobs' },
   { key: 'statement', label: 'Money' },
   { key: 'savings', label: 'Savings' },
@@ -84,10 +84,15 @@ export default function KidProfilePage() {
   const [cancelGoalConfirmId, setCancelGoalConfirmId] = useState('')
   const [cancellingGoalId, setCancellingGoalId] = useState('')
   const [contributionAmount, setContributionAmount] = useState('25')
+  const [familyContributionAmount, setFamilyContributionAmount] = useState('25')
   const [savingContribution, setSavingContribution] = useState(false)
+  const [savingFamilyContribution, setSavingFamilyContribution] = useState(false)
   const [resolvingGoalCounter, setResolvingGoalCounter] = useState('')
   const [savingsGoalApprovalMode, setSavingsGoalApprovalMode] = useState('claim_only')
+  const [familyAnnouncementText, setFamilyAnnouncementText] = useState('')
   const [familyRulesText, setFamilyRulesText] = useState('')
+  const [achievementsEnabled, setAchievementsEnabled] = useState(true)
+  const [familyRecognitionEnabled, setFamilyRecognitionEnabled] = useState(true)
   const [missedJobConsequenceEnabled, setMissedJobConsequenceEnabled] = useState(false)
   const [missedJobPenaltyCredits, setMissedJobPenaltyCredits] = useState(0)
   const [missedJobTimingEnabled, setMissedJobTimingEnabled] = useState(false)
@@ -97,8 +102,10 @@ export default function KidProfilePage() {
   const [maxActivePoolClaimsPerChild, setMaxActivePoolClaimsPerChild] = useState(1)
   const [allowClaimingWithPendingChecks, setAllowClaimingWithPendingChecks] = useState(false)
   const [nowMs, setNowMs] = useState(() => Date.now())
-  const [houseRulesUpdatedAtMs, setHouseRulesUpdatedAtMs] = useState(0)
+  const [houseRulesSnapshot, setHouseRulesSnapshot] = useState('')
   const [hasUnreadHouseRulesUpdate, setHasUnreadHouseRulesUpdate] = useState(false)
+  const [hasUnreadJobsUpdate, setHasUnreadJobsUpdate] = useState(false)
+  const [hasUnreadRewardsUpdate, setHasUnreadRewardsUpdate] = useState(false)
 
   useEffect(() => {
     const timerId = window.setInterval(() => {
@@ -265,8 +272,11 @@ export default function KidProfilePage() {
         }
 
         setChildProfiles(children)
+        setFamilyAnnouncementText(onboarding.data.family?.familyAnnouncement || '')
         setFamilyRulesText(onboarding.data.family?.familyRules || '')
         setSavingsGoalApprovalMode(onboarding.data.family?.savingsGoalApprovalMode || 'claim_only')
+        setAchievementsEnabled(onboarding.data.family?.achievementsEnabled !== false)
+        setFamilyRecognitionEnabled(onboarding.data.family?.familyRecognitionEnabled !== false)
         setMissedJobConsequenceEnabled(Boolean(onboarding.data.family?.missedJobConsequenceEnabled))
         setMissedJobPenaltyCredits(Number(onboarding.data.family?.missedJobPenaltyCredits) || 0)
         setMissedJobTimingEnabled(Boolean(onboarding.data.family?.missedJobTimingEnabled))
@@ -278,13 +288,31 @@ export default function KidProfilePage() {
         )
         setAllowClaimingWithPendingChecks(Boolean(onboarding.data.family?.allowClaimingWithPendingChecks))
 
-        const familyUpdatedAt = toDate(onboarding.data.family?.updatedAt)
-        const updatedAtMs = familyUpdatedAt?.getTime() || 0
-        setHouseRulesUpdatedAtMs(updatedAtMs)
-        if (updatedAtMs > 0) {
+        const rulesSnapshot = JSON.stringify({
+          familyRules: onboarding.data.family?.familyRules || '',
+          familyAnnouncement: onboarding.data.family?.familyAnnouncement || '',
+          savingsGoalApprovalMode: onboarding.data.family?.savingsGoalApprovalMode || 'claim_only',
+          missedJobConsequenceEnabled: Boolean(onboarding.data.family?.missedJobConsequenceEnabled),
+          missedJobPenaltyCredits: Number(onboarding.data.family?.missedJobPenaltyCredits) || 0,
+          missedJobTimingEnabled: Boolean(onboarding.data.family?.missedJobTimingEnabled),
+          missedJobDefaultHours: Number(onboarding.data.family?.missedJobDefaultHours) || 24,
+          failedJobCheckConsequenceEnabled: Boolean(onboarding.data.family?.failedJobCheckConsequenceEnabled),
+          failedJobCheckPenaltyCredits: Number(onboarding.data.family?.failedJobCheckPenaltyCredits) || 0,
+          maxActivePoolClaimsPerChild: Math.max(1, Number(onboarding.data.family?.maxActivePoolClaimsPerChild) || 1),
+          allowClaimingWithPendingChecks: Boolean(onboarding.data.family?.allowClaimingWithPendingChecks),
+        })
+        setHouseRulesSnapshot(rulesSnapshot)
+        if (familyId && childId) {
           const rulesSeenKey = `family-economy-house-rules-seen:${familyId}:${childId}`
-          const seenAtMs = Number(localStorage.getItem(rulesSeenKey) || 0)
-          setHasUnreadHouseRulesUpdate(seenAtMs < updatedAtMs)
+          const seenSnapshot = localStorage.getItem(rulesSeenKey)
+          const seenLooksLegacyTimestamp = /^\d+$/.test((seenSnapshot || '').trim())
+
+          if (!seenSnapshot || seenLooksLegacyTimestamp) {
+            localStorage.setItem(rulesSeenKey, rulesSnapshot)
+            setHasUnreadHouseRulesUpdate(false)
+          } else {
+            setHasUnreadHouseRulesUpdate(seenSnapshot !== rulesSnapshot)
+          }
         } else {
           setHasUnreadHouseRulesUpdate(false)
         }
@@ -804,6 +832,43 @@ export default function KidProfilePage() {
     }
   }
 
+  async function handleContributeToFamilySavingsGoal(event) {
+    event.preventDefault()
+    if (!familySavingsGoal?.id) {
+      return
+    }
+
+    setError('')
+    setSavingFamilyContribution(true)
+
+    const contribution = Number(familyContributionAmount) || 0
+
+    try {
+      await contributeToSavingsGoal(familySavingsGoal.id, contribution, {
+        familyId,
+        userId,
+        userRole,
+        selectedChildId: resolvedChild?.id,
+      })
+
+      const dashboardResult = await getFamilyDashboard({
+        familyId,
+        userId,
+        userRole,
+        selectedChildId: resolvedChild?.id,
+      })
+
+      setDashboard(dashboardResult.data)
+      updateCreditsCelebration(resolvedChild?.id, dashboardResult.data.balance?.credits)
+      updateGoalMilestoneCelebration(resolvedChild?.id, dashboardResult.data.goals)
+      setFamilyContributionAmount('25')
+    } catch (caughtError) {
+      setError(caughtError.message || 'Could not move credits into the family savings goal.')
+    } finally {
+      setSavingFamilyContribution(false)
+    }
+  }
+
   async function handleAcceptGoalCounter() {
     if (!childGoal?.id) {
       return
@@ -898,6 +963,12 @@ export default function KidProfilePage() {
   const jobsTabInProgressJobs = myActiveJobs
   const hasAnyJobsForJobsTab =
     todaysReadyJobs.length > 0 || jobsTabInProgressJobs.length > 0 || todaysDoneJobs.length > 0
+  const latestVisibleJobCreatedAtMs = dashboard.jobs
+    .filter((job) => job.status === 'open' && (job.childId === resolvedChild?.id || !job.childId))
+    .reduce((maxValue, job) => {
+      const ms = toDate(job.createdAt || job.updatedAt)?.getTime() || 0
+      return Math.max(maxValue, ms)
+    }, 0)
   const completedJobsHistory = dashboard.jobs.filter(
     (job) => job.status === 'done' && job.claimedBy === resolvedChild?.id,
   )
@@ -910,6 +981,17 @@ export default function KidProfilePage() {
   const rewardHistory = storeData.requests.filter(
     (request) => request.requestedBy === resolvedChild?.id,
   )
+  const latestRewardCreatedAtMs = (storeData.rewards || []).reduce((maxValue, reward) => {
+    const ms = toDate(reward.createdAt || reward.updatedAt)?.getTime() || 0
+    return Math.max(maxValue, ms)
+  }, 0)
+  const rewardSnapshotItems = rewardHistory
+    .slice()
+    .sort((left, right) => {
+      const leftMs = toDate(left.fulfilledAt || left.reviewedAt || left.createdAt)?.getTime() || 0
+      const rightMs = toDate(right.fulfilledAt || right.reviewedAt || right.createdAt)?.getTime() || 0
+      return rightMs - leftMs
+    })
   const hasOpenRewardRequest = rewardHistory.some(
     (item) => item.status === 'pending' || item.status === 'countered',
   )
@@ -917,7 +999,120 @@ export default function KidProfilePage() {
   const approvedRewardCount = rewardHistory.filter((item) => item.status === 'approved').length
   const fulfilledRewardCount = rewardHistory.filter((item) => item.status === 'fulfilled').length
   const deniedRewardCount = rewardHistory.filter((item) => item.status === 'denied').length
+  const familySavingsGoal = dashboard.goals
+    .filter((goal) => !goal.childId)
+    .sort((left, right) => {
+      const rank = {
+        ready_to_claim: 0,
+        active: 1,
+        pending_parent_approval: 2,
+        countered: 3,
+        completed: 4,
+      }
+      const leftRank = rank[left.status] ?? 99
+      const rightRank = rank[right.status] ?? 99
+
+      if (leftRank !== rightRank) {
+        return leftRank - rightRank
+      }
+
+      const leftProgress = (Number(left.saved) || 0) / Math.max(1, Number(left.target) || 1)
+      const rightProgress = (Number(right.saved) || 0) / Math.max(1, Number(right.target) || 1)
+      return rightProgress - leftProgress
+    })[0] || null
+  const familySavingsGoalProgress = familySavingsGoal && Number(familySavingsGoal.target) > 0
+    ? Math.min(100, Math.round((familySavingsGoal.saved / familySavingsGoal.target) * 100))
+    : 0
+  const familySavingsContributors = Object.values(
+    (familySavingsGoal?.contributionHistory || []).reduce((accumulator, entry) => {
+      if (!entry?.childId) {
+        return accumulator
+      }
+
+      const amount = Number(entry.amount) || 0
+      accumulator[entry.childId] = accumulator[entry.childId] || { childId: entry.childId, amount: 0 }
+      accumulator[entry.childId].amount += amount
+      return accumulator
+    }, {}),
+  )
+    .sort((left, right) => right.amount - left.amount)
   const childGoals = dashboard.goals.filter((goal) => goal.childId === resolvedChild?.id)
+  const childCompletedGoalsCount = childGoals.filter((goal) => goal.status === 'completed').length
+  const childFamilyContributionCredits = (familySavingsGoal?.contributionHistory || [])
+    .filter((entry) => entry.childId === resolvedChild?.id)
+    .reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0)
+  const childHelperPoolJobsCount = completedJobsHistory.filter((job) => !job.childId).length
+  const childReadingJobsCount = completedJobsHistory
+    .filter((job) => /read|book|reading/i.test(job.title || ''))
+    .length
+  const childAchievements = [
+    childCompletedGoalsCount >= 1
+      ? { id: 'first-goal', icon: '🏁', label: 'First Goal', category: 'achievement', score: 180 }
+      : null,
+    childFamilyContributionCredits >= 100
+      ? {
+        id: 'consistent-contributor',
+        icon: '🤝',
+        label: 'Consistent Contributor',
+        category: 'achievement',
+        score: 140 + Math.min(80, childFamilyContributionCredits),
+      }
+      : null,
+    childHelperPoolJobsCount >= 3
+      ? {
+        id: 'family-helper',
+        icon: '🛟',
+        label: 'Family Helper',
+        category: 'achievement',
+        score: 130 + Math.min(60, childHelperPoolJobsCount * 10),
+      }
+      : null,
+    childReadingJobsCount >= 5
+      ? {
+        id: 'reading-champion',
+        icon: '📚',
+        label: 'Reading Champion',
+        category: 'achievement',
+        score: 120 + Math.min(60, childReadingJobsCount * 8),
+      }
+      : null,
+  ].filter(Boolean)
+  const childRecognitionBadges = [
+    dashboard.streakDays >= 3
+      ? {
+        id: 'streak-star',
+        icon: '🔥',
+        label: `Streak Star (${dashboard.streakDays} days)`,
+        category: 'recognition',
+        score: 100 + Math.min(90, dashboard.streakDays * 3),
+      }
+      : null,
+    childHelperPoolJobsCount >= 1
+      ? {
+        id: 'helping-hand',
+        icon: '🌟',
+        label: `Helping Hand (${childHelperPoolJobsCount} helps)`,
+        category: 'recognition',
+        score: 90 + Math.min(70, childHelperPoolJobsCount * 8),
+      }
+      : null,
+    childCompletedGoalsCount >= 1
+      ? {
+        id: 'goal-getter',
+        icon: '🎯',
+        label: `Goal Getter (${childCompletedGoalsCount} done)`,
+        category: 'recognition',
+        score: 95 + Math.min(65, childCompletedGoalsCount * 10),
+      }
+      : null,
+  ].filter(Boolean)
+  const allEarnedBadges = [
+    ...(achievementsEnabled ? childAchievements : []),
+    ...(familyRecognitionEnabled ? childRecognitionBadges : []),
+  ].sort((left, right) => right.score - left.score)
+  const topHeroBadges = allEarnedBadges.slice(0, 3)
+  const achievementBadgeCount = achievementsEnabled ? childAchievements.length : 0
+  const recognitionBadgeCount = familyRecognitionEnabled ? childRecognitionBadges.length : 0
   const pendingChildGoalRequest =
     childGoals.find((goal) => goal.status === 'pending_parent_approval') || null
   const activeChildGoal =
@@ -931,6 +1126,7 @@ export default function KidProfilePage() {
   const childGoalCountered = childGoalStatus === 'countered'
   const childGoalWaitingApproval = childGoalStatus === 'ready_to_claim'
   const childGoalCompleted = childGoalStatus === 'completed'
+  const isGoalCelebrationState = childGoalWaitingApproval || childGoalCompleted || childGoalProgress >= 100
   const hasPoolClaimLimitReached = blockingPoolJobs.length >= maxActivePoolClaimsPerChild
   const hasOpenPoolJobs = jobPool.length > 0
   const kidSessionReady = !loading && !error && (!requiresSessionCode || sessionUnlocked)
@@ -1323,12 +1519,57 @@ export default function KidProfilePage() {
   function handleTabChange(nextTab) {
     setActiveTab(nextTab)
 
-    if (nextTab === 'rules' && hasUnreadHouseRulesUpdate && houseRulesUpdatedAtMs) {
+    if (nextTab === 'rules' && hasUnreadHouseRulesUpdate && houseRulesSnapshot && familyId && childId) {
       const rulesSeenKey = `family-economy-house-rules-seen:${familyId}:${childId}`
-      localStorage.setItem(rulesSeenKey, String(houseRulesUpdatedAtMs))
+      localStorage.setItem(rulesSeenKey, houseRulesSnapshot)
       setHasUnreadHouseRulesUpdate(false)
     }
+
+    if (nextTab === 'jobs' && hasUnreadJobsUpdate && familyId && resolvedChild?.id && latestVisibleJobCreatedAtMs) {
+      const jobsSeenKey = `family-economy-jobs-seen:${familyId}:${resolvedChild.id}`
+      localStorage.setItem(jobsSeenKey, String(latestVisibleJobCreatedAtMs))
+      setHasUnreadJobsUpdate(false)
+    }
+
+    if (nextTab === 'rewards' && hasUnreadRewardsUpdate && familyId && resolvedChild?.id && latestRewardCreatedAtMs) {
+      const rewardsSeenKey = `family-economy-rewards-seen:${familyId}:${resolvedChild.id}`
+      localStorage.setItem(rewardsSeenKey, String(latestRewardCreatedAtMs))
+      setHasUnreadRewardsUpdate(false)
+    }
   }
+
+  useEffect(() => {
+    if (!familyId || !resolvedChild?.id || !kidSessionReady) {
+      return
+    }
+
+    const jobsSeenKey = `family-economy-jobs-seen:${familyId}:${resolvedChild.id}`
+    const rewardsSeenKey = `family-economy-rewards-seen:${familyId}:${resolvedChild.id}`
+
+    if (latestVisibleJobCreatedAtMs > 0) {
+      const seenJobsAtMs = Number(localStorage.getItem(jobsSeenKey) || 0)
+      if (seenJobsAtMs === 0) {
+        localStorage.setItem(jobsSeenKey, String(latestVisibleJobCreatedAtMs))
+        setHasUnreadJobsUpdate(false)
+      } else {
+        setHasUnreadJobsUpdate(seenJobsAtMs < latestVisibleJobCreatedAtMs)
+      }
+    } else {
+      setHasUnreadJobsUpdate(false)
+    }
+
+    if (latestRewardCreatedAtMs > 0) {
+      const seenRewardsAtMs = Number(localStorage.getItem(rewardsSeenKey) || 0)
+      if (seenRewardsAtMs === 0) {
+        localStorage.setItem(rewardsSeenKey, String(latestRewardCreatedAtMs))
+        setHasUnreadRewardsUpdate(false)
+      } else {
+        setHasUnreadRewardsUpdate(seenRewardsAtMs < latestRewardCreatedAtMs)
+      }
+    } else {
+      setHasUnreadRewardsUpdate(false)
+    }
+  }, [familyId, resolvedChild?.id, kidSessionReady, latestVisibleJobCreatedAtMs, latestRewardCreatedAtMs])
 
   useEffect(() => {
     if (!kidSessionReady || activeTab !== 'overview' || !familyId || !resolvedChild?.id) {
@@ -1376,36 +1617,58 @@ export default function KidProfilePage() {
 
   return (
     <>
-      <TopStatusBar title="Child Profile" />
+      <TopStatusBar title="Child Profile" actionLabel="End Session" onAction={handleExitProfile} />
       <main className="phone-content kid-session-shell">
         <LevelCard
           level={dashboard.level}
           profileName={resolvedChild?.displayName || dashboard.profileName}
-          subtitle="Kid session active. This space only shows this child&apos;s dashboard."
+          subtitle="Your kid session is active. This space is just for you."
         >
-          <div className="hero-tab-row" role="tablist" aria-label="Child dashboard sections">
+          {achievementsEnabled || familyRecognitionEnabled ? (
+            <section className="hero-badge-strip" aria-label="Top badges and recognition">
+              <div className="hero-badge-head">
+                <p className="hero-badge-heading">Top badges</p>
+                <span className="hero-badge-total">{allEarnedBadges.length} earned</span>
+              </div>
+              {topHeroBadges.length === 0 ? (
+                <p className="hero-badge-empty">Complete goals and help your family to unlock badges.</p>
+              ) : (
+                <div className="hero-badge-row">
+                  {topHeroBadges.map((badge) => (
+                    <span key={`hero:${badge.id}`} className="hero-badge-chip">
+                      {badge.icon} {badge.label}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </section>
+          ) : null}
+        </LevelCard>
+
+        <section className="panel quick-nav-panel" aria-label="Quick navigation">
+          <p className="panel-label quick-nav-title">Quick Adventure Nav</p>
+          <p className="panel-muted quick-nav-subtitle">Jump to what you want to do next.</p>
+          <div className="quick-nav-row" role="tablist" aria-label="Child dashboard sections">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
                 type="button"
-                className={activeTab === tab.key ? 'hero-tab hero-tab-active' : 'hero-tab'}
+                className={activeTab === tab.key ? 'quick-nav-tab quick-nav-tab-active' : 'quick-nav-tab'}
                 onClick={() => handleTabChange(tab.key)}
                 role="tab"
                 aria-selected={activeTab === tab.key}
               >
+                {activeTab === tab.key ? <span className="quick-nav-active-icon" aria-hidden="true">✦</span> : null}
                 {tab.label}
-                {tab.key === 'rules' && hasUnreadHouseRulesUpdate ? (
-                  <span className="hero-tab-badge">New</span>
+                {(tab.key === 'rules' && hasUnreadHouseRulesUpdate)
+                || (tab.key === 'jobs' && hasUnreadJobsUpdate)
+                || (tab.key === 'rewards' && hasUnreadRewardsUpdate) ? (
+                  <span className="quick-nav-badge">New</span>
                 ) : null}
               </button>
             ))}
           </div>
-          <div className="hero-action-row">
-            <button type="button" className="claim-button" onClick={handleExitProfile}>
-              Log Out
-            </button>
-          </div>
-        </LevelCard>
+        </section>
 
         {loading ? <p className="status-note">Loading child data...</p> : null}
         {error ? <p className="status-note status-error">{error}</p> : null}
@@ -1510,7 +1773,7 @@ export default function KidProfilePage() {
             <BalanceCard credits={dashboard.balance.credits} />
             <StreakCard days={dashboard.streakDays} />
 
-            <section className="panel">
+            <section className={isGoalCelebrationState ? 'panel savings-celebration-panel celebration-pop' : 'panel'}>
               <p className="panel-label">Savings</p>
               <div className="limit-chip-row">
                 <span className="limit-chip">Goal slots: {activeChildGoal ? 1 : 0}/1</span>
@@ -1526,14 +1789,28 @@ export default function KidProfilePage() {
                     <>
                       <p className="panel-muted">{activeChildGoal.name}</p>
                       <div className="limit-chip-row">
-                        <span className="limit-chip">{displayGoalStatus(activeChildGoal.status)}</span>
                         <span className="limit-chip">
-                          {Math.max(0, Number(activeChildGoal.target) - Number(activeChildGoal.saved || 0))} credits to go
+                          {activeChildGoal.status === 'ready_to_claim'
+                            ? 'Goal unlocked! 🎉'
+                            : activeChildGoal.status === 'completed'
+                              ? 'You did it! 🏆'
+                              : displayGoalStatus(activeChildGoal.status)}
+                        </span>
+                        <span className="limit-chip">
+                          {Math.max(0, Number(activeChildGoal.target) - Number(activeChildGoal.saved || 0)) === 0
+                            ? 'Goal reached! ✨'
+                            : `${Math.max(0, Number(activeChildGoal.target) - Number(activeChildGoal.saved || 0))} credits to go`}
                         </span>
                       </div>
                       <p className="panel-muted">
                         {activeChildGoal.saved}/{activeChildGoal.target} credits ({childGoalProgress}%)
                       </p>
+                      {childGoalWaitingApproval ? (
+                        <p className="panel-muted">Amazing work. Your goal is complete and waiting for a parent high-five.</p>
+                      ) : null}
+                      {childGoalCompleted ? (
+                        <p className="panel-muted">Huge win. You completed this goal and can start a new dream anytime.</p>
+                      ) : null}
                       <div className="xp-track xp-track-light">
                         <span style={{ width: `${childGoalProgress}%` }}></span>
                       </div>
@@ -1608,6 +1885,32 @@ export default function KidProfilePage() {
                 <span className="limit-chip">Fulfilled: {fulfilledRewardCount}</span>
                 <span className="limit-chip">Denied: {deniedRewardCount}</span>
               </div>
+              {rewardSnapshotItems.length === 0 ? (
+                <p className="panel-muted">No reward activity yet.</p>
+              ) : (
+                <ul className="kid-job-list" style={{ marginTop: '0.75rem' }}>
+                  {rewardSnapshotItems.slice(0, 5).map((item) => (
+                    <li key={`reward-snapshot:${item.id}`} className="kid-job-item">
+                      <div className="kid-job-main">
+                        <span className="mission-main">{item.rewardTitle}</span>
+                        <span className="job-status-label">
+                          {item.status === 'approved' ? 'Approved, waiting to be fulfilled' : null}
+                          {item.status === 'fulfilled' ? 'Fulfilled' : null}
+                          {item.status === 'pending' ? 'Pending review' : null}
+                          {item.status === 'countered' ? 'Countered' : null}
+                          {item.status === 'denied' ? 'Denied' : null}
+                        </span>
+                      </div>
+                      <div className="kid-job-side">
+                        <span className={`kid-job-state kid-job-state-${getRequestTone(item.status)}`}>
+                          {displayRequestStatus(item.status)}
+                        </span>
+                        <span className="mission-reward">{item.cost}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <button
                 type="button"
                 className="claim-button panel-action-button"
@@ -1616,13 +1919,59 @@ export default function KidProfilePage() {
                 Go To Rewards
               </button>
             </section>
+
+            {achievementsEnabled || familyRecognitionEnabled ? (
+              <section className="panel">
+                <p className="panel-label">Achievements + Recognition</p>
+                <p className="panel-muted">
+                  You have earned {allEarnedBadges.length} badge{allEarnedBadges.length === 1 ? '' : 's'} so far.
+                </p>
+                <div className="limit-chip-row" style={{ marginTop: '0.35rem' }}>
+                  {achievementsEnabled ? (
+                    <span className="limit-chip">🏅 Achievements: {achievementBadgeCount}</span>
+                  ) : null}
+                  {familyRecognitionEnabled ? (
+                    <span className="limit-chip">🌟 Recognition: {recognitionBadgeCount}</span>
+                  ) : null}
+                  <span className="limit-chip">🔥 Streak days: {dashboard.streakDays}</span>
+                </div>
+                {allEarnedBadges.length === 0 ? (
+                  <p className="panel-muted" style={{ marginTop: '0.55rem' }}>
+                    No badges yet. Keep showing up and your badge shelf will fill up quickly.
+                  </p>
+                ) : (
+                  <ul className="kid-job-list" style={{ marginTop: '0.7rem' }}>
+                    {allEarnedBadges.map((badge) => (
+                      <li key={`earned:${badge.id}`} className="kid-job-item">
+                        <div className="kid-job-main">
+                          <span className="mission-main">{badge.icon} {badge.label}</span>
+                          <span className="job-status-label">
+                            {badge.category === 'achievement' ? 'Achievement unlocked' : 'Recognition earned'}
+                          </span>
+                        </div>
+                        <div className="kid-job-side">
+                          <span className="kid-job-state kid-job-state-active">
+                            {badge.category === 'achievement' ? 'Achievement' : 'Recognition'}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            ) : null}
           </>
         ) : null}
 
         {!loading && !error && (!requiresSessionCode || sessionUnlocked) && activeTab === 'rules' ? (
           <section className="panel">
-            <p className="panel-label">House Rules</p>
-            <p className="panel-muted">These are the current family rules that affect your jobs, savings, and rewards.</p>
+            <p className="panel-label">Family News</p>
+            <p className="panel-muted">Latest family updates that guide your jobs, savings, and rewards.</p>
+
+            <div className="money-block">
+              <p className="panel-label money-section-title">Family Announcement</p>
+              <p className="panel-muted">{familyAnnouncementText || 'No new announcement right now.'}</p>
+            </div>
 
             {familyRulesText ? (
               <div className="money-block">
@@ -1673,7 +2022,7 @@ export default function KidProfilePage() {
         {!loading && !error && (!requiresSessionCode || sessionUnlocked) && activeTab === 'jobs' ? (
           <section className="panel">
             <p className="panel-label">Jobs</p>
-            <p className="panel-muted">See the House Rules tab for current policy details.</p>
+            <p className="panel-muted">See Family News for current policy details.</p>
             <div className="limit-chip-row">
               <span className="limit-chip">Pool claimed: {blockingPoolJobs.length}/{maxActivePoolClaimsPerChild}</span>
               <span className="limit-chip">To do: {todaysReadyJobs.length}</span>
@@ -2002,133 +2351,141 @@ export default function KidProfilePage() {
           <section className="panel kid-savings-panel">
             <p className="panel-label">Savings</p>
             <p className="panel-muted">Save up credits to earn a reward you want.</p>
-            <p className="panel-muted">See the House Rules tab for current approval rules.</p>
+            <p className="panel-muted">See Family News for current approval rules.</p>
 
             <div className="money-block">
-              <p className="panel-label money-section-title">Savings Goal</p>
-              <div className="limit-chip-row">
-                <span className="limit-chip">Goal slots: {activeChildGoal ? 1 : 0}/1</span>
-                <span className="limit-chip">Balance: {dashboard.balance.credits} credits</span>
-              </div>
-              {activeChildGoal ? (
-                <p className="panel-muted">
-                  One active savings goal is allowed at a time. Complete this one before creating a new goal.
-                </p>
-              ) : pendingChildGoalRequest ? (
-                <p className="panel-muted">
-                  Your goal request is waiting for parent approval.
-                </p>
-              ) : childGoalCountered ? (
-                <p className="panel-muted">
-                  Parent sent a counter offer. Accept it to start saving or decline and request a new goal.
-                </p>
-              ) : (
-                <p className="panel-muted">Pick a reward and start saving for it.</p>
-              )}
-
-              {!activeChildGoal && !pendingChildGoalRequest && !childGoalCountered ? (
-                <button
-                  type="button"
-                  className="claim-button"
-                  onClick={() => setActiveTab('rewards')}
-                >
-                  Browse Rewards to Save For
-                </button>
-              ) : null}
-
-              {childGoalCountered && childGoal ? (
-                <div className="auth-form">
-                  <p className="panel-muted">
-                    Counter offer target: {childGoal.counterTarget} credits
+              <div className="money-section-card">
+                <div className="money-section-header">
+                  <p className="panel-label money-section-title">My Savings Goal</p>
+                  <p className="money-section-description">
+                    Save credits for one reward at a time and track your progress here.
                   </p>
-                  {childGoal.counterNote ? (
-                    <p className="panel-muted">Parent note: {childGoal.counterNote}</p>
-                  ) : null}
-                  <div className="button-row">
-                    <button
-                      type="button"
-                      className="claim-button"
-                      disabled={resolvingGoalCounter.length > 0}
-                      onClick={handleAcceptGoalCounter}
-                    >
-                      {resolvingGoalCounter === 'accept' ? 'Accepting...' : 'Accept Offer'}
-                    </button>
-                    <button
-                      type="button"
-                      className="text-button"
-                      disabled={resolvingGoalCounter.length > 0}
-                      onClick={handleDeclineGoalCounter}
-                    >
-                      {resolvingGoalCounter === 'decline' ? 'Declining...' : 'Decline Offer'}
-                    </button>
-                  </div>
                 </div>
-              ) : null}
-
-              {activeChildGoal && !childGoalWaitingApproval ? (
-                <form className="auth-form" onSubmit={handleContributeToSavingsGoal}>
+                <div className="limit-chip-row">
+                  <span className="limit-chip">Goal slots: {activeChildGoal ? 1 : 0}/1</span>
+                  <span className="limit-chip">Balance: {dashboard.balance.credits} credits</span>
+                </div>
+                {activeChildGoal ? (
                   <p className="panel-muted">
-                    Pick an amount to move into your goal.
+                    One active savings goal is allowed at a time. Complete this one before creating a new goal.
                   </p>
-                  <div className="money-quick-row" role="group" aria-label="Quick contribution amounts">
-                    {[10, 25, 50].map((value) => (
-                      <button
-                        key={value}
-                        type="button"
-                        className="limit-chip money-quick-chip"
-                        onClick={() => setContributionAmount(String(value))}
-                      >
-                        +{value}
-                      </button>
-                    ))}
-                  </div>
-                  <input
-                    className="job-input"
-                    type="number"
-                    min="1"
-                    max={Math.max(0, Number(dashboard.balance.credits) || 0)}
-                    placeholder="Contribution amount"
-                    value={contributionAmount}
-                    onChange={(event) => setContributionAmount(event.target.value)}
-                    required
-                  />
+                ) : pendingChildGoalRequest ? (
+                  <p className="panel-muted">
+                    Your goal request is waiting for parent approval.
+                  </p>
+                ) : childGoalCountered ? (
+                  <p className="panel-muted">
+                    Parent sent a counter offer. Accept it to start saving or decline and request a new goal.
+                  </p>
+                ) : (
+                  <p className="panel-muted">Pick a reward and start saving for it.</p>
+                )}
+
+                {!activeChildGoal && !pendingChildGoalRequest && !childGoalCountered ? (
                   <button
-                    type="submit"
+                    type="button"
                     className="claim-button"
-                    disabled={
-                      savingContribution
-                      || (Number(dashboard.balance.credits) || 0) <= 0
-                      || childGoalCompleted
-                    }
+                    onClick={() => setActiveTab('rewards')}
                   >
-                    {savingContribution ? 'Saving...' : 'Add To Savings Goal'}
+                    Browse Rewards to Save For
                   </button>
-                </form>
-              ) : null}
+                ) : null}
 
-              {childGoalWaitingApproval ? (
-                <p className="panel-muted">
-                  Target reached. A parent can now approve this goal as completed.
-                </p>
-              ) : null}
+                {childGoalCountered && childGoal ? (
+                  <div className="auth-form">
+                    <p className="panel-muted">
+                      Counter offer target: {childGoal.counterTarget} credits
+                    </p>
+                    {childGoal.counterNote ? (
+                      <p className="panel-muted">Parent note: {childGoal.counterNote}</p>
+                    ) : null}
+                    <div className="button-row">
+                      <button
+                        type="button"
+                        className="claim-button"
+                        disabled={resolvingGoalCounter.length > 0}
+                        onClick={handleAcceptGoalCounter}
+                      >
+                        {resolvingGoalCounter === 'accept' ? 'Accepting...' : 'Accept Offer'}
+                      </button>
+                      <button
+                        type="button"
+                        className="text-button"
+                        disabled={resolvingGoalCounter.length > 0}
+                        onClick={handleDeclineGoalCounter}
+                      >
+                        {resolvingGoalCounter === 'decline' ? 'Declining...' : 'Decline Offer'}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
 
-              {childGoalPendingApproval ? (
-                <p className="panel-muted">
-                  Parent review is needed before you can contribute to this goal.
-                </p>
-              ) : null}
+                {activeChildGoal && !childGoalWaitingApproval ? (
+                  <form className="auth-form" onSubmit={handleContributeToSavingsGoal}>
+                    <div className="money-section-divider"></div>
+                    <p className="money-section-description">
+                      Pick an amount to move into your goal.
+                    </p>
+                    <div className="money-quick-row" role="group" aria-label="Quick contribution amounts">
+                      {[10, 25, 50].map((value) => (
+                        <button
+                          key={value}
+                          type="button"
+                          className="limit-chip money-quick-chip"
+                          onClick={() => setContributionAmount(String(value))}
+                        >
+                          +{value}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      className="job-input"
+                      type="number"
+                      min="1"
+                      max={Math.max(0, Number(dashboard.balance.credits) || 0)}
+                      placeholder="Contribution amount"
+                      value={contributionAmount}
+                      onChange={(event) => setContributionAmount(event.target.value)}
+                      required
+                    />
+                    <button
+                      type="submit"
+                      className="claim-button"
+                      disabled={
+                        savingContribution
+                        || (Number(dashboard.balance.credits) || 0) <= 0
+                        || childGoalCompleted
+                      }
+                    >
+                      {savingContribution ? 'Saving...' : 'Add To Savings Goal'}
+                    </button>
+                  </form>
+                ) : null}
 
-              {childGoalCountered ? (
-                <p className="panel-muted">
-                  Respond to the counter offer before contributing.
-                </p>
-              ) : null}
+                {childGoalWaitingApproval ? (
+                  <p className="panel-muted">
+                    Target reached. A parent can now approve this goal as completed.
+                  </p>
+                ) : null}
 
-              {childGoalCompleted ? (
-                <p className="panel-muted">
-                  Goal completed and parent-approved. You can start a new goal now.
-                </p>
-              ) : null}
+                {childGoalPendingApproval ? (
+                  <p className="panel-muted">
+                    Parent review is needed before you can contribute to this goal.
+                  </p>
+                ) : null}
+
+                {childGoalCountered ? (
+                  <p className="panel-muted">
+                    Respond to the counter offer before contributing.
+                  </p>
+                ) : null}
+
+                {childGoalCompleted ? (
+                  <p className="panel-muted">
+                    Goal completed and parent-approved. You can start a new goal now.
+                  </p>
+                ) : null}
+              </div>
             </div>
 
             {childGoals.length === 0 ? (
@@ -2213,6 +2570,97 @@ export default function KidProfilePage() {
                 })}
               </ul>
             )}
+
+            <div className="money-block">
+              <div className="money-section-card money-section-card--shared">
+                <div className="money-section-header">
+                  <p className="panel-label money-section-title">Family Savings Goal</p>
+                  <p className="money-section-description">
+                    Everyone can contribute here to move the family toward one shared target.
+                  </p>
+                </div>
+                <div className="limit-chip-row">
+                  <span className="limit-chip">
+                    Goal: {familySavingsGoal ? displayGoalStatus(familySavingsGoal.status) : 'Not set'}
+                  </span>
+                  <span className="limit-chip">Shared with all kids</span>
+                </div>
+                {familySavingsGoal ? (
+                  <>
+                    <div>
+                      <p className="panel-muted" style={{ marginTop: 0 }}>
+                        {familySavingsGoal.rewardTitle || familySavingsGoal.name}
+                      </p>
+                      <p className="panel-muted">
+                        {familySavingsGoal.saved}/{familySavingsGoal.target} credits ({familySavingsGoalProgress}%)
+                      </p>
+                    </div>
+                    <div className="xp-track xp-track-light">
+                      <span style={{ width: `${familySavingsGoalProgress}%` }}></span>
+                    </div>
+                    <div>
+                      <p className="money-section-kicker" style={{ marginBottom: '0.35rem' }}>Contributors</p>
+                      {familySavingsContributors.length > 0 ? (
+                        <ul className="profile-list">
+                          {familySavingsContributors.map((contributor) => {
+                            const child = childProfiles.find((profile) => profile.id === contributor.childId)
+                            return (
+                              <li key={contributor.childId} className="profile-list-item">
+                                <span className="mission-main">
+                                  {child?.avatar || '🧒'} {child?.displayName || 'Child'}
+                                </span>
+                                <span className="job-status-label">
+                                  Chipped in {contributor.amount} credits
+                                </span>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      ) : (
+                        <p className="panel-muted">No one has chipped in yet.</p>
+                      )}
+                    </div>
+                    {familySavingsGoal.status === 'active' ? (
+                      <form className="auth-form" onSubmit={handleContributeToFamilySavingsGoal}>
+                        <div className="money-section-divider"></div>
+                        <p className="money-section-description">Help the whole family reach this goal.</p>
+                        <div className="money-quick-row" role="group" aria-label="Quick family contribution amounts">
+                          {[10, 25, 50].map((value) => (
+                            <button
+                              key={value}
+                              type="button"
+                              className="limit-chip money-quick-chip"
+                              onClick={() => setFamilyContributionAmount(String(value))}
+                            >
+                              +{value}
+                            </button>
+                          ))}
+                        </div>
+                        <input
+                          className="job-input"
+                          type="number"
+                          min="1"
+                          max={Math.max(0, Number(dashboard.balance.credits) || 0)}
+                          placeholder="Contribution amount"
+                          value={familyContributionAmount}
+                          onChange={(event) => setFamilyContributionAmount(event.target.value)}
+                          required
+                        />
+                        <button
+                          type="submit"
+                          className="claim-button"
+                          disabled={savingFamilyContribution || (Number(dashboard.balance.credits) || 0) <= 0}
+                        >
+                          {savingFamilyContribution ? 'Saving...' : 'Contribute to Family Goal'}
+                        </button>
+                      </form>
+                    ) : null}
+                  </>
+                ) : (
+                  <p className="panel-muted">No shared family savings goal is set yet.</p>
+                )}
+              </div>
+            </div>
           </section>
         ) : null}
 

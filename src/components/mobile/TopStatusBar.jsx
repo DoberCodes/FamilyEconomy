@@ -7,7 +7,7 @@ function formatStatusTime(value) {
   })
 }
 
-export default function TopStatusBar({ title }) {
+export default function TopStatusBar({ title, actionLabel, onAction }) {
   const [timeLabel, setTimeLabel] = useState(() => formatStatusTime(new Date()))
 
   useEffect(() => {
@@ -21,9 +21,14 @@ export default function TopStatusBar({ title }) {
   }, [])
 
   return (
-    <header className="status-row">
-      <span>{timeLabel}</span>
+    <header className={actionLabel && typeof onAction === 'function' ? 'status-row status-row-with-action' : 'status-row'}>
+      <span className="status-meta">{timeLabel}</span>
       <span className="page-title">{title}</span>
+      {actionLabel && typeof onAction === 'function' ? (
+        <button type="button" className="status-action" onClick={onAction}>
+          {actionLabel}
+        </button>
+      ) : null}
     </header>
   )
 }

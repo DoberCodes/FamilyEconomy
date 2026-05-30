@@ -2,13 +2,20 @@
 
 Minimal React app scaffolded with Vite.
 
-## Roadmap Tracking
+## Documentation
+
+### Active Docs
 
 - Roadmap phase status: [docs/roadmap-status.md](docs/roadmap-status.md)
 - Product brief (Phase 0): [docs/product-brief.md](docs/product-brief.md)
-- MVP backlog (Phases 1-4): [docs/mvp-backlog.md](docs/mvp-backlog.md)
-- Session progress log: [docs/progress-log.md](docs/progress-log.md)
 - Firestore security guide: [docs/security-rules.md](docs/security-rules.md)
+
+### Archived Docs
+
+- Archive index: [docs/archive/README.md](docs/archive/README.md)
+- MVP backlog archive (Phases 1-4): [docs/archive/mvp-backlog.md](docs/archive/mvp-backlog.md)
+- Session progress log archive: [docs/archive/progress-log.md](docs/archive/progress-log.md)
+- Analytics plan archive: [docs/archive/analytics-plan.md](docs/archive/analytics-plan.md)
 
 ## Scripts
 

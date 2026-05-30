@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import BottomTabBar from '../../components/mobile/BottomTabBar'
 import TopStatusBar from '../../components/mobile/TopStatusBar'
 import { useAuth } from '../../context/AuthContext'
-import { createGoal, getFamilyDashboard } from '../../services/familyEconomyService'
+import { getFamilyDashboard } from '../../services/familyEconomyService'
 
 export default function SavingsPage() {
   const {
@@ -13,11 +13,7 @@ export default function SavingsPage() {
     parentControlsUnlocked,
     activeChildProfile,
   } = useAuth()
-  const parentAccessGranted = userRole === 'parent' && parentControlsUnlocked
   const [goals, setGoals] = useState([])
-  const [goalName, setGoalName] = useState('')
-  const [goalTarget, setGoalTarget] = useState('500')
-  const [savingGoal, setSavingGoal] = useState(false)
   const [error, setError] = useState('')
 
   async function refreshGoals() {
@@ -57,32 +53,6 @@ export default function SavingsPage() {
       mounted = false
     }
   }, [familyId, userId, userRole, activeChildProfile?.id])
-
-  async function handleCreateGoal(event) {
-    event.preventDefault()
-    setError('')
-    setSavingGoal(true)
-
-    try {
-      await createGoal(
-        {
-          name: goalName,
-          childId: activeChildProfile?.id || null,
-          target: Number(goalTarget) || 0,
-          saved: 0,
-        },
-        { familyId, userId, userRole },
-      )
-
-      setGoalName('')
-      setGoalTarget('500')
-      await refreshGoals()
-    } catch (caughtError) {
-      setError(caughtError.message || 'Could not create savings goal.')
-    } finally {
-      setSavingGoal(false)
-    }
-  }
 
   function displayGoalStatus(status) {
     if (status === 'completed') {
@@ -149,33 +119,6 @@ export default function SavingsPage() {
           <p className="status-note">Choose a child in Kids tab before adding savings goals.</p>
         ) : null}
 
-        {userRole === 'parent' && parentAccessGranted && activeChildProfile ? (
-          <section className="panel">
-            <p className="panel-label">Create Savings Goal</p>
-            <form className="job-form" onSubmit={handleCreateGoal}>
-              <input
-                value={goalName}
-                onChange={(event) => setGoalName(event.target.value)}
-                className="job-input"
-                placeholder="Goal name"
-                required
-              />
-              <input
-                value={goalTarget}
-                onChange={(event) => setGoalTarget(event.target.value)}
-                className="job-input"
-                type="number"
-                min="1"
-                placeholder="Target credits"
-                required
-              />
-              <button type="submit" className="claim-button" disabled={savingGoal}>
-                {savingGoal ? 'Saving...' : 'Add Goal'}
-              </button>
-            </form>
-          </section>
-        ) : null}
-
         {error ? <p className="status-note status-error">{error}</p> : null}
 
         <section className="panel">
@@ -221,6 +164,7 @@ export default function SavingsPage() {
             </ul>
           )}
         </section>
+
       </main>
       <BottomTabBar />
     </>

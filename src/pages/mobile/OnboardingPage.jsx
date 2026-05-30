@@ -360,7 +360,7 @@ export default function OnboardingPage() {
               />
             </label>
             <label className="form-field">
-              <span className="form-label">Family rules or expectations</span>
+              <span className="form-label">Family news, rules, or expectations</span>
               <textarea
                 className="job-input form-textarea"
                 placeholder="Ex: Finish jobs before screen time. Be kind. Keep your room tidy."

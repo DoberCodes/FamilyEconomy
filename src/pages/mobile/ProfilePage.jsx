@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext'
 import {
   approveSavingsGoalCompletion,
   createHousehold,
+  createGoal,
   createJob,
   createFeedbackEntry,
   createReward,
@@ -21,6 +22,7 @@ import {
   reviewJobCheckRequest,
   reviewRewardRequest,
   reviewSavingsGoalRequest,
+  setFamilyAnnouncement,
   setChildAllowSessionCode,
   setChildSessionSecurity,
   updateJob,
@@ -76,6 +78,7 @@ export default function ProfilePage() {
   const [familySummary, setFamilySummary] = useState({
     profileName: '',
     familyRules: '',
+    familyAnnouncement: '',
     creatorOwnerEmail: '',
     creatorMetricsEnabled: false,
     savingsGoalApprovalMode: 'claim_only',
@@ -88,6 +91,8 @@ export default function ProfilePage() {
     maxActivePoolClaimsPerChild: 1,
     allowClaimingWithPendingChecks: false,
     familyDashboardTopCardsEnabled: true,
+    achievementsEnabled: true,
+    familyRecognitionEnabled: true,
     dynamicPricingEnabled: false,
     dynamicPricingWindowPeriod: 'week',
     dynamicPricingDemandWeight: 10,
@@ -135,8 +140,13 @@ export default function ProfilePage() {
   const [counterGoalId, setCounterGoalId] = useState('')
   const [counterGoalTarget, setCounterGoalTarget] = useState('')
   const [counterGoalNote, setCounterGoalNote] = useState('')
+  const [savingsGoalName, setSavingsGoalName] = useState('')
+  const [savingsGoalTarget, setSavingsGoalTarget] = useState('500')
+  const [savingsGoalScope, setSavingsGoalScope] = useState('family')
   const [householdName, setHouseholdName] = useState('')
   const [familyRules, setFamilyRules] = useState('')
+  const [familyAnnouncementDraft, setFamilyAnnouncementDraft] = useState('')
+  const [savingFamilyAnnouncement, setSavingFamilyAnnouncement] = useState(false)
   const [dynamicPricingEnabled, setDynamicPricingEnabled] = useState(false)
   const [savingsGoalApprovalMode, setSavingsGoalApprovalMode] = useState('claim_only')
   const [missedJobConsequenceEnabled, setMissedJobConsequenceEnabled] = useState(false)
@@ -148,6 +158,8 @@ export default function ProfilePage() {
   const [maxActivePoolClaimsPerChild, setMaxActivePoolClaimsPerChild] = useState('1')
   const [allowClaimingWithPendingChecks, setAllowClaimingWithPendingChecks] = useState(false)
   const [familyDashboardTopCardsEnabled, setFamilyDashboardTopCardsEnabled] = useState(true)
+  const [achievementsEnabled, setAchievementsEnabled] = useState(true)
+  const [familyRecognitionEnabled, setFamilyRecognitionEnabled] = useState(true)
   const [dynamicPricingWindowPeriod, setDynamicPricingWindowPeriod] = useState('week')
   const [dynamicPricingDemandWeight, setDynamicPricingDemandWeight] = useState('10')
   const [dynamicPricingScarcityWeight, setDynamicPricingScarcityWeight] = useState('20')
@@ -543,6 +555,7 @@ export default function ProfilePage() {
           setFamilySummary({
             profileName: result.data.family?.profileName || '',
             familyRules: result.data.family?.familyRules || '',
+            familyAnnouncement: result.data.family?.familyAnnouncement || '',
             creatorOwnerEmail: result.data.family?.creatorOwnerEmail || '',
             creatorMetricsEnabled: Boolean(result.data.family?.creatorMetricsEnabled),
             savingsGoalApprovalMode: result.data.family?.savingsGoalApprovalMode || 'claim_only',
@@ -555,6 +568,8 @@ export default function ProfilePage() {
             maxActivePoolClaimsPerChild: Number(result.data.family?.maxActivePoolClaimsPerChild) || 1,
             allowClaimingWithPendingChecks: Boolean(result.data.family?.allowClaimingWithPendingChecks),
             familyDashboardTopCardsEnabled: result.data.family?.familyDashboardTopCardsEnabled !== false,
+            achievementsEnabled: result.data.family?.achievementsEnabled !== false,
+            familyRecognitionEnabled: result.data.family?.familyRecognitionEnabled !== false,
             dynamicPricingEnabled: Boolean(result.data.family?.dynamicPricingEnabled),
             dynamicPricingWindowPeriod: result.data.family?.dynamicPricingWindowPeriod || 'week',
             dynamicPricingDemandWeight: Number(result.data.family?.dynamicPricingDemandWeight) || 10,
@@ -563,6 +578,7 @@ export default function ProfilePage() {
           setChildSessionSecurityEnabled(
             Boolean(result.data.family?.childSessionSecurityEnabled),
           )
+          setFamilyAnnouncementDraft(result.data.family?.familyAnnouncement || '')
         }
       } catch {
         if (!cancelled) {
@@ -859,10 +875,18 @@ export default function ProfilePage() {
       setMaxActivePoolClaimsPerChild(String(familySummary.maxActivePoolClaimsPerChild || 1))
       setAllowClaimingWithPendingChecks(Boolean(familySummary.allowClaimingWithPendingChecks))
       setFamilyDashboardTopCardsEnabled(familySummary.familyDashboardTopCardsEnabled !== false)
+      setAchievementsEnabled(familySummary.achievementsEnabled !== false)
+      setFamilyRecognitionEnabled(familySummary.familyRecognitionEnabled !== false)
       setDynamicPricingEnabled(Boolean(familySummary.dynamicPricingEnabled))
       setDynamicPricingWindowPeriod(familySummary.dynamicPricingWindowPeriod || 'week')
       setDynamicPricingDemandWeight(String(familySummary.dynamicPricingDemandWeight || 10))
       setDynamicPricingScarcityWeight(String(familySummary.dynamicPricingScarcityWeight || 20))
+    }
+
+    if (dialog === 'savings') {
+      setSavingsGoalName('')
+      setSavingsGoalTarget('500')
+      setSavingsGoalScope('family')
     }
   }
 
@@ -882,6 +906,35 @@ export default function ProfilePage() {
 
   function closeDialog() {
     setActiveDialog('')
+  }
+
+  async function handleCreateSavingsGoal(event) {
+    event.preventDefault()
+    setDialogBusy(true)
+    setError('')
+
+    try {
+      const childId = savingsGoalScope === 'family' ? null : savingsGoalScope
+
+      await createGoal(
+        {
+          name: savingsGoalName,
+          childId,
+          target: Number(savingsGoalTarget) || 0,
+          saved: 0,
+        },
+        { familyId, userId, userRole },
+      )
+
+      setSavingsGoalName('')
+      setSavingsGoalTarget('500')
+      setSavingsGoalScope('family')
+      await loadDialogData()
+    } catch (caughtError) {
+      setError(caughtError.message || 'Could not create savings goal.')
+    } finally {
+      setDialogBusy(false)
+    }
   }
 
   function getConsequencePreset() {
@@ -1068,6 +1121,7 @@ export default function ProfilePage() {
         {
           profileName: householdName,
           familyRules,
+          familyAnnouncement: familySummary.familyAnnouncement || '',
           childSessionSecurityEnabled,
           savingsGoalApprovalMode,
           missedJobConsequenceEnabled,
@@ -1079,6 +1133,8 @@ export default function ProfilePage() {
           maxActivePoolClaimsPerChild: Number(maxActivePoolClaimsPerChild) || 1,
           allowClaimingWithPendingChecks,
           familyDashboardTopCardsEnabled,
+          achievementsEnabled,
+          familyRecognitionEnabled,
           dynamicPricingEnabled,
           dynamicPricingWindowPeriod,
           dynamicPricingDemandWeight: Number(dynamicPricingDemandWeight) || 0,
@@ -1089,6 +1145,7 @@ export default function ProfilePage() {
       setFamilySummary({
         profileName: householdName,
         familyRules,
+        familyAnnouncement: familySummary.familyAnnouncement || '',
         creatorOwnerEmail: familySummary.creatorOwnerEmail || (userEmailLower === CREATOR_OWNER_EMAIL ? CREATOR_OWNER_EMAIL : ''),
         creatorMetricsEnabled: Boolean(familySummary.creatorMetricsEnabled) || userEmailLower === CREATOR_OWNER_EMAIL,
         savingsGoalApprovalMode,
@@ -1101,6 +1158,8 @@ export default function ProfilePage() {
         maxActivePoolClaimsPerChild: Number(maxActivePoolClaimsPerChild) || 1,
         allowClaimingWithPendingChecks,
         familyDashboardTopCardsEnabled,
+        achievementsEnabled,
+        familyRecognitionEnabled,
         dynamicPricingEnabled,
         dynamicPricingWindowPeriod,
         dynamicPricingDemandWeight: Number(dynamicPricingDemandWeight) || 0,
@@ -1111,6 +1170,26 @@ export default function ProfilePage() {
       setError(caughtError.message || 'Could not save household settings.')
     } finally {
       setDialogBusy(false)
+    }
+  }
+
+  async function handleSaveFamilyAnnouncement(event) {
+    event.preventDefault()
+    setError('')
+    setSavingFamilyAnnouncement(true)
+
+    try {
+      const nextAnnouncement = String(familyAnnouncementDraft || '').trim()
+      await setFamilyAnnouncement(nextAnnouncement, { familyId, userId, userRole })
+      setFamilyAnnouncementDraft(nextAnnouncement)
+      setFamilySummary((current) => ({
+        ...current,
+        familyAnnouncement: nextAnnouncement,
+      }))
+    } catch (caughtError) {
+      setError(caughtError.message || 'Could not save family announcement.')
+    } finally {
+      setSavingFamilyAnnouncement(false)
     }
   }
 
@@ -1507,7 +1586,7 @@ export default function ProfilePage() {
 
   return (
     <>
-      <TopStatusBar title="Parent" />
+      <TopStatusBar title="Parent • Family Economy Early Access" />
       <main className="phone-content">
         {!isParent ? (
           <section className="panel">
@@ -1594,6 +1673,33 @@ export default function ProfilePage() {
             </section>
 
             <section className="panel">
+              <p className="panel-label">Family Announcement</p>
+              <p className="panel-muted">Quick action: post a headline update kids will see first in Family News.</p>
+              <form className="auth-form" onSubmit={handleSaveFamilyAnnouncement}>
+                <textarea
+                  className="job-input form-textarea"
+                  placeholder="Example: Grandparents will be in town on Saturday."
+                  value={familyAnnouncementDraft}
+                  onChange={(event) => setFamilyAnnouncementDraft(event.target.value)}
+                  rows="3"
+                />
+                <div className="button-row">
+                  <button type="submit" className="claim-button" disabled={savingFamilyAnnouncement}>
+                    {savingFamilyAnnouncement ? 'Saving...' : 'Post Announcement'}
+                  </button>
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() => setFamilyAnnouncementDraft(familySummary.familyAnnouncement || '')}
+                    disabled={savingFamilyAnnouncement}
+                  >
+                    Reset
+                  </button>
+                </div>
+              </form>
+            </section>
+
+            <section className="panel">
               <p className="panel-label">Command Center Dialogs</p>
               <div className="button-row">
                 <button type="button" className="text-button" onClick={() => openDialog('overview')}>
@@ -1613,6 +1719,9 @@ export default function ProfilePage() {
                 </button>
                 <button type="button" className="text-button" onClick={() => openDialog('rewards')}>
                   Rewards manager
+                </button>
+                <button type="button" className="text-button" onClick={() => openDialog('savings')}>
+                  Savings goals
                 </button>
                 <button type="button" className="text-button" onClick={() => openDialog('settings')}>
                   Parent settings
@@ -1733,6 +1842,7 @@ export default function ProfilePage() {
                   {activeDialog === 'requests' ? 'Pending Requests' : null}
                   {activeDialog === 'jobs' ? 'Jobs Manager' : null}
                   {activeDialog === 'rewards' ? 'Rewards Manager' : null}
+                  {activeDialog === 'savings' ? 'Savings Goals' : null}
                   {activeDialog === 'settings' ? 'Parent Settings' : null}
                   {activeDialog === 'analytics' ? 'Analytics' : null}
                 </p>
@@ -1744,6 +1854,7 @@ export default function ProfilePage() {
               {activeDialog === 'overview' ? (
                 <div className="dialog-content">
                   <p className="panel-muted">Family: {familySummary.profileName || 'Not set'}</p>
+                  <p className="panel-muted">Announcement: {familySummary.familyAnnouncement || 'No announcement posted'}</p>
                   <p className="panel-muted">Rules: {familySummary.familyRules || 'No rules yet'}</p>
                   <p className="panel-muted">
                     Dynamic pricing: {familySummary.dynamicPricingEnabled ? 'On' : 'Off'}
@@ -1786,6 +1897,12 @@ export default function ProfilePage() {
                   <p className="panel-muted">
                     Pending checks count toward slots: {familySummary.allowClaimingWithPendingChecks ? 'No' : 'Yes'}
                   </p>
+                  <p className="panel-muted">
+                    Achievements: {familySummary.achievementsEnabled ? 'On' : 'Off'}
+                  </p>
+                  <p className="panel-muted">
+                    Family recognition cards: {familySummary.familyRecognitionEnabled ? 'On' : 'Off'}
+                  </p>
                   <p className="panel-muted">Children: {childProfiles.length}</p>
                 </div>
               ) : null}
@@ -1794,7 +1911,7 @@ export default function ProfilePage() {
                 <form className="auth-form dialog-content" onSubmit={handleSaveHousehold}>
                   <section className="dialog-section">
                     <p className="dialog-section-title">Household Identity</p>
-                    <p className="dialog-section-subtitle">Name and house rules shown across the app.</p>
+                    <p className="dialog-section-subtitle">Name and Family News message shown across the app.</p>
                     <input
                       className="job-input"
                       placeholder="Family name"
@@ -1804,7 +1921,7 @@ export default function ProfilePage() {
                     />
                     <textarea
                       className="job-input form-textarea"
-                      placeholder="Family rules"
+                      placeholder="Family News message"
                       value={familyRules}
                       onChange={(event) => setFamilyRules(event.target.value)}
                       rows="4"
@@ -1989,6 +2106,33 @@ export default function ProfilePage() {
                         <option value="off">Off (simplified mode)</option>
                       </select>
                       <p className="form-help">Helpful for multi-child competition; often unnecessary for single-child homes.</p>
+                    </label>
+                  </section>
+
+                  <section className="dialog-section">
+                    <p className="dialog-section-title">Recognition and Achievements</p>
+                    <p className="dialog-section-subtitle">Control badges and recognition callouts in kid and family views.</p>
+                    <label className="form-field">
+                      <span className="form-label">Show kid achievements</span>
+                      <select
+                        className="job-input"
+                        value={achievementsEnabled ? 'on' : 'off'}
+                        onChange={(event) => setAchievementsEnabled(event.target.value === 'on')}
+                      >
+                        <option value="on">On</option>
+                        <option value="off">Off</option>
+                      </select>
+                    </label>
+                    <label className="form-field">
+                      <span className="form-label">Show family recognition cards</span>
+                      <select
+                        className="job-input"
+                        value={familyRecognitionEnabled ? 'on' : 'off'}
+                        onChange={(event) => setFamilyRecognitionEnabled(event.target.value === 'on')}
+                      >
+                        <option value="on">On</option>
+                        <option value="off">Off</option>
+                      </select>
                     </label>
                   </section>
 
@@ -2770,6 +2914,94 @@ export default function ProfilePage() {
                       </li>
                       ))}
                   </ul>
+                </div>
+              ) : null}
+
+              {activeDialog === 'savings' ? (
+                <div className="dialog-content">
+                  <form className="auth-form" onSubmit={handleCreateSavingsGoal}>
+                    <section className="dialog-section">
+                      <p className="dialog-section-title">Create Savings Goal</p>
+                      <p className="dialog-section-subtitle">
+                        Set a shared family goal or assign the goal to a child.
+                      </p>
+                      <input
+                        className="job-input"
+                        placeholder="Goal name"
+                        value={savingsGoalName}
+                        onChange={(event) => setSavingsGoalName(event.target.value)}
+                        required
+                      />
+                      <input
+                        className="job-input"
+                        type="number"
+                        min="1"
+                        placeholder="Target credits"
+                        value={savingsGoalTarget}
+                        onChange={(event) => setSavingsGoalTarget(event.target.value)}
+                        required
+                      />
+                      <label className="form-field">
+                        <span className="form-label">Goal scope</span>
+                        <select
+                          className="job-input"
+                          value={savingsGoalScope}
+                          onChange={(event) => setSavingsGoalScope(event.target.value)}
+                        >
+                          <option value="family">Whole family</option>
+                          {childProfiles.map((child) => (
+                            <option key={child.id} value={child.id}>
+                              {child.avatar} {child.displayName}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="form-help">
+                          Family goals appear on Home for everyone to contribute toward.
+                        </p>
+                      </label>
+                    </section>
+
+                    {goals.length > 0 ? (
+                      <section className="dialog-section">
+                        <p className="dialog-section-title">Current Savings Goals</p>
+                        <ul className="mission-list">
+                          {goals
+                            .slice()
+                            .sort((left, right) => {
+                              const leftUpdatedAt = toDateValue(left.updatedAt)?.getTime() || 0
+                              const rightUpdatedAt = toDateValue(right.updatedAt)?.getTime() || 0
+                              return rightUpdatedAt - leftUpdatedAt
+                            })
+                            .slice(0, 6)
+                            .map((goal) => {
+                              const goalChild = childProfiles.find((child) => child.id === goal.childId)
+
+                              return (
+                                <li key={goal.id}>
+                                  <span className="mission-main">
+                                    {goal.rewardId ? '🎁' : '🎯'} {goal.rewardTitle || goal.name}
+                                  </span>
+                                  <span className="job-status-label">
+                                    {goal.childId
+                                      ? `${goalChild?.avatar || '🧒'} ${goalChild?.displayName || 'Child'}`
+                                      : 'Family goal'}
+                                  </span>
+                                  <span className="mission-reward">
+                                    {goal.saved}/{goal.target}
+                                  </span>
+                                </li>
+                              )
+                            })}
+                        </ul>
+                      </section>
+                    ) : null}
+
+                    {error ? <p className="status-note status-error">{error}</p> : null}
+
+                    <button type="submit" className="claim-button" disabled={dialogBusy}>
+                      {dialogBusy ? 'Saving...' : 'Create Goal'}
+                    </button>
+                  </form>
                 </div>
               ) : null}
 

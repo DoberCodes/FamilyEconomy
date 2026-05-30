@@ -28,6 +28,8 @@ export default function HomePage() {
   const [store, setStore] = useState({ rewards: [], requests: [] })
   const [childProfiles, setChildProfiles] = useState([])
   const [familyDashboardTopCardsEnabled, setFamilyDashboardTopCardsEnabled] = useState(true)
+  const [achievementsEnabled, setAchievementsEnabled] = useState(true)
+  const [familyRecognitionEnabled, setFamilyRecognitionEnabled] = useState(true)
   const [trendView, setTrendView] = useState('daily')
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [loading, setLoading] = useState(true)
@@ -73,6 +75,8 @@ export default function HomePage() {
         setFamilyDashboardTopCardsEnabled(
           onboardingResult.data.family?.familyDashboardTopCardsEnabled !== false,
         )
+        setAchievementsEnabled(onboardingResult.data.family?.achievementsEnabled !== false)
+        setFamilyRecognitionEnabled(onboardingResult.data.family?.familyRecognitionEnabled !== false)
       } catch {
         if (!mounted) {
           return
@@ -82,6 +86,8 @@ export default function HomePage() {
         setStore({ rewards: [], requests: [] })
         setChildProfiles([])
         setFamilyDashboardTopCardsEnabled(true)
+        setAchievementsEnabled(true)
+        setFamilyRecognitionEnabled(true)
         setError('Could not load family data right now.')
       } finally {
         if (mounted) {
@@ -482,6 +488,105 @@ export default function HomePage() {
     .slice()
     .sort((a, b) => b.saved - a.saved)[0] || null
 
+  const completedGoalsByChildId = dashboard.goals
+    .filter((goal) => goal.status === 'completed' && resolveChildId(goal.childId))
+    .reduce((accumulator, goal) => {
+      accumulator[goal.childId] = (accumulator[goal.childId] || 0) + 1
+      return accumulator
+    }, {})
+
+  const familyContributionsByChildId = dashboard.goals
+    .filter((goal) => !resolveChildId(goal.childId))
+    .reduce((accumulator, goal) => {
+      ;(goal.contributionHistory || []).forEach((entry) => {
+        const id = resolveChildId(entry.childId)
+        if (!id) {
+          return
+        }
+        accumulator[id] = (accumulator[id] || 0) + (Number(entry.amount) || 0)
+      })
+      return accumulator
+    }, {})
+
+  const doneJobsByChildId = dashboard.jobs
+    .filter((job) => job.status === 'done')
+    .reduce((accumulator, job) => {
+      const childId = resolveChildIdForJob(job)
+      if (!childId) {
+        return accumulator
+      }
+      accumulator[childId] = (accumulator[childId] || 0) + 1
+      return accumulator
+    }, {})
+
+  const helperPoolJobsByChildId = dashboard.jobs
+    .filter((job) => job.status === 'done' && !job.childId)
+    .reduce((accumulator, job) => {
+      const childId = resolveChildIdForJob(job)
+      if (!childId) {
+        return accumulator
+      }
+      accumulator[childId] = (accumulator[childId] || 0) + 1
+      return accumulator
+    }, {})
+
+  const readingJobsByChildId = dashboard.jobs
+    .filter((job) => job.status === 'done' && /read|book|reading/i.test(job.title || ''))
+    .reduce((accumulator, job) => {
+      const childId = resolveChildIdForJob(job)
+      if (!childId) {
+        return accumulator
+      }
+      accumulator[childId] = (accumulator[childId] || 0) + 1
+      return accumulator
+    }, {})
+
+  const childAchievements = childProfiles
+    .map((child) => {
+      const badges = []
+      if ((completedGoalsByChildId[child.id] || 0) >= 1) {
+        badges.push({ id: 'first-goal', icon: '🏁', label: 'First Goal' })
+      }
+      if ((familyContributionsByChildId[child.id] || 0) >= 100) {
+        badges.push({ id: 'consistent-contributor', icon: '🤝', label: 'Consistent Contributor' })
+      }
+      if ((helperPoolJobsByChildId[child.id] || 0) >= 3) {
+        badges.push({ id: 'family-helper', icon: '🛟', label: 'Family Helper' })
+      }
+      if ((readingJobsByChildId[child.id] || 0) >= 5) {
+        badges.push({ id: 'reading-champion', icon: '📚', label: 'Reading Champion' })
+      }
+
+      return { child, badges }
+    })
+    .filter((entry) => entry.badges.length > 0)
+
+  const weeklyDoneDaysByChildId = dashboard.jobs
+    .filter((job) => job.status === 'done')
+    .reduce((accumulator, job) => {
+      const childId = resolveChildIdForJob(job)
+      const completedAt = toDate(job.completedAt || job.claimedAt)
+      if (!childId || !completedAt) {
+        return accumulator
+      }
+      const key = completedAt.toISOString().slice(0, 10)
+      accumulator[childId] = accumulator[childId] || new Set()
+      accumulator[childId].add(key)
+      return accumulator
+    }, {})
+
+  const mostHelpful = childProfiles
+    .map((child) => ({ child, value: doneJobsByChildId[child.id] || 0 }))
+    .sort((left, right) => right.value - left.value)[0] || null
+
+  const longestStreakKid = childProfiles
+    .map((child) => ({ child, value: (weeklyDoneDaysByChildId[child.id] || new Set()).size }))
+    .sort((left, right) => right.value - left.value)[0] || null
+
+  const goalSetter = childProfiles
+    .map((child) => ({ child, value: completedGoalsByChildId[child.id] || 0 }))
+    .sort((left, right) => right.value - left.value)[0] || null
+
   const familySavingsGoal = dashboard.goals
     .filter((goal) => !resolveChildId(goal.childId))
     .sort((left, right) => {
@@ -519,6 +624,19 @@ export default function HomePage() {
       ),
     )
     : 0
+  const familySavingsContributors = Object.values(
+    (familySavingsGoal?.contributionHistory || []).reduce((accumulator, entry) => {
+      if (!entry?.childId) {
+        return accumulator
+      }
+
+      const amount = Number(entry.amount) || 0
+      accumulator[entry.childId] = accumulator[entry.childId] || { childId: entry.childId, amount: 0 }
+      accumulator[entry.childId].amount += amount
+      return accumulator
+    }, {}),
+  )
+    .sort((left, right) => right.amount - left.amount)
   const overallJobEarnings = dashboard.jobs.reduce((sum, job) => {
     if (job.status === 'done') {
       return sum + getJobCreditAmount(job)
@@ -863,6 +981,7 @@ export default function HomePage() {
                     </button>
                   </div>
                 </div>
+                <p className="panel-muted home-section-subtitle">Family Economy Activity</p>
                 {familyDashboardTopCardsEnabled ? (
                   <div className="family-podium">
                     <div className="family-score-card">
@@ -912,25 +1031,97 @@ export default function HomePage() {
               </div>
             </section>
 
+            {familyRecognitionEnabled ? (
+              <section className="panel home-col-full">
+                <p className="panel-label">Family Recognition</p>
+                <p className="panel-muted home-section-subtitle">Celebrating positive habits and consistency</p>
+                <div className="family-podium">
+                  <div className="family-score-card">
+                    <small>Most Helpful</small>
+                    <strong>{mostHelpful ? `${mostHelpful.child.avatar} ${mostHelpful.child.displayName}` : 'No data'}</strong>
+                    <span>{mostHelpful?.value || 0} jobs completed</span>
+                  </div>
+                  <div className="family-score-card">
+                    <small>Longest Streak</small>
+                    <strong>{longestStreakKid ? `${longestStreakKid.child.avatar} ${longestStreakKid.child.displayName}` : 'No data'}</strong>
+                    <span>{longestStreakKid?.value || 0} active day(s)</span>
+                  </div>
+                  <div className="family-score-card">
+                    <small>Goal Setter</small>
+                    <strong>{goalSetter ? `${goalSetter.child.avatar} ${goalSetter.child.displayName}` : 'No data'}</strong>
+                    <span>{goalSetter?.value || 0} completed goal(s)</span>
+                  </div>
+                </div>
+              </section>
+            ) : null}
+
+            {achievementsEnabled ? (
+              <section className="panel home-col-full">
+                <p className="panel-label">Achievement Board</p>
+                <p className="panel-muted home-section-subtitle">Milestones unlocked by family members</p>
+                {childAchievements.length === 0 ? (
+                  <p className="panel-muted">No achievements unlocked yet.</p>
+                ) : (
+                  <ul className="family-grid-list">
+                    {childAchievements.map((entry) => (
+                      <li key={`achievements:${entry.child.id}`}>
+                        <span className="mission-main">{entry.child.avatar} {entry.child.displayName}</span>
+                        <div className="limit-chip-row" style={{ marginTop: '0.45rem' }}>
+                          {entry.badges.map((badge) => (
+                            <span key={badge.id} className="limit-chip">{badge.icon} {badge.label}</span>
+                          ))}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            ) : null}
+
             <section className="panel home-col-full">
-              <p className="panel-label">Family Savings</p>
-              <p className="panel-muted">Parent-set shared target that every child can contribute toward.</p>
-              {!familySavingsGoal ? (
-                <p className="panel-muted">No shared family goal yet. Create one in Savings with no child selected.</p>
-              ) : (
-                <>
-                  <p className="panel-muted">
-                    {familySavingsGoal.saved} / {familySavingsGoal.target} credits saved ({familySavingsGoalPct}%)
-                  </p>
-                  <div className="limit-chip-row">
-                    <span className="limit-chip">{displayGoalStatus(familySavingsGoal.status)}</span>
-                    <span className="limit-chip">{childProfiles.length} kids can contribute</span>
-                  </div>
-                  <div className="xp-track xp-track-light">
-                    <span style={{ width: `${familySavingsGoalPct}%` }}></span>
-                  </div>
-                </>
-              )}
+              <p className="panel-label">Family Goal</p>
+              <p className="panel-muted home-section-subtitle">The shared target everyone can build together.</p>
+              <div className="money-section-card money-section-card--shared family-goal-hero" style={{ marginTop: '0.25rem' }}>
+                {!familySavingsGoal ? (
+                  <p className="panel-muted">No shared family goal yet. Create one in Savings with no child selected.</p>
+                ) : (
+                  <>
+                    <p className="family-goal-kicker">🎯 FAMILY GOAL</p>
+                    <p className="family-goal-name">{(familySavingsGoal.rewardTitle || familySavingsGoal.name || 'Family Goal').toUpperCase()}</p>
+                    <div className="limit-chip-row">
+                      <span className="limit-chip">{displayGoalStatus(familySavingsGoal.status)}</span>
+                      <span className="limit-chip">{childProfiles.length} kids can contribute</span>
+                    </div>
+                    <p className="family-goal-math">{familySavingsGoal.saved} / {familySavingsGoal.target} Credits</p>
+                    <p className="family-goal-percent">{familySavingsGoalPct}%</p>
+                    <div className="xp-track xp-track-light">
+                      <span style={{ width: `${familySavingsGoalPct}%` }}></span>
+                    </div>
+                    <div>
+                      <p className="money-section-kicker" style={{ marginBottom: '0.35rem' }}>Contributors</p>
+                      {familySavingsContributors.length > 0 ? (
+                        <ul className="profile-list">
+                          {familySavingsContributors.map((contributor) => {
+                            const child = childProfiles.find((profile) => profile.id === contributor.childId)
+                            return (
+                              <li key={contributor.childId} className="profile-list-item">
+                                <span className="mission-main">
+                                  {child?.avatar || '🧒'} {child?.displayName || 'Child'}
+                                </span>
+                                <span className="job-status-label">
+                                  {contributor.amount} credits
+                                </span>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      ) : (
+                        <p className="panel-muted">No one has chipped in yet.</p>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
             </section>
 
             <section className="panel home-col-full">

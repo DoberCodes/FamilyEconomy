@@ -4,11 +4,13 @@ import MarkdownTextArea from '../../components/shared/MarkdownTextArea'
 import { useAuth } from '../../context/AuthContext'
 import {
   approveSavingsGoalCompletion,
+  createChildProfile,
   createHousehold,
   createGoal,
   createJob,
   createFeedbackEntry,
   createReward,
+  deleteChildProfile,
   clearChildSessionCode,
   getFamilyDashboard,
   getFamilyConsequenceEvents,
@@ -24,6 +26,7 @@ import {
   setFamilyAnnouncement,
   setChildAllowSessionCode,
   setChildSessionSecurity,
+  updateChildProfile,
   updateJob,
   updateReward,
 } from '../../services/familyEconomyService'
@@ -50,6 +53,7 @@ const emptyOnboardingSummary = {
 }
 
 const CREATOR_OWNER_EMAIL = 'austin.dober@gmail.com'
+const CHILD_AVATAR_OPTIONS = ['🧒', '🧑', '🌟', '🚀', '🦄']
 
 export default function ProfilePage() {
   const {
@@ -145,6 +149,12 @@ export default function ProfilePage() {
   const [familyRules, setFamilyRules] = useState('')
   const [familyAnnouncementDraft, setFamilyAnnouncementDraft] = useState('')
   const [savingFamilyAnnouncement, setSavingFamilyAnnouncement] = useState(false)
+  const [newChildName, setNewChildName] = useState('')
+  const [newChildAvatar, setNewChildAvatar] = useState('🧒')
+  const [editingChildId, setEditingChildId] = useState('')
+  const [editingChildName, setEditingChildName] = useState('')
+  const [editingChildAvatar, setEditingChildAvatar] = useState('🧒')
+  const [removeChildConfirmId, setRemoveChildConfirmId] = useState('')
   const [dynamicPricingEnabled, setDynamicPricingEnabled] = useState(false)
   const [savingsGoalApprovalMode, setSavingsGoalApprovalMode] = useState('claim_only')
   const [missedJobConsequenceEnabled, setMissedJobConsequenceEnabled] = useState(false)
@@ -786,6 +796,87 @@ export default function ProfilePage() {
     }
   }
 
+  async function refreshChildProfiles() {
+    const result = await getHouseholdOnboardingData({ familyId, userId, userRole })
+    setChildProfiles(result.data.childProfiles || [])
+  }
+
+  async function handleAddChildProfile(event) {
+    event.preventDefault()
+    setSaving(true)
+    setError('')
+
+    try {
+      await createChildProfile(
+        {
+          displayName: newChildName,
+          avatar: newChildAvatar,
+        },
+        { familyId, userId, userRole },
+      )
+      setNewChildName('')
+      setNewChildAvatar('🧒')
+      await refreshChildProfiles()
+    } catch (caughtError) {
+      setError(caughtError.message || 'Could not add child profile.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function handleStartEditChild(child) {
+    setEditingChildId(child.id)
+    setEditingChildName(child.displayName || '')
+    setEditingChildAvatar(child.avatar || '🧒')
+    setRemoveChildConfirmId('')
+  }
+
+  function handleCancelEditChild() {
+    setEditingChildId('')
+    setEditingChildName('')
+    setEditingChildAvatar('🧒')
+  }
+
+  async function handleSaveChildProfile(childId) {
+    setSaving(true)
+    setError('')
+
+    try {
+      await updateChildProfile(
+        childId,
+        {
+          displayName: editingChildName,
+          avatar: editingChildAvatar,
+        },
+        { familyId, userId, userRole },
+      )
+      handleCancelEditChild()
+      await refreshChildProfiles()
+    } catch (caughtError) {
+      setError(caughtError.message || 'Could not update child profile.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleRemoveChildProfile(childId) {
+    setSaving(true)
+    setError('')
+
+    try {
+      await deleteChildProfile(childId, { familyId, userId, userRole })
+      setRemoveChildConfirmId('')
+      if (editingChildId === childId) {
+        handleCancelEditChild()
+      }
+      await refreshChildProfiles()
+    } catch (caughtError) {
+      setError(caughtError.message || 'Could not remove child profile.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function handleToggleChildAllowSessionCode(childId, allowed) {
     setSaving(true)
     setError('')
@@ -793,8 +884,7 @@ export default function ProfilePage() {
     try {
       await setChildAllowSessionCode(childId, allowed, { familyId, userId, userRole })
 
-      const result = await getHouseholdOnboardingData({ familyId, userId, userRole })
-      setChildProfiles(result.data.childProfiles || [])
+      await refreshChildProfiles()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not update child PIN permission.')
     } finally {
@@ -809,8 +899,7 @@ export default function ProfilePage() {
     try {
       await clearChildSessionCode(childId, { familyId, userId, userRole })
 
-      const result = await getHouseholdOnboardingData({ familyId, userId, userRole })
-      setChildProfiles(result.data.childProfiles || [])
+      await refreshChildProfiles()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not clear child PIN.')
     } finally {
@@ -1719,12 +1808,12 @@ export default function ProfilePage() {
             </section>
 
             <section className="panel">
-              <p className="panel-label">Child Session Security</p>
+              <p className="panel-label">Kids & Security Rules</p>
               <p className="panel-muted">
-                Status: {childSessionSecurityEnabled ? 'Enabled' : 'Disabled'}
+                Add, edit, and remove kids here. Manage each child profile's session PIN controls below.
               </p>
               <p className="panel-muted">
-                When enabled, children with a PIN will be locked before entering their session.
+                Session lock status: {childSessionSecurityEnabled ? 'Enabled' : 'Disabled'}
               </p>
               <button
                 type="button"
@@ -1735,46 +1824,142 @@ export default function ProfilePage() {
                 {childSessionSecurityEnabled ? 'Disable Child Session Lock' : 'Enable Child Session Lock'}
               </button>
 
+              <form className="auth-form child-manage-form" onSubmit={handleAddChildProfile}>
+                <p className="panel-label child-manage-subtitle">Add Child</p>
+                <input
+                  className="job-input"
+                  placeholder="Child name"
+                  value={newChildName}
+                  onChange={(event) => setNewChildName(event.target.value)}
+                  disabled={saving}
+                  required
+                />
+                <select
+                  className="job-input"
+                  value={newChildAvatar}
+                  onChange={(event) => setNewChildAvatar(event.target.value)}
+                  disabled={saving}
+                >
+                  {CHILD_AVATAR_OPTIONS.map((avatar) => (
+                    <option key={`add-avatar:${avatar}`} value={avatar}>
+                      {avatar}
+                    </option>
+                  ))}
+                </select>
+                <div className="button-row child-manage-actions">
+                  <button type="submit" className="claim-button" disabled={saving}>
+                    Add Child
+                  </button>
+                </div>
+              </form>
+
               {childProfiles.length > 0 ? (
-                <ul className="profile-list">
+                <ul className="profile-list child-security-list">
                   {childProfiles.map((child) => (
-                    <li key={child.id} className="profile-list-item">
-                      <span className="mission-main">
-                        {child.avatar} {child.displayName}
-                      </span>
-                      <div className="button-row">
-                        <span className="job-status-label">
-                          {child.allowChildSetSessionCode
-                            ? 'Child can set PIN'
-                            : 'Child cannot set PIN'}
-                        </span>
-                        <span className="job-status-label">
-                          {child.sessionCodeEnabled ? `PIN ${child.sessionCode}` : 'PIN not set'}
-                        </span>
-                        <button
-                          type="button"
-                          className="claim-button"
-                          disabled={saving}
-                          onClick={() =>
-                            handleToggleChildAllowSessionCode(
-                              child.id,
-                              !child.allowChildSetSessionCode,
-                            )
-                          }
-                        >
-                          {child.allowChildSetSessionCode
-                            ? 'Block Child PIN Setup'
-                            : 'Allow Child PIN Setup'}
-                        </button>
-                        <button
-                          type="button"
-                          className="claim-button"
-                          disabled={saving || !child.sessionCodeEnabled}
-                          onClick={() => handleClearChildPin(child.id)}
-                        >
-                          Clear PIN
-                        </button>
-                      </div>
+                    <li key={child.id} className="profile-list-item child-security-item">
+                      {editingChildId === child.id ? (
+                        <div className="child-security-edit-grid">
+                          <input
+                            className="job-input"
+                            value={editingChildName}
+                            onChange={(event) => setEditingChildName(event.target.value)}
+                            disabled={saving}
+                            required
+                          />
+                          <select
+                            className="job-input"
+                            value={editingChildAvatar}
+                            onChange={(event) => setEditingChildAvatar(event.target.value)}
+                            disabled={saving}
+                          >
+                            {CHILD_AVATAR_OPTIONS.map((avatar) => (
+                              <option key={`edit-avatar:${child.id}:${avatar}`} value={avatar}>
+                                {avatar}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="button-row child-manage-actions">
+                            <button
+                              type="button"
+                              className="claim-button"
+                              disabled={saving}
+                              onClick={() => handleSaveChildProfile(child.id)}
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              className="text-button"
+                              disabled={saving}
+                              onClick={handleCancelEditChild}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <span className="mission-main">
+                            {child.avatar} {child.displayName}
+                          </span>
+                          <div className="button-row">
+                            <span className="job-status-label">
+                              {child.allowChildSetSessionCode
+                                ? 'Child can set PIN'
+                                : 'Child cannot set PIN'}
+                            </span>
+                            <span className="job-status-label">
+                              {child.sessionCodeEnabled ? `PIN ${child.sessionCode}` : 'PIN not set'}
+                            </span>
+                            <button
+                              type="button"
+                              className="text-button"
+                              disabled={saving}
+                              onClick={() => handleStartEditChild(child)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              className={removeChildConfirmId === child.id ? 'claim-button claim-button-deny' : 'text-button'}
+                              disabled={saving}
+                              onClick={() => {
+                                if (removeChildConfirmId === child.id) {
+                                  handleRemoveChildProfile(child.id)
+                                  return
+                                }
+
+                                setRemoveChildConfirmId(child.id)
+                              }}
+                            >
+                              {removeChildConfirmId === child.id ? 'Confirm Remove' : 'Remove'}
+                            </button>
+                            <button
+                              type="button"
+                              className="claim-button"
+                              disabled={saving}
+                              onClick={() =>
+                                handleToggleChildAllowSessionCode(
+                                  child.id,
+                                  !child.allowChildSetSessionCode,
+                                )
+                              }
+                            >
+                              {child.allowChildSetSessionCode
+                                ? 'Block Child PIN Setup'
+                                : 'Allow Child PIN Setup'}
+                            </button>
+                            <button
+                              type="button"
+                              className="claim-button"
+                              disabled={saving || !child.sessionCodeEnabled}
+                              onClick={() => handleClearChildPin(child.id)}
+                            >
+                              Clear PIN
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </li>
                   ))}
                 </ul>

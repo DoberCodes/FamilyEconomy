@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -2337,6 +2338,45 @@ export async function createChildProfile(childProfile, context = {}) {
   )
 
   await maybeTrackOnboardingCompleted({ familyId: activeFamilyId, userId, userRole })
+}
+
+export async function updateChildProfile(childId, childProfile, context = {}) {
+  const { familyId: activeFamilyId, userRole } = getActiveFamilyContext(context)
+
+  if (userRole !== 'parent') {
+    throw new Error('Only parents can update child profiles.')
+  }
+
+  if (!hasFirebaseConfig || !db) {
+    throw new Error('Firebase is not configured.')
+  }
+
+  const displayName = (childProfile.displayName || '').trim()
+  if (!displayName) {
+    throw new Error('Child name is required.')
+  }
+
+  const avatar = (childProfile.avatar || '').trim() || '🧒'
+
+  await updateDoc(doc(db, 'families', activeFamilyId, 'children', childId), {
+    displayName,
+    avatar,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function deleteChildProfile(childId, context = {}) {
+  const { familyId: activeFamilyId, userRole } = getActiveFamilyContext(context)
+
+  if (userRole !== 'parent') {
+    throw new Error('Only parents can remove child profiles.')
+  }
+
+  if (!hasFirebaseConfig || !db) {
+    throw new Error('Firebase is not configured.')
+  }
+
+  await deleteDoc(doc(db, 'families', activeFamilyId, 'children', childId))
 }
 
 export async function setChildSessionSecurity(enabled, context = {}) {

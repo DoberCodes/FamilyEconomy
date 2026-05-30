@@ -83,10 +83,7 @@ function MobileAppRoutes() {
         }
 
         const hasFamily = result.data.familyExists
-        const hasChildren = result.data.childProfiles.length > 0
-        const hasJobs = result.data.jobs.length > 0
-        const hasRewards = result.data.rewards.length > 0
-        setNeedsOnboarding(!hasFamily || !hasChildren || !hasJobs || !hasRewards)
+        setNeedsOnboarding(!hasFamily)
       } catch {
         if (!active) {
           return

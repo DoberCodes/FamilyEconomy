@@ -24,6 +24,7 @@ const wizardSteps = [
   { key: 'child', label: 'Child' },
   { key: 'jobs', label: 'Jobs' },
   { key: 'rewards', label: 'Rewards' },
+  { key: 'parent-features', label: 'Parent Features' },
 ]
 
 function getRecommendedStepIndex({ familyExists, childProfiles, jobs, rewards }) {
@@ -69,6 +70,24 @@ export default function OnboardingPage() {
   const [jobPoints, setJobPoints] = useState('50')
   const [rewardTitle, setRewardTitle] = useState('')
   const [rewardCost, setRewardCost] = useState('150')
+  const [familyAnnouncement, setFamilyAnnouncement] = useState('')
+  const [childSessionSecurityEnabled, setChildSessionSecurityEnabled] = useState(false)
+  const [savingsGoalApprovalMode, setSavingsGoalApprovalMode] = useState('claim_only')
+  const [missedJobConsequenceEnabled, setMissedJobConsequenceEnabled] = useState(false)
+  const [missedJobPenaltyCredits, setMissedJobPenaltyCredits] = useState('0')
+  const [missedJobTimingEnabled, setMissedJobTimingEnabled] = useState(false)
+  const [missedJobDefaultHours, setMissedJobDefaultHours] = useState('24')
+  const [failedJobCheckConsequenceEnabled, setFailedJobCheckConsequenceEnabled] = useState(false)
+  const [failedJobCheckPenaltyCredits, setFailedJobCheckPenaltyCredits] = useState('0')
+  const [maxActivePoolClaimsPerChild, setMaxActivePoolClaimsPerChild] = useState('1')
+  const [allowClaimingWithPendingChecks, setAllowClaimingWithPendingChecks] = useState(false)
+  const [dynamicPricingEnabled, setDynamicPricingEnabled] = useState(false)
+  const [dynamicPricingWindowPeriod, setDynamicPricingWindowPeriod] = useState('week')
+  const [dynamicPricingDemandWeight, setDynamicPricingDemandWeight] = useState('10')
+  const [dynamicPricingScarcityWeight, setDynamicPricingScarcityWeight] = useState('20')
+  const [achievementsEnabled, setAchievementsEnabled] = useState(true)
+  const [familyRecognitionEnabled, setFamilyRecognitionEnabled] = useState(true)
+  const [savingParentFeatures, setSavingParentFeatures] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [unlocking, setUnlocking] = useState(false)
@@ -77,16 +96,8 @@ export default function OnboardingPage() {
   const [currentStep, setCurrentStep] = useState(0)
 
   const isParent = userRole === 'parent'
-  const onboardingComplete =
-    familyExists && childProfiles.length > 0 && jobs.length > 0 && rewards.length > 0
-  const recommendedStep = getRecommendedStepIndex({
-    familyExists,
-    childProfiles,
-    jobs,
-    rewards,
-  })
-  const maxReachableStep = onboardingComplete ? 4 : recommendedStep
-  const activeStep = currentStep >= 4 ? 4 : Math.min(currentStep, maxReachableStep)
+  const maxReachableStep = wizardSteps.length - 1
+  const activeStep = Math.min(currentStep, maxReachableStep)
 
   useEffect(() => {
     let active = true
@@ -115,6 +126,27 @@ export default function OnboardingPage() {
         if (typeof result.data.family?.familyRules === 'string') {
           setFamilyRules(result.data.family.familyRules)
         }
+
+        if (typeof result.data.family?.familyAnnouncement === 'string') {
+          setFamilyAnnouncement(result.data.family.familyAnnouncement)
+        }
+
+        setChildSessionSecurityEnabled(Boolean(result.data.family?.childSessionSecurityEnabled))
+        setSavingsGoalApprovalMode(result.data.family?.savingsGoalApprovalMode || 'claim_only')
+        setMissedJobConsequenceEnabled(Boolean(result.data.family?.missedJobConsequenceEnabled))
+        setMissedJobPenaltyCredits(String(result.data.family?.missedJobPenaltyCredits || 0))
+        setMissedJobTimingEnabled(Boolean(result.data.family?.missedJobTimingEnabled))
+        setMissedJobDefaultHours(String(result.data.family?.missedJobDefaultHours || 24))
+        setFailedJobCheckConsequenceEnabled(Boolean(result.data.family?.failedJobCheckConsequenceEnabled))
+        setFailedJobCheckPenaltyCredits(String(result.data.family?.failedJobCheckPenaltyCredits || 0))
+        setMaxActivePoolClaimsPerChild(String(result.data.family?.maxActivePoolClaimsPerChild || 1))
+        setAllowClaimingWithPendingChecks(Boolean(result.data.family?.allowClaimingWithPendingChecks))
+        setDynamicPricingEnabled(Boolean(result.data.family?.dynamicPricingEnabled))
+        setDynamicPricingWindowPeriod(result.data.family?.dynamicPricingWindowPeriod || 'week')
+        setDynamicPricingDemandWeight(String(result.data.family?.dynamicPricingDemandWeight || 10))
+        setDynamicPricingScarcityWeight(String(result.data.family?.dynamicPricingScarcityWeight || 20))
+        setAchievementsEnabled(result.data.family?.achievementsEnabled !== false)
+        setFamilyRecognitionEnabled(result.data.family?.familyRecognitionEnabled !== false)
 
         setCurrentStep(getRecommendedStepIndex(result.data))
       } catch (caughtError) {
@@ -159,6 +191,27 @@ export default function OnboardingPage() {
       if (typeof result.data.family?.familyRules === 'string') {
         setFamilyRules(result.data.family.familyRules)
       }
+
+      if (typeof result.data.family?.familyAnnouncement === 'string') {
+        setFamilyAnnouncement(result.data.family.familyAnnouncement)
+      }
+
+      setChildSessionSecurityEnabled(Boolean(result.data.family?.childSessionSecurityEnabled))
+      setSavingsGoalApprovalMode(result.data.family?.savingsGoalApprovalMode || 'claim_only')
+      setMissedJobConsequenceEnabled(Boolean(result.data.family?.missedJobConsequenceEnabled))
+      setMissedJobPenaltyCredits(String(result.data.family?.missedJobPenaltyCredits || 0))
+      setMissedJobTimingEnabled(Boolean(result.data.family?.missedJobTimingEnabled))
+      setMissedJobDefaultHours(String(result.data.family?.missedJobDefaultHours || 24))
+      setFailedJobCheckConsequenceEnabled(Boolean(result.data.family?.failedJobCheckConsequenceEnabled))
+      setFailedJobCheckPenaltyCredits(String(result.data.family?.failedJobCheckPenaltyCredits || 0))
+      setMaxActivePoolClaimsPerChild(String(result.data.family?.maxActivePoolClaimsPerChild || 1))
+      setAllowClaimingWithPendingChecks(Boolean(result.data.family?.allowClaimingWithPendingChecks))
+      setDynamicPricingEnabled(Boolean(result.data.family?.dynamicPricingEnabled))
+      setDynamicPricingWindowPeriod(result.data.family?.dynamicPricingWindowPeriod || 'week')
+      setDynamicPricingDemandWeight(String(result.data.family?.dynamicPricingDemandWeight || 10))
+      setDynamicPricingScarcityWeight(String(result.data.family?.dynamicPricingScarcityWeight || 20))
+      setAchievementsEnabled(result.data.family?.achievementsEnabled !== false)
+      setFamilyRecognitionEnabled(result.data.family?.familyRecognitionEnabled !== false)
 
       setCurrentStep(getRecommendedStepIndex(result.data))
     } catch (caughtError) {
@@ -262,6 +315,47 @@ export default function OnboardingPage() {
     }
   }
 
+  async function handleSaveParentFeatures(event) {
+    event.preventDefault()
+    setSavingParentFeatures(true)
+    setError('')
+    setStatus('')
+
+    try {
+      await createHousehold(
+        {
+          profileName: householdName,
+          familyRules,
+          familyAnnouncement,
+          childSessionSecurityEnabled,
+          savingsGoalApprovalMode,
+          missedJobConsequenceEnabled,
+          missedJobPenaltyCredits: Number(missedJobPenaltyCredits) || 0,
+          missedJobTimingEnabled,
+          missedJobDefaultHours: Number(missedJobDefaultHours) || 24,
+          failedJobCheckConsequenceEnabled,
+          failedJobCheckPenaltyCredits: Number(failedJobCheckPenaltyCredits) || 0,
+          maxActivePoolClaimsPerChild: Number(maxActivePoolClaimsPerChild) || 1,
+          allowClaimingWithPendingChecks,
+          dynamicPricingEnabled,
+          dynamicPricingWindowPeriod,
+          dynamicPricingDemandWeight: Number(dynamicPricingDemandWeight) || 0,
+          dynamicPricingScarcityWeight: Number(dynamicPricingScarcityWeight) || 0,
+          achievementsEnabled,
+          familyRecognitionEnabled,
+        },
+        { familyId, userId, userRole, userEmail },
+      )
+
+      setStatus('Parent feature settings saved.')
+      await loadOnboarding()
+    } catch (caughtError) {
+      setError(caughtError.message || 'Could not save parent feature settings.')
+    } finally {
+      setSavingParentFeatures(false)
+    }
+  }
+
   async function handleParentSignIn(event) {
     event.preventDefault()
     setUnlocking(true)
@@ -301,7 +395,7 @@ export default function OnboardingPage() {
           onClick={() => setCurrentStep((step) => Math.min(step + 1, maxReachableStep))}
           disabled={activeStep >= maxReachableStep}
         >
-          {activeStep === 3 && onboardingComplete ? 'Review completion' : 'Next step'}
+          Next step
         </button>
       </div>
     )
@@ -310,33 +404,6 @@ export default function OnboardingPage() {
   function renderCurrentStep() {
     if (!isParent) {
       return null
-    }
-
-    if (onboardingComplete && activeStep === 4) {
-      return (
-        <section className="panel onboarding-panel">
-          <p className="panel-label">Setup complete</p>
-          <p className="panel-muted">
-            Your family now has the core loop in place. Move into the dashboard to keep building.
-          </p>
-          <div className="button-row">
-            <button
-              type="button"
-              className="text-button"
-              onClick={() => setCurrentStep(3)}
-            >
-              Review previous steps
-            </button>
-            <button
-              type="button"
-              className="claim-button"
-              onClick={() => navigate('/mobile/home')}
-            >
-              Continue to dashboard
-            </button>
-          </div>
-        </section>
-      )
     }
 
     if (activeStep === 0) {
@@ -378,15 +445,14 @@ export default function OnboardingPage() {
               >
                 {savingHousehold ? 'Saving...' : familyExists ? 'Update basics' : 'Save basics'}
               </button>
-              {familyExists ? (
-                <button
-                  type="button"
-                  className="text-button"
-                  onClick={() => setCurrentStep(1)}
-                >
-                  Continue to child setup
-                </button>
-              ) : null}
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => setCurrentStep(1)}
+                disabled={!familyExists}
+              >
+                Continue
+              </button>
             </div>
           </form>
         </section>
@@ -452,15 +518,13 @@ export default function OnboardingPage() {
               >
                 {addingChild ? 'Adding...' : 'Add child profile'}
               </button>
-              {childProfiles.length > 0 ? (
-                <button
-                  type="button"
-                  className="text-button"
-                  onClick={() => setCurrentStep(2)}
-                >
-                  Continue to starter jobs
-                </button>
-              ) : null}
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => setCurrentStep(2)}
+              >
+                Skip for now
+              </button>
             </div>
           </form>
 
@@ -524,15 +588,13 @@ export default function OnboardingPage() {
               >
                 {addingJob ? 'Adding...' : 'Add starter job'}
               </button>
-              {jobs.length > 0 ? (
-                <button
-                  type="button"
-                  className="text-button"
-                  onClick={() => setCurrentStep(3)}
-                >
-                  Continue to rewards
-                </button>
-              ) : null}
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => setCurrentStep(3)}
+              >
+                Skip for now
+              </button>
             </div>
           </form>
 
@@ -550,7 +612,8 @@ export default function OnboardingPage() {
       )
     }
 
-    return (
+    if (activeStep === 3) {
+      return (
       <section className="panel onboarding-panel">
         <div className="onboarding-step-header">
           <div>
@@ -593,15 +656,13 @@ export default function OnboardingPage() {
             >
               {addingReward ? 'Adding...' : 'Add starter reward'}
             </button>
-            {rewards.length > 0 ? (
-              <button
-                type="button"
-                className="text-button"
-                onClick={() => setCurrentStep(4)}
-              >
-                Review completion
-              </button>
-            ) : null}
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => setCurrentStep(4)}
+            >
+              Skip for now
+            </button>
           </div>
         </form>
 
@@ -616,6 +677,238 @@ export default function OnboardingPage() {
           </ul>
         ) : null}
       </section>
+      )
+    }
+
+    return (
+      <section className="panel onboarding-panel">
+        <div className="onboarding-step-header">
+          <div>
+            <p className="panel-label">Step 5: Parent features (optional)</p>
+            <p className="panel-muted">
+              Configure announcement, security, savings approvals, and smart pricing now or skip for later.
+            </p>
+          </div>
+          <span className="job-status-label">Optional</span>
+        </div>
+
+        <form className="auth-form" onSubmit={handleSaveParentFeatures}>
+          <label className="form-field">
+            <span className="form-label">Family announcement</span>
+            <MarkdownTextArea
+              placeholder="Ex: Grandparents visit Saturday."
+              value={familyAnnouncement}
+              onChange={setFamilyAnnouncement}
+              rows={3}
+              disabled={savingParentFeatures}
+            />
+          </label>
+
+          <label className="form-field">
+            <span className="form-label">Child session lock</span>
+            <select
+              className="job-input"
+              value={childSessionSecurityEnabled ? 'on' : 'off'}
+              onChange={(event) => setChildSessionSecurityEnabled(event.target.value === 'on')}
+            >
+              <option value="off">Off</option>
+              <option value="on">On</option>
+            </select>
+          </label>
+
+          <label className="form-field">
+            <span className="form-label">Savings approval mode</span>
+            <select
+              className="job-input"
+              value={savingsGoalApprovalMode}
+              onChange={(event) => setSavingsGoalApprovalMode(event.target.value)}
+            >
+              <option value="claim_only">Approve claim only</option>
+              <option value="create_and_claim">Approve create and claim</option>
+              <option value="no_approval">No parent approval</option>
+            </select>
+          </label>
+
+          <label className="form-field">
+            <span className="form-label">Missed job consequence</span>
+            <select
+              className="job-input"
+              value={missedJobConsequenceEnabled ? 'on' : 'off'}
+              onChange={(event) => setMissedJobConsequenceEnabled(event.target.value === 'on')}
+            >
+              <option value="off">Off</option>
+              <option value="on">On</option>
+            </select>
+          </label>
+
+          {missedJobConsequenceEnabled ? (
+            <>
+              <label className="form-field">
+                <span className="form-label">Missed job penalty credits</span>
+                <input
+                  className="job-input"
+                  type="number"
+                  min="0"
+                  value={missedJobPenaltyCredits}
+                  onChange={(event) => setMissedJobPenaltyCredits(event.target.value)}
+                />
+              </label>
+              <label className="form-field">
+                <span className="form-label">Missed job timer mode</span>
+                <select
+                  className="job-input"
+                  value={missedJobTimingEnabled ? 'timed' : 'manual'}
+                  onChange={(event) => setMissedJobTimingEnabled(event.target.value === 'timed')}
+                >
+                  <option value="manual">Manual</option>
+                  <option value="timed">Timed</option>
+                </select>
+              </label>
+              {missedJobTimingEnabled ? (
+                <label className="form-field">
+                  <span className="form-label">Default missed hours</span>
+                  <input
+                    className="job-input"
+                    type="number"
+                    min="1"
+                    value={missedJobDefaultHours}
+                    onChange={(event) => setMissedJobDefaultHours(event.target.value)}
+                  />
+                </label>
+              ) : null}
+            </>
+          ) : null}
+
+          <label className="form-field">
+            <span className="form-label">Failed job check consequence</span>
+            <select
+              className="job-input"
+              value={failedJobCheckConsequenceEnabled ? 'on' : 'off'}
+              onChange={(event) => setFailedJobCheckConsequenceEnabled(event.target.value === 'on')}
+            >
+              <option value="off">Off</option>
+              <option value="on">On</option>
+            </select>
+          </label>
+
+          {failedJobCheckConsequenceEnabled ? (
+            <label className="form-field">
+              <span className="form-label">Failed check penalty credits</span>
+              <input
+                className="job-input"
+                type="number"
+                min="0"
+                value={failedJobCheckPenaltyCredits}
+                onChange={(event) => setFailedJobCheckPenaltyCredits(event.target.value)}
+              />
+            </label>
+          ) : null}
+
+          <label className="form-field">
+            <span className="form-label">Max active pool claims per child</span>
+            <input
+              className="job-input"
+              type="number"
+              min="1"
+              value={maxActivePoolClaimsPerChild}
+              onChange={(event) => setMaxActivePoolClaimsPerChild(event.target.value)}
+            />
+          </label>
+
+          <label className="form-field">
+            <span className="form-label">Pending checks count toward limits</span>
+            <select
+              className="job-input"
+              value={allowClaimingWithPendingChecks ? 'no' : 'yes'}
+              onChange={(event) => setAllowClaimingWithPendingChecks(event.target.value === 'no')}
+            >
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          </label>
+
+          <label className="form-field">
+            <span className="form-label">Dynamic reward pricing</span>
+            <select
+              className="job-input"
+              value={dynamicPricingEnabled ? 'on' : 'off'}
+              onChange={(event) => setDynamicPricingEnabled(event.target.value === 'on')}
+            >
+              <option value="off">Off</option>
+              <option value="on">On</option>
+            </select>
+          </label>
+
+          {dynamicPricingEnabled ? (
+            <>
+              <label className="form-field">
+                <span className="form-label">Pricing window</span>
+                <select
+                  className="job-input"
+                  value={dynamicPricingWindowPeriod}
+                  onChange={(event) => setDynamicPricingWindowPeriod(event.target.value)}
+                >
+                  <option value="day">Day</option>
+                  <option value="week">Week</option>
+                </select>
+              </label>
+              <label className="form-field">
+                <span className="form-label">Demand weight %</span>
+                <input
+                  className="job-input"
+                  type="number"
+                  min="0"
+                  value={dynamicPricingDemandWeight}
+                  onChange={(event) => setDynamicPricingDemandWeight(event.target.value)}
+                />
+              </label>
+              <label className="form-field">
+                <span className="form-label">Scarcity weight %</span>
+                <input
+                  className="job-input"
+                  type="number"
+                  min="0"
+                  value={dynamicPricingScarcityWeight}
+                  onChange={(event) => setDynamicPricingScarcityWeight(event.target.value)}
+                />
+              </label>
+            </>
+          ) : null}
+
+          <label className="form-field">
+            <span className="form-label">Achievements cards</span>
+            <select
+              className="job-input"
+              value={achievementsEnabled ? 'on' : 'off'}
+              onChange={(event) => setAchievementsEnabled(event.target.value === 'on')}
+            >
+              <option value="on">On</option>
+              <option value="off">Off</option>
+            </select>
+          </label>
+
+          <label className="form-field">
+            <span className="form-label">Family recognition cards</span>
+            <select
+              className="job-input"
+              value={familyRecognitionEnabled ? 'on' : 'off'}
+              onChange={(event) => setFamilyRecognitionEnabled(event.target.value === 'on')}
+            >
+              <option value="on">On</option>
+              <option value="off">Off</option>
+            </select>
+          </label>
+
+          <div className="button-row">
+            <button type="submit" className="claim-button" disabled={savingParentFeatures || !familyExists}>
+              {savingParentFeatures ? 'Saving...' : 'Save Parent Features'}
+            </button>
+            <button type="button" className="text-button" onClick={() => navigate('/mobile/home')} disabled={!familyExists}>
+              Finish Setup
+            </button>
+          </div>
+        </form>
+      </section>
     )
   }
 
@@ -625,15 +918,11 @@ export default function OnboardingPage() {
         <p className="panel-label">Family Economy Setup</p>
         <h1 className="auth-title">Build your family’s first experience</h1>
         <p className="panel-muted">
-          Finish the basics here before kids enter the app: household details, child
-          profiles, starter jobs, and starter rewards.
+          Set up household basics, child profiles, starter jobs/rewards, and parent controls.
+          You can skip optional steps and refine everything later in Parent settings.
         </p>
         <p className="wizard-step-counter">
-          {onboardingComplete
-            ? activeStep === 4
-              ? 'All setup steps complete'
-              : `Reviewing step ${activeStep + 1} of ${wizardSteps.length}`
-            : `Step ${activeStep + 1} of ${wizardSteps.length}`}
+          Step {activeStep + 1} of {wizardSteps.length}
         </p>
         <div className="onboarding-progress">
           {wizardSteps.map((step, index) => {
@@ -641,8 +930,9 @@ export default function OnboardingPage() {
               (index === 0 && familyExists) ||
               (index === 1 && childProfiles.length > 0) ||
               (index === 2 && jobs.length > 0) ||
-              (index === 3 && rewards.length > 0)
-            const isActive = activeStep === index && !onboardingComplete
+              (index === 3 && rewards.length > 0) ||
+              (index < activeStep)
+            const isActive = activeStep === index
 
             return (
               <button

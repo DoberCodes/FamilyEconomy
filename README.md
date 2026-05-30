@@ -35,6 +35,15 @@ Notes:
 - The workflow builds with `VITE_BASE_PATH=/FamilyEconomy/` for project-page hosting.
 - It also enables hash routing for Pages so refresh and direct links keep working.
 
+GitHub Actions must also receive your Firebase web app values at build time. Add these repository secrets in Settings > Secrets and variables > Actions:
+
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_AUTH_DOMAIN`
+- `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_STORAGE_BUCKET`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_APP_ID`
+
 ## Firebase Setup
 
 1. Copy `.env.example` to `.env`

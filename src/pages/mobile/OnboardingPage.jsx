@@ -106,6 +106,8 @@ export default function OnboardingPage() {
   const isParent = userRole === 'parent'
   const maxReachableStep = wizardSteps.length - 1
   const activeStep = Math.min(currentStep, maxReachableStep)
+  const parentFirstName = (userEmail || '').split('@')[0] || 'Parent'
+  const householdLabel = (householdName || '').trim() || 'your family'
 
   useEffect(() => {
     let active = true
@@ -183,7 +185,8 @@ export default function OnboardingPage() {
     }
   }, [familyId, userId, userRole])
 
-  async function loadOnboarding() {
+  async function loadOnboarding(options = {}) {
+    const { preserveCurrentStep = false } = options
     setLoading(true)
     setError('')
 
@@ -235,7 +238,10 @@ export default function OnboardingPage() {
       setRecognitionHelpingHandJobsTarget(String(result.data.family?.recognitionHelpingHandJobsTarget || 1))
       setRecognitionGoalGetterTarget(String(result.data.family?.recognitionGoalGetterTarget || 1))
 
-      setCurrentStep(getRecommendedStepIndex(result.data))
+      const recommendedStep = getRecommendedStepIndex(result.data)
+      setCurrentStep((previousStep) => (
+        preserveCurrentStep ? Math.max(previousStep, recommendedStep) : recommendedStep
+      ))
     } catch (caughtError) {
       setError(caughtError.message || 'Could not load onboarding data.')
     } finally {
@@ -255,7 +261,7 @@ export default function OnboardingPage() {
         { familyId, userId, userRole },
       )
       setStatus('Household details saved.')
-      await loadOnboarding()
+      await loadOnboarding({ preserveCurrentStep: true })
       setCurrentStep(1)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not save household details.')
@@ -282,7 +288,7 @@ export default function OnboardingPage() {
       setChildName('')
       setWeeklyGoalCredits('300')
       setStatus('Child profile added.')
-      await loadOnboarding()
+      await loadOnboarding({ preserveCurrentStep: true })
       setCurrentStep(2)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not add child profile.')
@@ -310,7 +316,7 @@ export default function OnboardingPage() {
       setJobPoints('50')
       setJobBadgeContribution('none')
       setStatus('Starter job added.')
-      await loadOnboarding()
+      await loadOnboarding({ preserveCurrentStep: true })
       setCurrentStep(3)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not add starter job.')
@@ -333,7 +339,7 @@ export default function OnboardingPage() {
       setRewardTitle('')
       setRewardCost('150')
       setStatus('Starter reward added.')
-      await loadOnboarding()
+      await loadOnboarding({ preserveCurrentStep: true })
       setCurrentStep(4)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not add starter reward.')
@@ -382,11 +388,80 @@ export default function OnboardingPage() {
       )
 
       setStatus('Parent feature settings saved.')
-      await loadOnboarding()
+      await loadOnboarding({ preserveCurrentStep: true })
+      navigate('/mobile/home')
     } catch (caughtError) {
       setError(caughtError.message || 'Could not save parent feature settings.')
     } finally {
       setSavingParentFeatures(false)
+    }
+  }
+
+  function getParentFeaturePreset() {
+    if (
+      missedJobConsequenceEnabled
+      && Number(missedJobPenaltyCredits) === 5
+      && missedJobTimingEnabled
+      && Number(missedJobDefaultHours) === 48
+      && !failedJobCheckConsequenceEnabled
+      && Number(failedJobCheckPenaltyCredits) === 0
+    ) {
+      return 'gentle'
+    }
+
+    if (
+      missedJobConsequenceEnabled
+      && Number(missedJobPenaltyCredits) === 15
+      && missedJobTimingEnabled
+      && Number(missedJobDefaultHours) === 24
+      && failedJobCheckConsequenceEnabled
+      && Number(failedJobCheckPenaltyCredits) === 5
+    ) {
+      return 'balanced'
+    }
+
+    if (
+      missedJobConsequenceEnabled
+      && Number(missedJobPenaltyCredits) === 30
+      && missedJobTimingEnabled
+      && Number(missedJobDefaultHours) === 12
+      && failedJobCheckConsequenceEnabled
+      && Number(failedJobCheckPenaltyCredits) === 15
+    ) {
+      return 'strict'
+    }
+
+    return 'custom'
+  }
+
+  function applyParentFeaturePreset(preset) {
+    if (preset === 'gentle') {
+      setMissedJobConsequenceEnabled(true)
+      setMissedJobPenaltyCredits('5')
+      setMissedJobTimingEnabled(true)
+      setMissedJobDefaultHours('48')
+      setFailedJobCheckConsequenceEnabled(false)
+      setFailedJobCheckPenaltyCredits('0')
+      return
+    }
+
+    if (preset === 'balanced') {
+      setMissedJobConsequenceEnabled(true)
+      setMissedJobPenaltyCredits('15')
+      setMissedJobTimingEnabled(true)
+      setMissedJobDefaultHours('24')
+      setFailedJobCheckConsequenceEnabled(true)
+      setFailedJobCheckPenaltyCredits('5')
+      return
+    }
+
+    if (preset === 'strict') {
+      setMissedJobConsequenceEnabled(true)
+      setMissedJobPenaltyCredits('30')
+      setMissedJobTimingEnabled(true)
+      setMissedJobDefaultHours('12')
+      setFailedJobCheckConsequenceEnabled(true)
+      setFailedJobCheckPenaltyCredits('15')
     }
   }
 
@@ -408,33 +483,6 @@ export default function OnboardingPage() {
     }
   }
 
-  function renderStepNavigation() {
-    if (!isParent) {
-      return null
-    }
-
-    return (
-      <div className="wizard-nav">
-        <button
-          type="button"
-          className="text-button"
-          onClick={() => setCurrentStep((step) => Math.max(step - 1, 0))}
-          disabled={activeStep === 0}
-        >
-          Back
-        </button>
-        <button
-          type="button"
-          className="claim-button"
-          onClick={() => setCurrentStep((step) => Math.min(step + 1, maxReachableStep))}
-          disabled={activeStep >= maxReachableStep}
-        >
-          Next step
-        </button>
-      </div>
-    )
-  }
-
   function renderCurrentStep() {
     if (!isParent) {
       return null
@@ -451,41 +499,48 @@ export default function OnboardingPage() {
             <span className="job-status-label">{familyExists ? 'Saved' : 'Required'}</span>
           </div>
           <form className="auth-form" onSubmit={handleCreateHousehold}>
-            <label className="form-field">
-              <span className="form-label">Family name</span>
-              <input
-                className="job-input"
-                placeholder="Ex: The Dober Crew"
-                value={householdName}
-                onChange={(event) => setHouseholdName(event.target.value)}
-                required
-              />
-            </label>
-            <label className="form-field">
-              <span className="form-label">Family news, rules, or expectations</span>
-              <MarkdownTextArea
-                placeholder="Ex: Finish jobs before screen time. Be kind. Keep your room tidy."
-                value={familyRules}
-                onChange={setFamilyRules}
-                rows={4}
-                disabled={savingHousehold || loading}
-              />
-            </label>
+            <section className="onboarding-mini-dialog">
+              <p className="onboarding-mini-title">Name the household</p>
+              <p className="onboarding-mini-subtitle">This appears across parent and kid views.</p>
+              <label className="form-field">
+                <span className="form-label">Family name</span>
+                <input
+                  className="job-input"
+                  placeholder="Ex: The Dober Crew"
+                  value={householdName}
+                  onChange={(event) => setHouseholdName(event.target.value)}
+                  required
+                />
+              </label>
+            </section>
+            <section className="onboarding-mini-dialog">
+              <p className="onboarding-mini-title">Set the tone</p>
+              <p className="onboarding-mini-subtitle">Add welcome notes, rules, or expectations for {householdLabel}.</p>
+              <label className="form-field">
+                <span className="form-label">Family news, rules, or expectations</span>
+                <MarkdownTextArea
+                  placeholder="Ex: Finish jobs before screen time. Be kind. Keep your room tidy."
+                  value={familyRules}
+                  onChange={setFamilyRules}
+                  rows={4}
+                  disabled={savingHousehold || loading}
+                />
+              </label>
+            </section>
             <div className="button-row">
               <button
-                type="submit"
-                className="claim-button"
-                disabled={savingHousehold || loading}
+                type="button"
+                className="text-button onboarding-back-button"
+                disabled
               >
-                {savingHousehold ? 'Saving...' : familyExists ? 'Update basics' : 'Save basics'}
+                Back
               </button>
               <button
-                type="button"
-                className="text-button"
-                onClick={() => setCurrentStep(1)}
-                disabled={!familyExists}
+                type="submit"
+                className="claim-button onboarding-primary-button"
+                disabled={savingHousehold || loading}
               >
-                Continue
+                {savingHousehold ? 'Saving...' : 'Continue'}
               </button>
             </div>
           </form>
@@ -506,55 +561,69 @@ export default function OnboardingPage() {
             <span className="job-status-label">{childProfiles.length} added</span>
           </div>
           <form className="auth-form" onSubmit={handleAddChild}>
-            <label className="form-field">
-              <span className="form-label">Child name</span>
-              <input
-                className="job-input"
-                placeholder="Ex: Ava"
-                value={childName}
-                onChange={(event) => setChildName(event.target.value)}
-                required
-              />
-            </label>
-            <label className="form-field">
-              <span className="form-label">Profile icon</span>
-              <select
-                className="job-input"
-                value={childAvatar}
-                onChange={(event) => setChildAvatar(event.target.value)}
-              >
-                {childAvatarOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.value} {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="form-field">
-              <span className="form-label">Weekly earning goal</span>
-              <input
-                className="job-input"
-                type="number"
-                min="0"
-                step="1"
-                inputMode="numeric"
-                placeholder="Ex: 300"
-                value={weeklyGoalCredits}
-                onChange={(event) => setWeeklyGoalCredits(event.target.value)}
-              />
-              <span className="form-help">Suggested starter goal: 300 credits per week.</span>
-            </label>
+            <section className="onboarding-mini-dialog">
+              <p className="onboarding-mini-title">Child profile</p>
+              <p className="onboarding-mini-subtitle">Start with one child and add more later.</p>
+              <label className="form-field">
+                <span className="form-label">Child name</span>
+                <input
+                  className="job-input"
+                  placeholder="Ex: Ava"
+                  value={childName}
+                  onChange={(event) => setChildName(event.target.value)}
+                  required
+                />
+              </label>
+              <label className="form-field">
+                <span className="form-label">Profile icon</span>
+                <select
+                  className="job-input"
+                  value={childAvatar}
+                  onChange={(event) => setChildAvatar(event.target.value)}
+                >
+                  {childAvatarOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.value} {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </section>
+            <section className="onboarding-mini-dialog">
+              <p className="onboarding-mini-title">Weekly goal</p>
+              <label className="form-field">
+                <span className="form-label">Weekly earning goal</span>
+                <input
+                  className="job-input"
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  placeholder="Ex: 300"
+                  value={weeklyGoalCredits}
+                  onChange={(event) => setWeeklyGoalCredits(event.target.value)}
+                />
+                <span className="form-help">Suggested starter goal: 300 credits per week.</span>
+              </label>
+            </section>
             <div className="button-row">
               <button
+                type="button"
+                className="text-button onboarding-back-button"
+                onClick={() => setCurrentStep(0)}
+              >
+                Back
+              </button>
+              <button
                 type="submit"
-                className="claim-button"
+                className="claim-button onboarding-primary-button"
                 disabled={addingChild || loading || !familyExists}
               >
-                {addingChild ? 'Adding...' : 'Add child profile'}
+                {addingChild ? 'Saving...' : 'Continue'}
               </button>
               <button
                 type="button"
-                className="text-button"
+                className="onboarding-skip-button"
                 onClick={() => setCurrentStep(2)}
               >
                 Skip for now
@@ -591,52 +660,66 @@ export default function OnboardingPage() {
             <span className="job-status-label">{jobs.length} added</span>
           </div>
           <form className="auth-form" onSubmit={handleAddJob}>
-            <label className="form-field">
-              <span className="form-label">Job title</span>
-              <input
-                className="job-input"
-                placeholder="Ex: Make your bed"
-                value={jobTitle}
-                onChange={(event) => setJobTitle(event.target.value)}
-                required
-              />
-            </label>
-            <label className="form-field">
-              <span className="form-label">Credits earned</span>
-              <input
-                className="job-input"
-                type="number"
-                min="1"
-                step="1"
-                inputMode="numeric"
-                value={jobPoints}
-                onChange={(event) => setJobPoints(event.target.value)}
-                required
-              />
-            </label>
-            <label className="form-field">
-              <span className="form-label">Badge contribution</span>
-              <select
-                className="job-input"
-                value={jobBadgeContribution}
-                onChange={(event) => setJobBadgeContribution(event.target.value)}
-              >
-                <option value="none">None</option>
-                <option value="helper">Helper</option>
-                <option value="reading">Reading</option>
-              </select>
-            </label>
+            <section className="onboarding-mini-dialog">
+              <p className="onboarding-mini-title">Job details</p>
+              <label className="form-field">
+                <span className="form-label">Job title</span>
+                <input
+                  className="job-input"
+                  placeholder="Ex: Make your bed"
+                  value={jobTitle}
+                  onChange={(event) => setJobTitle(event.target.value)}
+                  required
+                />
+              </label>
+              <label className="form-field">
+                <span className="form-label">Credits earned</span>
+                <input
+                  className="job-input"
+                  type="number"
+                  min="1"
+                  step="1"
+                  inputMode="numeric"
+                  value={jobPoints}
+                  onChange={(event) => setJobPoints(event.target.value)}
+                  required
+                />
+              </label>
+            </section>
+            <section className="onboarding-mini-dialog">
+              <p className="onboarding-mini-title">Recognition mapping</p>
+              <p className="onboarding-mini-subtitle">Optional: connect this job to helper or reading badges.</p>
+              <label className="form-field">
+                <span className="form-label">Badge contribution</span>
+                <select
+                  className="job-input"
+                  value={jobBadgeContribution}
+                  onChange={(event) => setJobBadgeContribution(event.target.value)}
+                >
+                  <option value="none">None</option>
+                  <option value="helper">Helper</option>
+                  <option value="reading">Reading</option>
+                </select>
+              </label>
+            </section>
             <div className="button-row">
               <button
+                type="button"
+                className="text-button onboarding-back-button"
+                onClick={() => setCurrentStep(1)}
+              >
+                Back
+              </button>
+              <button
                 type="submit"
-                className="claim-button"
+                className="claim-button onboarding-primary-button"
                 disabled={addingJob || loading || childProfiles.length === 0}
               >
-                {addingJob ? 'Adding...' : 'Add starter job'}
+                {addingJob ? 'Saving...' : 'Continue'}
               </button>
               <button
                 type="button"
-                className="text-button"
+                className="onboarding-skip-button"
                 onClick={() => setCurrentStep(3)}
               >
                 Skip for now
@@ -678,40 +761,50 @@ export default function OnboardingPage() {
           <span className="job-status-label">{rewards.length} added</span>
         </div>
         <form className="auth-form" onSubmit={handleAddReward}>
-          <label className="form-field">
-            <span className="form-label">Reward title</span>
-            <input
-              className="job-input"
-              placeholder="Ex: Movie night"
-              value={rewardTitle}
-              onChange={(event) => setRewardTitle(event.target.value)}
-              required
-            />
-          </label>
-          <label className="form-field">
-            <span className="form-label">Reward cost</span>
-            <input
-              className="job-input"
-              type="number"
-              min="1"
-              step="1"
-              inputMode="numeric"
-              value={rewardCost}
-              onChange={(event) => setRewardCost(event.target.value)}
-              required
-            />
-          </label>
+          <section className="onboarding-mini-dialog">
+            <p className="onboarding-mini-title">Reward details</p>
+            <label className="form-field">
+              <span className="form-label">Reward title</span>
+              <input
+                className="job-input"
+                placeholder="Ex: Movie night"
+                value={rewardTitle}
+                onChange={(event) => setRewardTitle(event.target.value)}
+                required
+              />
+            </label>
+            <label className="form-field">
+              <span className="form-label">Reward cost</span>
+              <input
+                className="job-input"
+                type="number"
+                min="1"
+                step="1"
+                inputMode="numeric"
+                value={rewardCost}
+                onChange={(event) => setRewardCost(event.target.value)}
+                required
+              />
+            </label>
+          </section>
           <div className="button-row">
             <button
+              type="button"
+              className="text-button onboarding-back-button"
+              onClick={() => setCurrentStep(2)}
+            >
+              Back
+            </button>
+            <button
               type="submit"
-              className="claim-button"
+              className="claim-button onboarding-primary-button"
               disabled={addingReward || loading || jobs.length === 0}
             >
-              {addingReward ? 'Adding...' : 'Add starter reward'}
+              {addingReward ? 'Saving...' : 'Continue'}
             </button>
             <button
               type="button"
-              className="text-button"
+              className="onboarding-skip-button"
               onClick={() => setCurrentStep(4)}
             >
               Skip for now
@@ -746,6 +839,11 @@ export default function OnboardingPage() {
         </div>
 
         <form className="auth-form" onSubmit={handleSaveParentFeatures}>
+          <p className="panel-muted">Personalize these now for {householdLabel}, or save quickly and tune later in Parent settings.</p>
+
+          <section className="onboarding-mini-dialog">
+            <p className="onboarding-mini-title">Family communication</p>
+            <p className="onboarding-mini-subtitle">Share a welcome note kids will see first.</p>
           <label className="form-field">
             <span className="form-label">Family announcement</span>
             <MarkdownTextArea
@@ -756,9 +854,27 @@ export default function OnboardingPage() {
               disabled={savingParentFeatures}
             />
           </label>
+          </section>
+
+          <section className="onboarding-mini-dialog">
+            <p className="onboarding-mini-title">Safety and approvals</p>
+            <p className="onboarding-mini-subtitle">Control lock behavior, parent review flow, and consequence rules.</p>
+            <label className="form-field">
+              <span className="form-label">How strict should our accountability style be?</span>
+              <select
+                className="job-input"
+                value={getParentFeaturePreset()}
+                onChange={(event) => applyParentFeaturePreset(event.target.value)}
+              >
+                <option value="custom">Custom</option>
+                <option value="gentle">Gentle (light penalties, longer grace period)</option>
+                <option value="balanced">Balanced (recommended)</option>
+                <option value="strict">Strict (higher penalties, short grace period)</option>
+              </select>
+            </label>
 
           <label className="form-field">
-            <span className="form-label">Child session lock</span>
+            <span className="form-label">Should kids need a lock screen each session?</span>
             <select
               className="job-input"
               value={childSessionSecurityEnabled ? 'on' : 'off'}
@@ -770,7 +886,7 @@ export default function OnboardingPage() {
           </label>
 
           <label className="form-field">
-            <span className="form-label">Savings approval mode</span>
+            <span className="form-label">When should parents approve savings goals?</span>
             <select
               className="job-input"
               value={savingsGoalApprovalMode}
@@ -783,7 +899,7 @@ export default function OnboardingPage() {
           </label>
 
           <label className="form-field">
-            <span className="form-label">Missed job consequence</span>
+            <span className="form-label">Should missed jobs trigger an automatic consequence?</span>
             <select
               className="job-input"
               value={missedJobConsequenceEnabled ? 'on' : 'off'}
@@ -833,7 +949,7 @@ export default function OnboardingPage() {
           ) : null}
 
           <label className="form-field">
-            <span className="form-label">Failed job check consequence</span>
+            <span className="form-label">If a parent denies a check, should credits be removed?</span>
             <select
               className="job-input"
               value={failedJobCheckConsequenceEnabled ? 'on' : 'off'}
@@ -858,7 +974,7 @@ export default function OnboardingPage() {
           ) : null}
 
           <label className="form-field">
-            <span className="form-label">Max active pool claims per child</span>
+            <span className="form-label">How many shared-pool jobs can one child hold at once?</span>
             <input
               className="job-input"
               type="number"
@@ -869,7 +985,7 @@ export default function OnboardingPage() {
           </label>
 
           <label className="form-field">
-            <span className="form-label">Pending checks count toward limits</span>
+            <span className="form-label">Do pending checks still consume pool slots?</span>
             <select
               className="job-input"
               value={allowClaimingWithPendingChecks ? 'no' : 'yes'}
@@ -879,9 +995,14 @@ export default function OnboardingPage() {
               <option value="no">No</option>
             </select>
           </label>
+          </section>
+
+          <section className="onboarding-mini-dialog">
+            <p className="onboarding-mini-title">Reward pricing</p>
+            <p className="onboarding-mini-subtitle">Keep prices fixed or turn on dynamic demand-based pricing.</p>
 
           <label className="form-field">
-            <span className="form-label">Dynamic reward pricing</span>
+            <span className="form-label">Should reward prices adapt to demand?</span>
             <select
               className="job-input"
               value={dynamicPricingEnabled ? 'on' : 'off'}
@@ -927,9 +1048,14 @@ export default function OnboardingPage() {
               </label>
             </>
           ) : null}
+          </section>
+
+          <section className="onboarding-mini-dialog">
+            <p className="onboarding-mini-title">Recognition and achievements</p>
+            <p className="onboarding-mini-subtitle">Decide what to show and when badges unlock.</p>
 
           <label className="form-field">
-            <span className="form-label">Achievements cards</span>
+            <span className="form-label">Show achievement cards for kids?</span>
             <select
               className="job-input"
               value={achievementsEnabled ? 'on' : 'off'}
@@ -941,7 +1067,7 @@ export default function OnboardingPage() {
           </label>
 
           <label className="form-field">
-            <span className="form-label">Family recognition cards</span>
+            <span className="form-label">Show family recognition cards?</span>
             <select
               className="job-input"
               value={familyRecognitionEnabled ? 'on' : 'off'}
@@ -1028,13 +1154,63 @@ export default function OnboardingPage() {
               onChange={(event) => setRecognitionGoalGetterTarget(event.target.value)}
             />
           </label>
+          </section>
+
+          <section className="onboarding-mini-dialog">
+            <p className="onboarding-mini-title">Review before save</p>
+            <p className="onboarding-mini-subtitle">Here is how {householdLabel} is currently configured.</p>
+            <ul className="profile-list">
+              <li className="profile-list-item">
+                <span>Child session lock</span>
+                <span className="job-status-label">{childSessionSecurityEnabled ? 'On' : 'Off'}</span>
+              </li>
+              <li className="profile-list-item">
+                <span>Savings approvals</span>
+                <span className="job-status-label">
+                  {savingsGoalApprovalMode === 'create_and_claim'
+                    ? 'Approve create + claim'
+                    : savingsGoalApprovalMode === 'no_approval'
+                      ? 'No approval required'
+                      : 'Approve claim only'}
+                </span>
+              </li>
+              <li className="profile-list-item">
+                <span>Missed job consequence</span>
+                <span className="job-status-label">
+                  {missedJobConsequenceEnabled
+                    ? `${Number(missedJobPenaltyCredits) || 0} credits${missedJobTimingEnabled ? ` after ${Number(missedJobDefaultHours) || 24}h` : ''}`
+                    : 'Off'}
+                </span>
+              </li>
+              <li className="profile-list-item">
+                <span>Failed check consequence</span>
+                <span className="job-status-label">
+                  {failedJobCheckConsequenceEnabled
+                    ? `${Number(failedJobCheckPenaltyCredits) || 0} credits`
+                    : 'Off'}
+                </span>
+              </li>
+              <li className="profile-list-item">
+                <span>Pool slots per child</span>
+                <span className="job-status-label">{Math.max(1, Number(maxActivePoolClaimsPerChild) || 1)}</span>
+              </li>
+              <li className="profile-list-item">
+                <span>Dynamic pricing</span>
+                <span className="job-status-label">{dynamicPricingEnabled ? 'On' : 'Off'}</span>
+              </li>
+              <li className="profile-list-item">
+                <span>Achievement cards</span>
+                <span className="job-status-label">{achievementsEnabled ? 'On' : 'Off'}</span>
+              </li>
+            </ul>
+          </section>
 
           <div className="button-row">
-            <button type="submit" className="claim-button" disabled={savingParentFeatures || !familyExists}>
-              {savingParentFeatures ? 'Saving...' : 'Save Parent Features'}
+            <button type="button" className="text-button onboarding-back-button" onClick={() => setCurrentStep(3)}>
+              Back
             </button>
-            <button type="button" className="text-button" onClick={() => navigate('/mobile/home')} disabled={!familyExists}>
-              Finish Setup
+            <button type="submit" className="claim-button onboarding-primary-button" disabled={savingParentFeatures || !familyExists}>
+              {savingParentFeatures ? 'Saving...' : 'Finish'}
             </button>
           </div>
         </form>
@@ -1046,10 +1222,10 @@ export default function OnboardingPage() {
     <main className="onboarding-shell">
       <section className="onboarding-hero panel">
         <p className="panel-label">Family Economy Setup</p>
-        <h1 className="auth-title">Build your family’s first experience</h1>
+        <h1 className="auth-title">Let’s set up {householdLabel}</h1>
         <p className="panel-muted">
-          Set up household basics, child profiles, starter jobs/rewards, and parent controls.
-          You can skip optional steps and refine everything later in Parent settings.
+          {parentFirstName}, this quick flow helps you set up a warm first experience for your kids.
+          You can skip optional parts now and fine-tune everything later in Parent settings.
         </p>
         <p className="wizard-step-counter">
           Step {activeStep + 1} of {wizardSteps.length}
@@ -1127,7 +1303,6 @@ export default function OnboardingPage() {
       {isParent ? (
         <div className="onboarding-grid">
           {renderCurrentStep()}
-          {renderStepNavigation()}
         </div>
       ) : null}
 

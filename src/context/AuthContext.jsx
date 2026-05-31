@@ -6,6 +6,8 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut,
+  updateEmail,
+  updatePassword,
 } from 'firebase/auth'
 import { doc, getDocFromServer, setDoc, serverTimestamp } from 'firebase/firestore'
 
@@ -34,6 +36,10 @@ function mapAuthError(error) {
 
   if (code === 'auth/invalid-credential' || code === 'auth/wrong-password') {
     return 'Invalid email or password.'
+  }
+
+  if (code === 'auth/requires-recent-login') {
+    return 'Please confirm your current password and try again.'
   }
 
   if (code === 'auth/user-not-found') {
@@ -250,6 +256,66 @@ export function AuthProvider({ children }) {
     }
   }
 
+  async function updateParentPassword(currentPassword, nextPassword) {
+    if (!authUser?.email || !auth) {
+      throw new Error('You must be signed in as a parent to update password.')
+    }
+
+    const normalizedCurrentPassword = String(currentPassword || '').trim()
+    const normalizedNextPassword = String(nextPassword || '').trim()
+
+    if (!normalizedCurrentPassword) {
+      throw new Error('Current password is required.')
+    }
+
+    if (normalizedNextPassword.length < 6) {
+      throw new Error('New password must be at least 6 characters.')
+    }
+
+    try {
+      await signInWithEmailAndPassword(auth, authUser.email, normalizedCurrentPassword)
+      await updatePassword(auth.currentUser, normalizedNextPassword)
+    } catch (error) {
+      throw new Error(mapAuthError(error), { cause: error })
+    }
+  }
+
+  async function updateParentEmail(currentPassword, nextEmail) {
+    if (!authUser?.email || !auth || !db) {
+      throw new Error('You must be signed in as a parent to update email.')
+    }
+
+    const normalizedCurrentPassword = String(currentPassword || '').trim()
+    const normalizedNextEmail = String(nextEmail || '').trim().toLowerCase()
+
+    if (!normalizedCurrentPassword) {
+      throw new Error('Current password is required.')
+    }
+
+    if (!normalizedNextEmail) {
+      throw new Error('New email is required.')
+    }
+
+    try {
+      await signInWithEmailAndPassword(auth, authUser.email, normalizedCurrentPassword)
+      await updateEmail(auth.currentUser, normalizedNextEmail)
+
+      const patch = {
+        email: normalizedNextEmail,
+        updatedAt: serverTimestamp(),
+      }
+
+      await setDoc(doc(db, 'users', authUser.uid), patch, { merge: true })
+      setProfile((current) => ({
+        ...(current || {}),
+        ...patch,
+        updatedAt: new Date(),
+      }))
+    } catch (error) {
+      throw new Error(mapAuthError(error), { cause: error })
+    }
+  }
+
   const setActiveChildProfile = useCallback((childProfile) => {
     if (!activeChildStorageKey) {
       setActiveChildProfileState(null)
@@ -324,6 +390,8 @@ export function AuthProvider({ children }) {
     setParentPin,
     unlockParentControls,
     unlockParentWithPassword,
+    updateParentPassword,
+    updateParentEmail,
     lockParentControls,
     setActiveChildProfile,
     logout,

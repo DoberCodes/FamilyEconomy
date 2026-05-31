@@ -7,7 +7,14 @@ export default function MissionsCard({
 }) {
   function formatJobReward(job) {
     const amount = Number(job.points) || 0
-    return job.rewardType === 'xp' ? `+ ${amount} XP` : `+ ${amount}`
+    const baseLabel = job.rewardType === 'xp' ? `+ ${amount} XP` : `+ ${amount}`
+    const bonusPercent = Math.max(0, Number(job?.staleBonusMeta?.bonusPercent) || 0)
+
+    if (job.status === 'open' && bonusPercent > 0) {
+      return `${baseLabel} (+${bonusPercent}% stale bonus)`
+    }
+
+    return baseLabel
   }
 
   function statusLabel(job) {

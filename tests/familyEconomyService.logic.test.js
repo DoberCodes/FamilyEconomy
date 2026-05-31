@@ -5,6 +5,7 @@ import {
   computeBlockingPoolClaimCount,
   computeCappedPenalty,
   computeClaimCountdownData,
+  computeStaleJobBonusData,
 } from '../src/services/policyUtils.js'
 
 describe('familyEconomyService helpers', () => {
@@ -82,5 +83,45 @@ describe('familyEconomyService helpers', () => {
     assert.equal(result.hasTimer, false)
     assert.equal(result.expired, false)
     assert.equal(result.timeoutHours, null)
+  })
+
+  it('computes stale bonus after start window', () => {
+    const nowMs = Date.now()
+    const createdAt = new Date(nowMs - 50 * 60 * 60 * 1000)
+
+    const result = computeStaleJobBonusData({
+      createdAt,
+      nowMs,
+      enabled: true,
+      startHours: 24,
+      periodHours: 24,
+      ratePercent: 5,
+      capPercent: 30,
+      basePoints: 100,
+    })
+
+    assert.equal(result.applied, true)
+    assert.equal(result.periodsElapsed, 2)
+    assert.equal(result.bonusPercent, 10)
+    assert.equal(result.adjustedPoints, 110)
+  })
+
+  it('caps stale bonus at configured maximum', () => {
+    const nowMs = Date.now()
+    const createdAt = new Date(nowMs - 14 * 24 * 60 * 60 * 1000)
+
+    const result = computeStaleJobBonusData({
+      createdAt,
+      nowMs,
+      enabled: true,
+      startHours: 24,
+      periodHours: 24,
+      ratePercent: 8,
+      capPercent: 30,
+      basePoints: 200,
+    })
+
+    assert.equal(result.bonusPercent, 30)
+    assert.equal(result.adjustedPoints, 260)
   })
 })

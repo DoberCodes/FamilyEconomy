@@ -20,6 +20,7 @@ import { trackAnalyticsEvent } from './analytics.js'
 import {
   computeBlockingPoolClaimCount,
   computeCappedPenalty,
+  computeStaleJobBonusData,
 } from './policyUtils.js'
 
 const DEFAULT_FAMILY_ID = 'family-main'
@@ -66,11 +67,23 @@ function normalizePricingWindow(period) {
 }
 
 function normalizeFamilyPricingSettings(familyData = {}) {
+  const minMultiplierPercent = Math.max(
+    25,
+    Number(familyData.dynamicPricingMinMultiplierPercent) || 100,
+  )
+  const maxMultiplierPercent = Math.max(
+    minMultiplierPercent,
+    Number(familyData.dynamicPricingMaxMultiplierPercent) || 220,
+  )
+
   return {
     dynamicPricingEnabled: Boolean(familyData.dynamicPricingEnabled),
     dynamicPricingWindowPeriod: normalizePricingWindow(familyData.dynamicPricingWindowPeriod),
     dynamicPricingDemandWeight: Math.max(0, Number(familyData.dynamicPricingDemandWeight) || 0),
     dynamicPricingScarcityWeight: Math.max(0, Number(familyData.dynamicPricingScarcityWeight) || 0),
+    dynamicPricingMinMultiplierPercent: minMultiplierPercent,
+    dynamicPricingMaxMultiplierPercent: maxMultiplierPercent,
+    dynamicPricingMaxStepPercent: Math.max(0, Number(familyData.dynamicPricingMaxStepPercent) || 60),
   }
 }
 
@@ -100,6 +113,16 @@ function normalizeFamilyJobFlowSettings(familyData = {}) {
       Number(familyData.maxActivePoolClaimsPerChild) || 1,
     ),
     allowClaimingWithPendingChecks: Boolean(familyData.allowClaimingWithPendingChecks),
+  }
+}
+
+function normalizeFamilyJobStaleBonusSettings(familyData = {}) {
+  return {
+    staleJobBonusEnabled: Boolean(familyData.staleJobBonusEnabled),
+    staleJobBonusStartHours: Math.max(0, Number(familyData.staleJobBonusStartHours) || 24),
+    staleJobBonusPeriodHours: Math.max(1, Number(familyData.staleJobBonusPeriodHours) || 24),
+    staleJobBonusRatePercent: Math.max(0, Number(familyData.staleJobBonusRatePercent) || 5),
+    staleJobBonusCapPercent: Math.max(0, Number(familyData.staleJobBonusCapPercent) || 30),
   }
 }
 
@@ -316,6 +339,7 @@ export function getActiveFamilyContext(override = {}) {
 function normalizeJob(job) {
   const missedAfterHoursRaw = Number(job.missedAfterHours)
   const rewardType = job.rewardType === 'xp' ? 'xp' : 'credits'
+  const basePoints = Number(job.basePoints ?? job.points ?? job.reward) || 0
 
   return {
     id: job.id,
@@ -324,7 +348,8 @@ function normalizeJob(job) {
     icon: job.icon || '✅',
     title: job.title || job.name || 'Untitled job',
     rewardType,
-    points: Number(job.points ?? job.reward) || 0,
+    basePoints,
+    points: Number(job.points ?? job.reward ?? basePoints) || 0,
     status: job.status || (job.done ? 'done' : 'open'),
     claimedBy: job.claimedBy || null,
     claimLimitCount: Number(job.claimLimitCount) || 0,
@@ -441,6 +466,49 @@ function normalizeReward(reward, fallbackId) {
   }
 }
 
+function calculateRewardMultiplier({ reward, demandCount, pricingSettings }) {
+  const demandWeight = Number(pricingSettings.dynamicPricingDemandWeight) || 0
+  const scarcityWeight = Number(pricingSettings.dynamicPricingScarcityWeight) || 0
+
+  const demandMultiplier = 1 + (demandCount * demandWeight) / 100
+
+  let scarcityRatio = 0
+  if (reward.familyClaimLimitCount > 0) {
+    scarcityRatio = Math.min(1, demandCount / reward.familyClaimLimitCount)
+  }
+
+  const scarcityMultiplier = 1 + scarcityRatio * (scarcityWeight / 100)
+  const rawMultiplier = demandMultiplier * scarcityMultiplier
+
+  const minMultiplier = Math.max(
+    0.25,
+    (Number(pricingSettings.dynamicPricingMinMultiplierPercent) || 100) / 100,
+  )
+  const maxMultiplier = Math.max(
+    minMultiplier,
+    (Number(pricingSettings.dynamicPricingMaxMultiplierPercent) || 220) / 100,
+  )
+  const maxStepMultiplier = 1 + (Math.max(0, Number(pricingSettings.dynamicPricingMaxStepPercent) || 0) / 100)
+
+  const boundedMultiplier = Math.max(
+    minMultiplier,
+    Math.min(rawMultiplier, maxMultiplier, maxStepMultiplier),
+  )
+
+  return {
+    demandMultiplier,
+    scarcityMultiplier,
+    scarcityRatio,
+    rawMultiplier,
+    boundedMultiplier,
+    guardrails: {
+      minMultiplier,
+      maxMultiplier,
+      maxStepMultiplier,
+    },
+  }
+}
+
 function calculateRewardAdjustedCost(reward, rewardRequests, pricingSettings) {
   const baseCost = Number(reward.baseCost ?? reward.cost) || 0
 
@@ -450,8 +518,18 @@ function calculateRewardAdjustedCost(reward, rewardRequests, pricingSettings) {
       pricingMeta: {
         dynamicPricingApplied: false,
         baseCost,
+        adjustedCost: baseCost,
+        projectedNextCost: baseCost,
+        projectedDelta: 0,
         demandCount: 0,
         scarcityRatio: 0,
+        multiplier: 1,
+        rawMultiplier: 1,
+        guardrails: {
+          minMultiplier: 1,
+          maxMultiplier: 1,
+          maxStepMultiplier: 1,
+        },
         windowPeriod: pricingSettings.dynamicPricingWindowPeriod,
       },
     }
@@ -469,27 +547,56 @@ function calculateRewardAdjustedCost(reward, rewardRequests, pricingSettings) {
       return createdAt >= windowStart
     }).length
 
-  const demandWeight = Number(pricingSettings.dynamicPricingDemandWeight) || 0
-  const scarcityWeight = Number(pricingSettings.dynamicPricingScarcityWeight) || 0
+  const multiplier = calculateRewardMultiplier({ reward, demandCount, pricingSettings })
+  const adjustedCost = Math.max(1, Math.round(baseCost * multiplier.boundedMultiplier))
 
-  const demandMultiplier = 1 + (demandCount * demandWeight) / 100
-
-  let scarcityRatio = 0
-  if (reward.familyClaimLimitCount > 0) {
-    scarcityRatio = Math.min(1, demandCount / reward.familyClaimLimitCount)
-  }
-
-  const scarcityMultiplier = 1 + scarcityRatio * (scarcityWeight / 100)
-  const adjustedCost = Math.max(1, Math.round(baseCost * demandMultiplier * scarcityMultiplier))
+  const projectedDemandCount = demandCount + 1
+  const nextMultiplier = calculateRewardMultiplier({
+    reward,
+    demandCount: projectedDemandCount,
+    pricingSettings,
+  })
+  const projectedNextCost = Math.max(1, Math.round(baseCost * nextMultiplier.boundedMultiplier))
 
   return {
     adjustedCost,
     pricingMeta: {
       dynamicPricingApplied: adjustedCost !== baseCost,
       baseCost,
+      adjustedCost,
+      projectedNextCost,
+      projectedDelta: projectedNextCost - adjustedCost,
       demandCount,
-      scarcityRatio,
+      scarcityRatio: multiplier.scarcityRatio,
+      multiplier: multiplier.boundedMultiplier,
+      rawMultiplier: multiplier.rawMultiplier,
+      guardrails: multiplier.guardrails,
       windowPeriod: pricingSettings.dynamicPricingWindowPeriod,
+    },
+  }
+}
+
+function calculateJobAdjustedPoints(job, staleBonusSettings, nowMs = Date.now()) {
+  const basePoints = Number(job.basePoints ?? job.points) || 0
+  const bonusData = computeStaleJobBonusData({
+    createdAt: job.createdAt,
+    nowMs,
+    enabled: staleBonusSettings.staleJobBonusEnabled,
+    startHours: staleBonusSettings.staleJobBonusStartHours,
+    periodHours: staleBonusSettings.staleJobBonusPeriodHours,
+    ratePercent: staleBonusSettings.staleJobBonusRatePercent,
+    capPercent: staleBonusSettings.staleJobBonusCapPercent,
+    basePoints,
+  })
+
+  return {
+    adjustedPoints: bonusData.adjustedPoints,
+    staleBonusMeta: {
+      ...bonusData,
+      startHours: staleBonusSettings.staleJobBonusStartHours,
+      periodHours: staleBonusSettings.staleJobBonusPeriodHours,
+      ratePercent: staleBonusSettings.staleJobBonusRatePercent,
+      capPercent: staleBonusSettings.staleJobBonusCapPercent,
     },
   }
 }
@@ -749,12 +856,40 @@ export async function getFamilyDashboard(context = {}) {
   }
 
   const familyData = familySnapshot.data()
+  const staleBonusSettings = normalizeFamilyJobStaleBonusSettings(familyData)
 
   const jobsSnapshot = await getDocs(collection(db, 'families', targetFamilyId, 'jobs'))
   const goalSnapshot = await getDocs(collection(db, 'families', targetFamilyId, 'goals'))
 
   const allJobs = jobsSnapshot.docs
     .map((item) => normalizeJob({ id: item.id, ...item.data() }))
+    .map((job) => {
+      if (job.status !== 'open' || job.claimedBy) {
+        return {
+          ...job,
+          staleBonusMeta: {
+            applied: false,
+            bonusPercent: 0,
+            periodsElapsed: 0,
+            ageHours: 0,
+            adjustedPoints: Number(job.points) || 0,
+            basePoints: Number(job.basePoints ?? job.points) || 0,
+            startHours: staleBonusSettings.staleJobBonusStartHours,
+            periodHours: staleBonusSettings.staleJobBonusPeriodHours,
+            ratePercent: staleBonusSettings.staleJobBonusRatePercent,
+            capPercent: staleBonusSettings.staleJobBonusCapPercent,
+          },
+        }
+      }
+
+      const adjusted = calculateJobAdjustedPoints(job, staleBonusSettings)
+
+      return {
+        ...job,
+        points: adjusted.adjustedPoints,
+        staleBonusMeta: adjusted.staleBonusMeta,
+      }
+    })
 
   const jobs = allJobs
     .filter((job) =>
@@ -850,6 +985,7 @@ export async function createJob(jobPayload, context = {}) {
   const jobRef = await addDoc(collection(db, 'families', targetFamilyId, 'jobs'), {
     title,
     rewardType,
+    basePoints: points,
     points,
     icon: jobPayload.icon || '✅',
     childId: jobPayload.childId || null,
@@ -941,6 +1077,7 @@ export async function updateJob(jobId, jobPayload, context = {}) {
     title,
     rewardType,
     points,
+    basePoints: points,
     childId: jobPayload.childId || null,
     claimLimitCount,
     claimLimitPeriod: claimLimitCount > 0 ? claimLimitPeriod || 'week' : null,
@@ -995,6 +1132,12 @@ export async function claimJob(jobId, context = {}) {
   if (jobData.childId && jobData.childId !== userId) {
     throw new Error('This job is assigned to a different child.')
   }
+
+  const familySnap = await getDoc(doc(db, 'families', targetFamilyId))
+  const familyData = familySnap.exists() ? familySnap.data() : {}
+  const flowSettings = normalizeFamilyJobFlowSettings(familyData)
+  const staleBonusSettings = normalizeFamilyJobStaleBonusSettings(familyData)
+  const adjustedJobPoints = calculateJobAdjustedPoints(jobData, staleBonusSettings)
 
   const limitCount = Number(jobData.claimLimitCount) || 0
   const limitPeriod = jobData.claimLimitPeriod
@@ -1057,9 +1200,6 @@ export async function claimJob(jobId, context = {}) {
 
   // Global pool jobs are limited to one active claim per child.
   if (!jobData.childId) {
-    const familySnap = await getDoc(doc(db, 'families', targetFamilyId))
-    const flowSettings = normalizeFamilyJobFlowSettings(familySnap.data() || {})
-
     const activePoolClaimQuery = query(
       collection(db, 'families', targetFamilyId, 'jobs'),
       where('claimedBy', '==', userId),
@@ -1097,6 +1237,7 @@ export async function claimJob(jobId, context = {}) {
 
   await updateDoc(jobRef, {
     status: 'claimed',
+    points: adjustedJobPoints.adjustedPoints,
     claimedBy: userId,
     claimedAt: serverTimestamp(),
   })
@@ -1106,6 +1247,7 @@ export async function claimJob(jobId, context = {}) {
       itemId: jobId,
       itemType: 'job',
       title: jobData.title,
+      staleBonusPercent: adjustedJobPoints.staleBonusMeta.bonusPercent,
       source: 'claimJob',
       screen: 'kid',
     },
@@ -1388,10 +1530,13 @@ export async function reviewJobCheckRequest(requestId, decision, context = {}) {
     })
 
     if (approvedJob?.autoRecreate) {
+      const nextBasePoints = Number(approvedJob.basePoints ?? approvedJob.points) || 0
+
       await addDoc(collection(db, 'families', activeFamilyId, 'jobs'), {
         title: approvedJob.title,
         rewardType: approvedJob.rewardType === 'xp' ? 'xp' : 'credits',
-        points: Number(approvedJob.points) || 0,
+        basePoints: nextBasePoints,
+        points: nextBasePoints,
         icon: approvedJob.icon || '✅',
         childId: approvedJob.childId || null,
         claimLimitCount: Number(approvedJob.claimLimitCount) || 0,
@@ -1511,6 +1656,7 @@ export async function markJobAsMissed(jobId, context = {}) {
 
     transaction.update(jobRef, {
       status: 'open',
+      points: Number(jobData.basePoints ?? jobData.points) || 0,
       claimedBy: null,
       claimedAt: null,
       completedAt: null,
@@ -2232,6 +2378,7 @@ export async function getHouseholdOnboardingData(context = {}) {
         ...normalizeFamilySavingsSettings(familyData),
         ...normalizeFamilyJobConsequenceSettings(familyData),
         ...normalizeFamilyJobFlowSettings(familyData),
+        ...normalizeFamilyJobStaleBonusSettings(familyData),
         ...normalizeFamilyDashboardSettings(familyData),
         ...normalizeFamilyRecognitionSettings(familyData),
         ...normalizeBadgeThresholdSettings(familyData),
@@ -2300,6 +2447,12 @@ export async function createHousehold(household, context = {}) {
       dynamicPricingWindowPeriod: normalizePricingWindow(household.dynamicPricingWindowPeriod),
       dynamicPricingDemandWeight: Math.max(0, Number(household.dynamicPricingDemandWeight) || 0),
       dynamicPricingScarcityWeight: Math.max(0, Number(household.dynamicPricingScarcityWeight) || 0),
+      dynamicPricingMinMultiplierPercent: Math.max(25, Number(household.dynamicPricingMinMultiplierPercent) || 100),
+      dynamicPricingMaxMultiplierPercent: Math.max(
+        Math.max(25, Number(household.dynamicPricingMinMultiplierPercent) || 100),
+        Number(household.dynamicPricingMaxMultiplierPercent) || 220,
+      ),
+      dynamicPricingMaxStepPercent: Math.max(0, Number(household.dynamicPricingMaxStepPercent) || 60),
       savingsGoalApprovalMode: normalizeSavingsGoalApprovalMode(
         household.savingsGoalApprovalMode,
       ),
@@ -2311,6 +2464,11 @@ export async function createHousehold(household, context = {}) {
       failedJobCheckPenaltyCredits: Math.max(0, Number(household.failedJobCheckPenaltyCredits) || 0),
       maxActivePoolClaimsPerChild: Math.max(1, Number(household.maxActivePoolClaimsPerChild) || 1),
       allowClaimingWithPendingChecks: Boolean(household.allowClaimingWithPendingChecks),
+      staleJobBonusEnabled: Boolean(household.staleJobBonusEnabled),
+      staleJobBonusStartHours: Math.max(0, Number(household.staleJobBonusStartHours) || 24),
+      staleJobBonusPeriodHours: Math.max(1, Number(household.staleJobBonusPeriodHours) || 24),
+      staleJobBonusRatePercent: Math.max(0, Number(household.staleJobBonusRatePercent) || 5),
+      staleJobBonusCapPercent: Math.max(0, Number(household.staleJobBonusCapPercent) || 30),
       familyDashboardTopCardsEnabled: household.familyDashboardTopCardsEnabled !== false,
       achievementsEnabled: household.achievementsEnabled !== false,
       familyRecognitionEnabled: household.familyRecognitionEnabled !== false,

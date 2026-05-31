@@ -28,6 +28,7 @@ export default function AuthPage() {
   const [mode, setMode] = useState('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [displayName, setDisplayName] = useState('')
   const [newFamilyId, setNewFamilyId] = useState(() => createFamilyId())
   const [saving, setSaving] = useState(false)
@@ -124,7 +125,6 @@ export default function AuthPage() {
           email,
           password,
           displayName,
-          familyId: newFamilyId,
           role: 'parent',
         })
       } else {
@@ -167,34 +167,24 @@ export default function AuthPage() {
             onChange={(event) => setEmail(event.target.value)}
             required
           />
-          <input
-            className="job-input"
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
-
-          {mode === 'register' ? (
-            <>
-              <input
-                className="job-input"
-                placeholder="Family ID"
-                value={newFamilyId}
-                onChange={(event) => setNewFamilyId(event.target.value)}
-                required
-                readOnly
-              />
-              <button
-                type="button"
-                className="text-button"
-                onClick={() => setNewFamilyId(createFamilyId())}
-              >
-                Generate new family ID
-              </button>
-            </>
-          ) : null}
+          <div className="credential-input-wrap">
+            <input
+              className="job-input"
+              type={showPassword ? 'text' : 'password'}
+              placeholder="Password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
+            />
+            <button
+              type="button"
+              className="credential-icon-button"
+              onClick={() => setShowPassword((current) => !current)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            >
+              <span className="credential-icon" aria-hidden="true">{showPassword ? '👁' : '🙈'}</span>
+            </button>
+          </div>
 
           {error ? <p className="status-note status-error">{error}</p> : null}
 

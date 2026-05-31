@@ -73,3 +73,62 @@ export function computeClaimCountdownData({
     timeoutHours,
   }
 }
+
+export function computeStaleJobBonusData({
+  createdAt,
+  nowMs,
+  enabled,
+  startHours,
+  periodHours,
+  ratePercent,
+  capPercent,
+  basePoints,
+}) {
+  const base = Math.max(0, Number(basePoints) || 0)
+  const createdAtDate = toDateValue(createdAt)
+
+  const safeStartHours = Math.max(0, Number(startHours) || 0)
+  const safePeriodHours = Math.max(1, Number(periodHours) || 24)
+  const safeRatePercent = Math.max(0, Number(ratePercent) || 0)
+  const safeCapPercent = Math.max(0, Number(capPercent) || 0)
+
+  if (!enabled || !createdAtDate || safeRatePercent <= 0 || safeCapPercent <= 0) {
+    return {
+      applied: false,
+      bonusPercent: 0,
+      periodsElapsed: 0,
+      ageHours: 0,
+      adjustedPoints: base,
+      basePoints: base,
+    }
+  }
+
+  const currentMs = Number(nowMs) || Date.now()
+  const ageMs = Math.max(0, currentMs - createdAtDate.getTime())
+  const startMs = safeStartHours * 60 * 60 * 1000
+
+  if (ageMs < startMs) {
+    return {
+      applied: false,
+      bonusPercent: 0,
+      periodsElapsed: 0,
+      ageHours: ageMs / (60 * 60 * 1000),
+      adjustedPoints: base,
+      basePoints: base,
+    }
+  }
+
+  const periodMs = safePeriodHours * 60 * 60 * 1000
+  const periodsElapsed = Math.floor((ageMs - startMs) / periodMs) + 1
+  const bonusPercent = Math.min(safeCapPercent, periodsElapsed * safeRatePercent)
+  const adjustedPoints = Math.max(0, Math.round(base * (1 + bonusPercent / 100)))
+
+  return {
+    applied: bonusPercent > 0 && adjustedPoints > base,
+    bonusPercent,
+    periodsElapsed,
+    ageHours: ageMs / (60 * 60 * 1000),
+    adjustedPoints,
+    basePoints: base,
+  }
+}

@@ -68,6 +68,7 @@ export default function KidProfilePage() {
   const [requiresSessionCode, setRequiresSessionCode] = useState(false)
   const [childHasSessionCode, setChildHasSessionCode] = useState(false)
   const [sessionCodeInput, setSessionCodeInput] = useState('')
+  const [showSessionCode, setShowSessionCode] = useState(false)
   const [unlockError, setUnlockError] = useState('')
   const [sessionUnlocked, setSessionUnlocked] = useState(false)
   const [celebrationTitle, setCelebrationTitle] = useState('Credit Celebration')
@@ -1783,32 +1784,52 @@ export default function KidProfilePage() {
             {childHasSessionCode ? (
               <>
                 <form className="auth-form kid-lock-form" onSubmit={handleUnlockSession}>
-                  <input
-                    className="job-input"
-                    type="password"
-                    inputMode="numeric"
-                    pattern="[0-9]{4}"
-                    placeholder="4-digit code"
-                    value={sessionCodeInput}
-                    onChange={(event) => setSessionCodeInput(event.target.value)}
-                    required
-                  />
+                  <div className="credential-input-wrap">
+                    <input
+                      className="job-input"
+                      type={showSessionCode ? 'text' : 'password'}
+                      inputMode="numeric"
+                      pattern="[0-9]{4}"
+                      placeholder="4-digit code"
+                      value={sessionCodeInput}
+                      onChange={(event) => setSessionCodeInput(event.target.value)}
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="credential-icon-button"
+                      onClick={() => setShowSessionCode((current) => !current)}
+                      aria-label={showSessionCode ? 'Hide PIN code' : 'Show PIN code'}
+                    >
+                      <span className="credential-icon" aria-hidden="true">{showSessionCode ? '👁' : '🙈'}</span>
+                    </button>
+                  </div>
                   <button type="submit" className="claim-button kid-lock-button">Unlock</button>
                 </form>
               </>
             ) : resolvedChild?.allowChildSetSessionCode ? (
               <>
                 <form className="auth-form kid-lock-form" onSubmit={handleCreateChildSessionCode}>
-                  <input
-                    className="job-input"
-                    type="password"
-                    inputMode="numeric"
-                    pattern="[0-9]{4}"
-                    placeholder="Create 4-digit code"
-                    value={sessionCodeInput}
-                    onChange={(event) => setSessionCodeInput(event.target.value)}
-                    required
-                  />
+                  <div className="credential-input-wrap">
+                    <input
+                      className="job-input"
+                      type={showSessionCode ? 'text' : 'password'}
+                      inputMode="numeric"
+                      pattern="[0-9]{4}"
+                      placeholder="Create 4-digit code"
+                      value={sessionCodeInput}
+                      onChange={(event) => setSessionCodeInput(event.target.value)}
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="credential-icon-button"
+                      onClick={() => setShowSessionCode((current) => !current)}
+                      aria-label={showSessionCode ? 'Hide PIN code' : 'Show PIN code'}
+                    >
+                      <span className="credential-icon" aria-hidden="true">{showSessionCode ? '👁' : '🙈'}</span>
+                    </button>
+                  </div>
                   <button type="submit" className="claim-button kid-lock-button">Save Code</button>
                 </form>
               </>
@@ -1832,16 +1853,26 @@ export default function KidProfilePage() {
               You can set a 4-digit PIN to protect your session next time.
             </p>
             <form className="auth-form kid-lock-form" onSubmit={handleCreateChildSessionCode}>
-              <input
-                className="job-input"
-                type="password"
-                inputMode="numeric"
-                pattern="[0-9]{4}"
-                placeholder="Create 4-digit code"
-                value={sessionCodeInput}
-                onChange={(event) => setSessionCodeInput(event.target.value)}
-                required
-              />
+              <div className="credential-input-wrap">
+                <input
+                  className="job-input"
+                  type={showSessionCode ? 'text' : 'password'}
+                  inputMode="numeric"
+                  pattern="[0-9]{4}"
+                  placeholder="Create 4-digit code"
+                  value={sessionCodeInput}
+                  onChange={(event) => setSessionCodeInput(event.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  className="credential-icon-button"
+                  onClick={() => setShowSessionCode((current) => !current)}
+                  aria-label={showSessionCode ? 'Hide PIN code' : 'Show PIN code'}
+                >
+                  <span className="credential-icon" aria-hidden="true">{showSessionCode ? '👁' : '🙈'}</span>
+                </button>
+              </div>
               <button type="submit" className="claim-button kid-lock-button">
                 Save My PIN
               </button>

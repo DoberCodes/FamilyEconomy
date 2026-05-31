@@ -187,7 +187,7 @@ function ShellChrome() {
     '/mobile/profile': 'Parent',
   }
 
-  const headerActionLabel = parentControlsUnlocked ? 'Lock Parent Session' : 'Enable Parent Session'
+  const headerActionLabel = parentControlsUnlocked ? 'Lock Parent' : 'Enable Parent'
 
   function handleHeaderAction() {
     if (parentControlsUnlocked) {

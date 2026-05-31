@@ -124,6 +124,11 @@ export default function StorePage() {
               <li key={reward.id}>
                 <span className="mission-main">🎁 {reward.title}</span>
                 <span className="mission-reward">{reward.cost}</span>
+                {reward.pricingMeta?.dynamicPricingApplied ? (
+                  <span className="job-status-label">
+                    Base {reward.pricingMeta.baseCost} -&gt; Now {reward.pricingMeta.adjustedCost} -&gt; Next est {reward.pricingMeta.projectedNextCost}
+                  </span>
+                ) : null}
                 {effectiveRole === 'kid' ? (
                   <button
                     type="button"

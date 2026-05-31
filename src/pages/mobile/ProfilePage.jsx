@@ -69,6 +69,7 @@ export default function ProfilePage() {
     setParentPin,
     unlockParentControls,
     unlockParentWithPassword,
+    updateParentPassword,
     logout,
   } = useAuth()
 
@@ -76,6 +77,10 @@ export default function ProfilePage() {
   const [password, setPassword] = useState('')
   const [pin, setPin] = useState('')
   const [newPin, setNewPin] = useState('')
+  const [showParentLoginPassword, setShowParentLoginPassword] = useState(false)
+  const [showUnlockPin, setShowUnlockPin] = useState(false)
+  const [showUnlockPassword, setShowUnlockPassword] = useState(false)
+  const [showNewPin, setShowNewPin] = useState(false)
   const [childProfiles, setChildProfiles] = useState([])
   const [familySummary, setFamilySummary] = useState({
     profileName: '',
@@ -107,6 +112,14 @@ export default function ProfilePage() {
     dynamicPricingWindowPeriod: 'week',
     dynamicPricingDemandWeight: 10,
     dynamicPricingScarcityWeight: 20,
+    dynamicPricingMinMultiplierPercent: 100,
+    dynamicPricingMaxMultiplierPercent: 220,
+    dynamicPricingMaxStepPercent: 60,
+    staleJobBonusEnabled: false,
+    staleJobBonusStartHours: 24,
+    staleJobBonusPeriodHours: 24,
+    staleJobBonusRatePercent: 5,
+    staleJobBonusCapPercent: 30,
   })
   const [childSessionSecurityEnabled, setChildSessionSecurityEnabled] = useState(false)
   const [activeDialog, setActiveDialog] = useState('')
@@ -163,7 +176,7 @@ export default function ProfilePage() {
   const [editingChildId, setEditingChildId] = useState('')
   const [editingChildName, setEditingChildName] = useState('')
   const [editingChildAvatar, setEditingChildAvatar] = useState('🧒')
-  const [removeChildConfirmId, setRemoveChildConfirmId] = useState('')
+  const [pendingChildRemoval, setPendingChildRemoval] = useState(null)
   const [dynamicPricingEnabled, setDynamicPricingEnabled] = useState(false)
   const [savingsGoalApprovalMode, setSavingsGoalApprovalMode] = useState('claim_only')
   const [missedJobConsequenceEnabled, setMissedJobConsequenceEnabled] = useState(false)
@@ -193,6 +206,14 @@ export default function ProfilePage() {
   const [dynamicPricingWindowPeriod, setDynamicPricingWindowPeriod] = useState('week')
   const [dynamicPricingDemandWeight, setDynamicPricingDemandWeight] = useState('10')
   const [dynamicPricingScarcityWeight, setDynamicPricingScarcityWeight] = useState('20')
+  const [dynamicPricingMinMultiplierPercent, setDynamicPricingMinMultiplierPercent] = useState('100')
+  const [dynamicPricingMaxMultiplierPercent, setDynamicPricingMaxMultiplierPercent] = useState('220')
+  const [dynamicPricingMaxStepPercent, setDynamicPricingMaxStepPercent] = useState('60')
+  const [staleJobBonusEnabled, setStaleJobBonusEnabled] = useState(false)
+  const [staleJobBonusStartHours, setStaleJobBonusStartHours] = useState('24')
+  const [staleJobBonusPeriodHours, setStaleJobBonusPeriodHours] = useState('24')
+  const [staleJobBonusRatePercent, setStaleJobBonusRatePercent] = useState('5')
+  const [staleJobBonusCapPercent, setStaleJobBonusCapPercent] = useState('30')
   const [markingMissedJobId, setMarkingMissedJobId] = useState('')
   const [onboardingCompletionSummary, setOnboardingCompletionSummary] = useState(emptyOnboardingSummary)
   const [weeklyActiveSummary, setWeeklyActiveSummary] = useState(emptyWeeklySummary)
@@ -200,6 +221,10 @@ export default function ProfilePage() {
   const [feedbackCategory, setFeedbackCategory] = useState('general')
   const [feedbackMessage, setFeedbackMessage] = useState('')
   const [feedbackBusy, setFeedbackBusy] = useState(false)
+  const [accountBusy, setAccountBusy] = useState(false)
+  const [accountCurrentPassword, setAccountCurrentPassword] = useState('')
+  const [accountNewPassword, setAccountNewPassword] = useState('')
+  const [accountConfirmPassword, setAccountConfirmPassword] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -222,7 +247,14 @@ export default function ProfilePage() {
 
   function formatJobReward(job) {
     const amount = Number(job.points) || 0
-    return job.rewardType === 'xp' ? `+ ${amount} XP` : `+ ${amount} credits`
+    const baseLabel = job.rewardType === 'xp' ? `+ ${amount} XP` : `+ ${amount} credits`
+    const bonusPercent = Math.max(0, Number(job?.staleBonusMeta?.bonusPercent) || 0)
+
+    if (job.status === 'open' && bonusPercent > 0) {
+      return `${baseLabel} (+${bonusPercent}% stale bonus)`
+    }
+
+    return baseLabel
   }
 
   function customBadgeMetricLabel(metric) {
@@ -289,6 +321,16 @@ export default function ProfilePage() {
   const maxPoolClaimsValue = Math.max(1, Number(maxActivePoolClaimsPerChild) || 1)
   const demandWeightValue = Math.max(0, Number(dynamicPricingDemandWeight) || 0)
   const scarcityWeightValue = Math.max(0, Number(dynamicPricingScarcityWeight) || 0)
+  const dynamicMinMultiplierValue = Math.max(25, Number(dynamicPricingMinMultiplierPercent) || 100)
+  const dynamicMaxMultiplierValue = Math.max(
+    dynamicMinMultiplierValue,
+    Number(dynamicPricingMaxMultiplierPercent) || 220,
+  )
+  const dynamicMaxStepValue = Math.max(0, Number(dynamicPricingMaxStepPercent) || 60)
+  const staleStartHoursValue = Math.max(0, Number(staleJobBonusStartHours) || 24)
+  const stalePeriodHoursValue = Math.max(1, Number(staleJobBonusPeriodHours) || 24)
+  const staleRateValue = Math.max(0, Number(staleJobBonusRatePercent) || 5)
+  const staleCapValue = Math.max(0, Number(staleJobBonusCapPercent) || 30)
   const firstGoalTargetValue = Math.max(1, Number(achievementFirstGoalTarget) || 1)
   const contributorCreditsTargetValue = Math.max(1, Number(achievementContributorCreditsTarget) || 100)
   const helperJobsTargetValue = Math.max(1, Number(achievementHelperJobsTarget) || 3)
@@ -639,6 +681,14 @@ export default function ProfilePage() {
             dynamicPricingWindowPeriod: result.data.family?.dynamicPricingWindowPeriod || 'week',
             dynamicPricingDemandWeight: Number(result.data.family?.dynamicPricingDemandWeight) || 10,
             dynamicPricingScarcityWeight: Number(result.data.family?.dynamicPricingScarcityWeight) || 20,
+            dynamicPricingMinMultiplierPercent: Number(result.data.family?.dynamicPricingMinMultiplierPercent) || 100,
+            dynamicPricingMaxMultiplierPercent: Number(result.data.family?.dynamicPricingMaxMultiplierPercent) || 220,
+            dynamicPricingMaxStepPercent: Number(result.data.family?.dynamicPricingMaxStepPercent) || 60,
+            staleJobBonusEnabled: Boolean(result.data.family?.staleJobBonusEnabled),
+            staleJobBonusStartHours: Number(result.data.family?.staleJobBonusStartHours) || 24,
+            staleJobBonusPeriodHours: Number(result.data.family?.staleJobBonusPeriodHours) || 24,
+            staleJobBonusRatePercent: Number(result.data.family?.staleJobBonusRatePercent) || 5,
+            staleJobBonusCapPercent: Number(result.data.family?.staleJobBonusCapPercent) || 30,
           })
           setChildSessionSecurityEnabled(
             Boolean(result.data.family?.childSessionSecurityEnabled),
@@ -886,7 +936,6 @@ export default function ProfilePage() {
     setEditingChildId(child.id)
     setEditingChildName(child.displayName || '')
     setEditingChildAvatar(child.avatar || '🧒')
-    setRemoveChildConfirmId('')
   }
 
   function handleCancelEditChild() {
@@ -917,16 +966,35 @@ export default function ProfilePage() {
     }
   }
 
-  async function handleRemoveChildProfile(childId) {
+  function handleRemoveChildProfile(childId, childName = '') {
+    setPendingChildRemoval({
+      id: childId,
+      name: childName || 'this child',
+    })
+  }
+
+  function handleCancelRemoveChild() {
+    if (saving) {
+      return
+    }
+
+    setPendingChildRemoval(null)
+  }
+
+  async function handleConfirmRemoveChild() {
+    if (!pendingChildRemoval?.id) {
+      return
+    }
+
     setSaving(true)
     setError('')
 
     try {
-      await deleteChildProfile(childId, { familyId, userId, userRole })
-      setRemoveChildConfirmId('')
-      if (editingChildId === childId) {
+      await deleteChildProfile(pendingChildRemoval.id, { familyId, userId, userRole })
+      if (editingChildId === pendingChildRemoval.id) {
         handleCancelEditChild()
       }
+      setPendingChildRemoval(null)
       await refreshChildProfiles()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not remove child profile.')
@@ -1025,6 +1093,14 @@ export default function ProfilePage() {
       setDynamicPricingWindowPeriod(familySummary.dynamicPricingWindowPeriod || 'week')
       setDynamicPricingDemandWeight(String(familySummary.dynamicPricingDemandWeight || 10))
       setDynamicPricingScarcityWeight(String(familySummary.dynamicPricingScarcityWeight || 20))
+      setDynamicPricingMinMultiplierPercent(String(familySummary.dynamicPricingMinMultiplierPercent || 100))
+      setDynamicPricingMaxMultiplierPercent(String(familySummary.dynamicPricingMaxMultiplierPercent || 220))
+      setDynamicPricingMaxStepPercent(String(familySummary.dynamicPricingMaxStepPercent || 60))
+      setStaleJobBonusEnabled(Boolean(familySummary.staleJobBonusEnabled))
+      setStaleJobBonusStartHours(String(familySummary.staleJobBonusStartHours || 24))
+      setStaleJobBonusPeriodHours(String(familySummary.staleJobBonusPeriodHours || 24))
+      setStaleJobBonusRatePercent(String(familySummary.staleJobBonusRatePercent || 5))
+      setStaleJobBonusCapPercent(String(familySummary.staleJobBonusCapPercent || 30))
     }
 
     if (dialog === 'badges') {
@@ -1054,6 +1130,17 @@ export default function ProfilePage() {
     if (dialog === 'add-child') {
       setNewChildName('')
       setNewChildAvatar('🧒')
+    }
+
+    if (dialog === 'change-password') {
+      setAccountCurrentPassword('')
+      setAccountNewPassword('')
+      setAccountConfirmPassword('')
+    }
+
+    if (dialog === 'support') {
+      setFeedbackCategory('general')
+      setFeedbackMessage('')
     }
   }
 
@@ -1170,6 +1257,204 @@ export default function ProfilePage() {
       setFailedJobCheckConsequenceEnabled(true)
       setFailedJobCheckPenaltyCredits('15')
     }
+  }
+
+  function applyDynamicPricingPreset(preset) {
+    if (preset === 'gentle') {
+      setDynamicPricingEnabled(true)
+      setDynamicPricingWindowPeriod('week')
+      setDynamicPricingDemandWeight('6')
+      setDynamicPricingScarcityWeight('10')
+      setDynamicPricingMinMultiplierPercent('90')
+      setDynamicPricingMaxMultiplierPercent('140')
+      setDynamicPricingMaxStepPercent('25')
+      return
+    }
+
+    if (preset === 'balanced') {
+      setDynamicPricingEnabled(true)
+      setDynamicPricingWindowPeriod('week')
+      setDynamicPricingDemandWeight('10')
+      setDynamicPricingScarcityWeight('20')
+      setDynamicPricingMinMultiplierPercent('90')
+      setDynamicPricingMaxMultiplierPercent('180')
+      setDynamicPricingMaxStepPercent('35')
+      return
+    }
+
+    if (preset === 'responsive') {
+      setDynamicPricingEnabled(true)
+      setDynamicPricingWindowPeriod('day')
+      setDynamicPricingDemandWeight('14')
+      setDynamicPricingScarcityWeight('25')
+      setDynamicPricingMinMultiplierPercent('85')
+      setDynamicPricingMaxMultiplierPercent('220')
+      setDynamicPricingMaxStepPercent('45')
+      return
+    }
+
+    setDynamicPricingEnabled(false)
+  }
+
+  function applyStaleBonusPreset(preset) {
+    if (preset === 'light') {
+      setStaleJobBonusEnabled(true)
+      setStaleJobBonusStartHours('24')
+      setStaleJobBonusPeriodHours('24')
+      setStaleJobBonusRatePercent('4')
+      setStaleJobBonusCapPercent('20')
+      return
+    }
+
+    if (preset === 'balanced') {
+      setStaleJobBonusEnabled(true)
+      setStaleJobBonusStartHours('24')
+      setStaleJobBonusPeriodHours('24')
+      setStaleJobBonusRatePercent('5')
+      setStaleJobBonusCapPercent('30')
+      return
+    }
+
+    if (preset === 'strong') {
+      setStaleJobBonusEnabled(true)
+      setStaleJobBonusStartHours('12')
+      setStaleJobBonusPeriodHours('12')
+      setStaleJobBonusRatePercent('8')
+      setStaleJobBonusCapPercent('45')
+      return
+    }
+
+    setStaleJobBonusEnabled(false)
+  }
+
+  function getDynamicPricingPreset() {
+    if (!dynamicPricingEnabled) {
+      return 'off'
+    }
+
+    if (
+      dynamicPricingWindowPeriod === 'week'
+      && demandWeightValue === 6
+      && scarcityWeightValue === 10
+      && dynamicMinMultiplierValue === 90
+      && dynamicMaxMultiplierValue === 140
+      && dynamicMaxStepValue === 25
+    ) {
+      return 'gentle'
+    }
+
+    if (
+      dynamicPricingWindowPeriod === 'week'
+      && demandWeightValue === 10
+      && scarcityWeightValue === 20
+      && dynamicMinMultiplierValue === 90
+      && dynamicMaxMultiplierValue === 180
+      && dynamicMaxStepValue === 35
+    ) {
+      return 'balanced'
+    }
+
+    if (
+      dynamicPricingWindowPeriod === 'day'
+      && demandWeightValue === 14
+      && scarcityWeightValue === 25
+      && dynamicMinMultiplierValue === 85
+      && dynamicMaxMultiplierValue === 220
+      && dynamicMaxStepValue === 45
+    ) {
+      return 'responsive'
+    }
+
+    return 'custom'
+  }
+
+  function getStaleBonusPreset() {
+    if (!staleJobBonusEnabled) {
+      return 'off'
+    }
+
+    if (
+      staleStartHoursValue === 24
+      && stalePeriodHoursValue === 24
+      && staleRateValue === 4
+      && staleCapValue === 20
+    ) {
+      return 'light'
+    }
+
+    if (
+      staleStartHoursValue === 24
+      && stalePeriodHoursValue === 24
+      && staleRateValue === 5
+      && staleCapValue === 30
+    ) {
+      return 'balanced'
+    }
+
+    if (
+      staleStartHoursValue === 12
+      && stalePeriodHoursValue === 12
+      && staleRateValue === 8
+      && staleCapValue === 45
+    ) {
+      return 'strong'
+    }
+
+    return 'custom'
+  }
+
+  function applyHouseholdPreset(preset) {
+    if (preset === 'gentle') {
+      applyConsequencePreset('gentle')
+      applyStaleBonusPreset('strong')
+      applyDynamicPricingPreset('gentle')
+      return
+    }
+
+    if (preset === 'balanced') {
+      applyConsequencePreset('balanced')
+      applyStaleBonusPreset('balanced')
+      applyDynamicPricingPreset('balanced')
+      return
+    }
+
+    if (preset === 'strict') {
+      applyConsequencePreset('strict')
+      applyStaleBonusPreset('light')
+      applyDynamicPricingPreset('responsive')
+    }
+  }
+
+  function getHouseholdPreset() {
+    const consequencePreset = getConsequencePreset()
+    const staleBonusPreset = getStaleBonusPreset()
+    const dynamicPricingPreset = getDynamicPricingPreset()
+
+    if (
+      consequencePreset === 'gentle'
+      && staleBonusPreset === 'strong'
+      && dynamicPricingPreset === 'gentle'
+    ) {
+      return 'gentle'
+    }
+
+    if (
+      consequencePreset === 'balanced'
+      && staleBonusPreset === 'balanced'
+      && dynamicPricingPreset === 'balanced'
+    ) {
+      return 'balanced'
+    }
+
+    if (
+      consequencePreset === 'strict'
+      && staleBonusPreset === 'light'
+      && dynamicPricingPreset === 'responsive'
+    ) {
+      return 'strict'
+    }
+
+    return 'custom'
   }
 
   function handleAddCustomBadge() {
@@ -1334,6 +1619,14 @@ export default function ProfilePage() {
           dynamicPricingWindowPeriod,
           dynamicPricingDemandWeight: Number(dynamicPricingDemandWeight) || 0,
           dynamicPricingScarcityWeight: Number(dynamicPricingScarcityWeight) || 0,
+          dynamicPricingMinMultiplierPercent: dynamicMinMultiplierValue,
+          dynamicPricingMaxMultiplierPercent: dynamicMaxMultiplierValue,
+          dynamicPricingMaxStepPercent: dynamicMaxStepValue,
+          staleJobBonusEnabled,
+          staleJobBonusStartHours: staleStartHoursValue,
+          staleJobBonusPeriodHours: stalePeriodHoursValue,
+          staleJobBonusRatePercent: staleRateValue,
+          staleJobBonusCapPercent: staleCapValue,
         },
         { familyId, userId, userRole, userEmail },
       )
@@ -1367,6 +1660,14 @@ export default function ProfilePage() {
         dynamicPricingWindowPeriod,
         dynamicPricingDemandWeight: Number(dynamicPricingDemandWeight) || 0,
         dynamicPricingScarcityWeight: Number(dynamicPricingScarcityWeight) || 0,
+        dynamicPricingMinMultiplierPercent: dynamicMinMultiplierValue,
+        dynamicPricingMaxMultiplierPercent: dynamicMaxMultiplierValue,
+        dynamicPricingMaxStepPercent: dynamicMaxStepValue,
+        staleJobBonusEnabled,
+        staleJobBonusStartHours: staleStartHoursValue,
+        staleJobBonusPeriodHours: stalePeriodHoursValue,
+        staleJobBonusRatePercent: staleRateValue,
+        staleJobBonusCapPercent: staleCapValue,
       })
       closeDialog()
     } catch (caughtError) {
@@ -1713,6 +2014,27 @@ export default function ProfilePage() {
     }
   }
 
+  async function handleChangePassword(event) {
+    event.preventDefault()
+
+    if (accountNewPassword !== accountConfirmPassword) {
+      setError('New password and confirm password must match.')
+      return
+    }
+
+    setAccountBusy(true)
+    setError('')
+
+    try {
+      await updateParentPassword(accountCurrentPassword, accountNewPassword)
+      closeDialog()
+    } catch (caughtError) {
+      setError(caughtError.message || 'Could not update password.')
+    } finally {
+      setAccountBusy(false)
+    }
+  }
+
   function startEditJob(job) {
     setEditingJobId(job.id)
     setJobTitle(job.title || '')
@@ -1840,7 +2162,7 @@ export default function ProfilePage() {
           <section className="panel">
             <p className="panel-label">Parent Access</p>
             <p className="panel-muted">
-              Sign in to open Parent Command Center.
+              Sign in to manage chores, rewards, savings, and approvals.
             </p>
             <form className="auth-form" onSubmit={handleParentLogin}>
               <input
@@ -1851,14 +2173,24 @@ export default function ProfilePage() {
                 onChange={(event) => setEmail(event.target.value)}
                 required
               />
-              <input
-                className="job-input"
-                type="password"
-                placeholder="Parent password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                required
-              />
+              <div className="credential-input-wrap">
+                <input
+                  className="job-input"
+                  type={showParentLoginPassword ? 'text' : 'password'}
+                  placeholder="Parent password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  className="credential-icon-button"
+                  onClick={() => setShowParentLoginPassword((current) => !current)}
+                  aria-label={showParentLoginPassword ? 'Hide parent password' : 'Show parent password'}
+                >
+                  <span className="credential-icon" aria-hidden="true">{showParentLoginPassword ? '👁' : '🙈'}</span>
+                </button>
+              </div>
               {error ? <p className="status-note status-error">{error}</p> : null}
               <button type="submit" className="claim-button" disabled={saving}>
                 {saving ? 'Unlocking...' : 'Unlock Parent'}
@@ -1871,34 +2203,54 @@ export default function ProfilePage() {
           <section className="panel lock-access-card">
             <p className="lock-access-chip">Secure Mode</p>
             <p className="panel-label">Parent Access Locked</p>
-            <p className="panel-muted">Enter PIN or password to open command center.</p>
+            <p className="panel-muted">Enter your PIN or password to open parent tools.</p>
 
             {hasParentPin ? (
               <form className="auth-form" onSubmit={handleUnlockWithPin}>
-                <input
-                  className="job-input"
-                  type="password"
-                  inputMode="numeric"
-                  pattern="[0-9]{4}"
-                  placeholder="Parent PIN"
-                  value={pin}
-                  onChange={(event) => setPin(event.target.value)}
-                  required
-                />
+                <div className="credential-input-wrap">
+                  <input
+                    className="job-input"
+                    type={showUnlockPin ? 'text' : 'password'}
+                    inputMode="numeric"
+                    pattern="[0-9]{4}"
+                    placeholder="Parent PIN"
+                    value={pin}
+                    onChange={(event) => setPin(event.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="credential-icon-button"
+                    onClick={() => setShowUnlockPin((current) => !current)}
+                    aria-label={showUnlockPin ? 'Hide parent PIN' : 'Show parent PIN'}
+                  >
+                    <span className="credential-icon" aria-hidden="true">{showUnlockPin ? '👁' : '🙈'}</span>
+                  </button>
+                </div>
                 <button type="submit" className="claim-button">
                   Unlock with PIN
                 </button>
               </form>
             ) : (
               <form className="auth-form" onSubmit={handleUnlockWithPassword}>
-                <input
-                  className="job-input"
-                  type="password"
-                  placeholder="Parent password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  required
-                />
+                <div className="credential-input-wrap">
+                  <input
+                    className="job-input"
+                    type={showUnlockPassword ? 'text' : 'password'}
+                    placeholder="Parent password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="credential-icon-button"
+                    onClick={() => setShowUnlockPassword((current) => !current)}
+                    aria-label={showUnlockPassword ? 'Hide parent password' : 'Show parent password'}
+                  >
+                    <span className="credential-icon" aria-hidden="true">{showUnlockPassword ? '👁' : '🙈'}</span>
+                  </button>
+                </div>
                 <button type="submit" className="claim-button" disabled={saving}>
                   {saving ? 'Verifying...' : 'Unlock with Password'}
                 </button>
@@ -1912,13 +2264,13 @@ export default function ProfilePage() {
         {isParent && parentControlsUnlocked ? (
           <>
             <section className="panel">
-              <p className="panel-label">Parent Command Center</p>
-              <p className="panel-muted">Customize jobs, rewards, savings, and child safety settings.</p>
-              <p className="panel-muted">Children configured: {childProfiles.length}</p>
+              <p className="panel-label">Parent Home</p>
+              <p className="panel-muted">Use these tools to run chores, rewards, savings, and safety in simple steps.</p>
+              <p className="panel-muted">Children set up: {childProfiles.length}</p>
             </section>
 
             <section className="panel">
-              <p className="panel-label">Family Announcement</p>
+              <p className="panel-label">Family News</p>
               <p className="panel-muted">Quick action: post a headline update kids will see first in Family News.</p>
               <form className="auth-form" onSubmit={handleSaveFamilyAnnouncement}>
                 <MarkdownTextArea
@@ -1930,69 +2282,72 @@ export default function ProfilePage() {
                 />
                 <div className="button-row announcement-actions">
                   <button type="submit" className="claim-button" disabled={savingFamilyAnnouncement}>
-                    {savingFamilyAnnouncement ? 'Saving...' : 'Post Announcement'}
+                    {savingFamilyAnnouncement ? 'Saving...' : 'Post Family News'}
                   </button>
                 </div>
               </form>
             </section>
 
             <section className="panel">
-              <p className="panel-label">Command Center Dialogs</p>
+              <p className="panel-label">Parent Tools</p>
+              <p className="panel-muted">Pick what you want to manage.</p>
               <div className="button-row">
                 <button type="button" className="text-button" onClick={() => openDialog('overview')}>
-                  Family overview
+                  Family snapshot
                 </button>
                 <button type="button" className="text-button" onClick={() => openDialog('setup')}>
-                  Household setup
+                  Family settings
                 </button>
                 <button type="button" className="text-button" onClick={() => openDialog('badges')}>
-                  Badges and achievements
+                  Badges
                 </button>
                 <button type="button" className="text-button" onClick={() => openDialog('jobs')}>
-                  Jobs manager
+                  Chores and jobs
                 </button>
                 <button type="button" className="text-button command-button" onClick={() => openDialog('requests')}>
-                  <span>Pending requests</span>
+                  <span>Approvals queue</span>
                   {pendingRequestsCount > 0 ? (
                     <span className="command-badge">{pendingRequestsCount}</span>
                   ) : null}
                 </button>
                 <button type="button" className="text-button" onClick={() => openDialog('rewards')}>
-                  Rewards manager
+                  Rewards
                 </button>
                 <button type="button" className="text-button" onClick={() => openDialog('savings')}>
                   Savings goals
                 </button>
-                <button type="button" className="text-button" onClick={() => openDialog('settings')}>
-                  Parent settings
-                </button>
                 <button type="button" className="text-button" onClick={() => openDialog('analytics')}>
-                  Analytics
+                  Family insights
                 </button>
               </div>
             </section>
 
             <section className="panel">
-              <p className="panel-label">Kids & Security Rules</p>
+              <p className="panel-label">Kids and Security</p>
               <p className="panel-muted">
-                Add, edit, and remove kids here. Manage each child profile's session PIN controls below.
+                Add or edit child profiles and control whether kids can set their own login PIN.
               </p>
-              <p className="panel-muted">
-                Session lock status: {childSessionSecurityEnabled ? 'Enabled' : 'Disabled'}
+              <div className="child-session-lock-row">
+                <p className="panel-muted child-session-lock-status">
+                  Kid PIN controls: {childSessionSecurityEnabled ? 'On' : 'Off'}
+                </p>
+                <button
+                  type="button"
+                  className="child-session-lock-toggle"
+                  onClick={handleToggleChildSessionSecurity}
+                  disabled={saving}
+                >
+                  {childSessionSecurityEnabled ? 'Disable' : 'Enable'}
+                </button>
+              </div>
+              <p className="panel-muted child-session-lock-help">
+                Kids can only set their own PIN when this is On.
               </p>
-              <button
-                type="button"
-                className="claim-button"
-                onClick={handleToggleChildSessionSecurity}
-                disabled={saving}
-              >
-                {childSessionSecurityEnabled ? 'Disable Child Session Lock' : 'Enable Child Session Lock'}
-              </button>
 
               <div className="button-row child-manage-actions">
                 <button
                   type="button"
-                  className="claim-button"
+                  className="text-button child-security-add-button"
                   disabled={saving}
                   onClick={() => openDialog('add-child')}
                 >
@@ -2046,45 +2401,58 @@ export default function ProfilePage() {
                         </div>
                       ) : (
                         <>
-                          <span className="mission-main">
-                            {child.avatar} {child.displayName}
-                          </span>
-                          <div className="button-row">
+                          <div className="child-security-header-row">
+                            <span className="mission-main">
+                              {child.avatar} {child.displayName}
+                            </span>
+                            <div className="child-security-inline-actions">
+                              <button
+                                type="button"
+                                className="icon-action-button"
+                                disabled={saving}
+                                onClick={() => handleStartEditChild(child)}
+                                aria-label={`Edit ${child.displayName}`}
+                                title={`Edit ${child.displayName}`}
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                type="button"
+                                className="icon-action-button"
+                                disabled={saving}
+                                onClick={() => handleRemoveChildProfile(child.id, child.displayName)}
+                                aria-label={`Remove ${child.displayName}`}
+                                title="Remove"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </div>
+                          <div className="child-security-meta-row">
                             <span className="job-status-label">
                               {child.allowChildSetSessionCode
-                                ? 'Child can set PIN'
-                                : 'Child cannot set PIN'}
+                                ? 'Setup allowed'
+                                : 'Setup blocked'}
                             </span>
-                            <span className="job-status-label">
-                              {child.sessionCodeEnabled ? `PIN ${child.sessionCode}` : 'PIN not set'}
-                            </span>
-                            <button
-                              type="button"
-                              className="text-button"
-                              disabled={saving}
-                              onClick={() => handleStartEditChild(child)}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              className={removeChildConfirmId === child.id ? 'claim-button claim-button-deny' : 'text-button'}
-                              disabled={saving}
-                              onClick={() => {
-                                if (removeChildConfirmId === child.id) {
-                                  handleRemoveChildProfile(child.id)
-                                  return
-                                }
-
-                                setRemoveChildConfirmId(child.id)
-                              }}
-                            >
-                              {removeChildConfirmId === child.id ? 'Confirm Remove' : 'Remove'}
-                            </button>
+                            <div className="child-pin-actions">
+                              <span className="job-status-label">
+                                {child.sessionCodeEnabled ? 'PIN set' : 'PIN not set'}
+                              </span>
+                              <button
+                                type="button"
+                                className="child-security-clear-button"
+                                disabled={saving || !child.sessionCodeEnabled}
+                                onClick={() => handleClearChildPin(child.id)}
+                              >
+                                Clear PIN
+                              </button>
+                            </div>
+                          </div>
+                          <div className="button-row child-security-bottom-actions">
                             <button
                               type="button"
                               className="claim-button"
-                              disabled={saving}
+                              disabled={saving || !childSessionSecurityEnabled}
                               onClick={() =>
                                 handleToggleChildAllowSessionCode(
                                   child.id,
@@ -2093,16 +2461,8 @@ export default function ProfilePage() {
                               }
                             >
                               {child.allowChildSetSessionCode
-                                ? 'Block Child PIN Setup'
-                                : 'Allow Child PIN Setup'}
-                            </button>
-                            <button
-                              type="button"
-                              className="claim-button"
-                              disabled={saving || !child.sessionCodeEnabled}
-                              onClick={() => handleClearChildPin(child.id)}
-                            >
-                              Clear PIN
+                                ? 'Turn Off Kid PIN Setup'
+                                : 'Turn On Kid PIN Setup'}
                             </button>
                           </div>
                         </>
@@ -2118,16 +2478,26 @@ export default function ProfilePage() {
                 <p className="panel-label">Set Parent PIN</p>
                 <p className="panel-muted">Add a 4-digit PIN for faster future unlocks.</p>
                 <form className="auth-form" onSubmit={handleSavePin}>
-                  <input
-                    className="job-input"
-                    type="password"
-                    inputMode="numeric"
-                    pattern="[0-9]{4}"
-                    placeholder="New 4-digit PIN"
-                    value={newPin}
-                    onChange={(event) => setNewPin(event.target.value)}
-                    required
-                  />
+                  <div className="credential-input-wrap">
+                    <input
+                      className="job-input"
+                      type={showNewPin ? 'text' : 'password'}
+                      inputMode="numeric"
+                      pattern="[0-9]{4}"
+                      placeholder="New 4-digit PIN"
+                      value={newPin}
+                      onChange={(event) => setNewPin(event.target.value)}
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="credential-icon-button"
+                      onClick={() => setShowNewPin((current) => !current)}
+                      aria-label={showNewPin ? 'Hide new parent PIN' : 'Show new parent PIN'}
+                    >
+                      <span className="credential-icon" aria-hidden="true">{showNewPin ? '👁' : '🙈'}</span>
+                    </button>
+                  </div>
                   <button type="submit" className="claim-button">
                     Save Parent PIN
                   </button>
@@ -2137,18 +2507,36 @@ export default function ProfilePage() {
 
             {error ? <p className="status-note status-error">{error}</p> : null}
 
-            <section className="panel">
+            <section className="panel parent-account-panel">
               <p className="panel-label">Parent Account</p>
-              <p className="panel-muted">Manage account access and credentials.</p>
-              <div className="button-row">
-                <button type="button" className="text-button" onClick={() => openDialog('settings')}>
-                  Change Password
+              <p className="panel-muted">Manage your sign-in details and support options.</p>
+              <div className="parent-account-info" role="list" aria-label="Parent account details">
+                <p className="parent-account-info-row" role="listitem">
+                  <span className="parent-account-info-label">Name</span>
+                  <span className="parent-account-info-value">{displayName || 'Parent account'}</span>
+                </p>
+                <p className="parent-account-info-row" role="listitem">
+                  <span className="parent-account-info-label">Email</span>
+                  <span className="parent-account-info-value">{userEmail || 'Not available'}</span>
+                </p>
+                <p className="parent-account-info-row" role="listitem">
+                  <span className="parent-account-info-label">Family</span>
+                  <span className="parent-account-info-value">{familyId || 'Not available'}</span>
+                </p>
+              </div>
+              <div className="button-row parent-account-actions">
+                <button type="button" className="text-button parent-account-action-button" onClick={() => openDialog('change-password')}>
+                  Update Password
                 </button>
-                <button type="button" className="text-button" onClick={() => openDialog('settings')}>
-                  Change Account Email
-                </button>
+              </div>
+              <div className="button-row parent-account-signout-row">
                 <button type="button" className="claim-button claim-button-deny" onClick={logout}>
                   Sign Out Parent
+                </button>
+              </div>
+              <div className="button-row parent-account-support-row">
+                <button type="button" className="text-button parent-account-action-button parent-account-support-button" onClick={() => openDialog('support')}>
+                  Report Issue
                 </button>
               </div>
             </section>
@@ -2160,16 +2548,17 @@ export default function ProfilePage() {
             <div className="dialog-card panel">
               <div className="panel-head">
                 <p className="panel-label">
-                  {activeDialog === 'overview' ? 'Family Overview' : null}
+                  {activeDialog === 'overview' ? 'Family Snapshot' : null}
                   {activeDialog === 'add-child' ? 'Add Child' : null}
-                  {activeDialog === 'setup' ? 'Household Setup' : null}
-                  {activeDialog === 'badges' ? 'Badges and Achievements' : null}
-                  {activeDialog === 'requests' ? 'Pending Requests' : null}
-                  {activeDialog === 'jobs' ? 'Jobs Manager' : null}
-                  {activeDialog === 'rewards' ? 'Rewards Manager' : null}
+                  {activeDialog === 'setup' ? 'Family Settings' : null}
+                  {activeDialog === 'badges' ? 'Badges' : null}
+                  {activeDialog === 'requests' ? 'Approvals Queue' : null}
+                  {activeDialog === 'jobs' ? 'Chores and Jobs' : null}
+                  {activeDialog === 'rewards' ? 'Rewards' : null}
                   {activeDialog === 'savings' ? 'Savings Goals' : null}
-                  {activeDialog === 'settings' ? 'Parent Settings' : null}
-                  {activeDialog === 'analytics' ? 'Analytics' : null}
+                  {activeDialog === 'change-password' ? 'Change Password' : null}
+                  {activeDialog === 'support' ? 'Support' : null}
+                  {activeDialog === 'analytics' ? 'Family Insights' : null}
                 </p>
                 <button type="button" className="text-button" onClick={closeDialog}>
                   Close
@@ -2178,12 +2567,18 @@ export default function ProfilePage() {
 
               {activeDialog === 'overview' ? (
                 <div className="dialog-content">
+                  <p className="panel-muted">Quick summary of your current family setup.</p>
                   <p className="panel-muted">Family: {familySummary.profileName || 'Not set'}</p>
-                  <p className="panel-muted">Announcement: {familySummary.familyAnnouncement || 'No announcement posted'}</p>
-                  <p className="panel-muted">Rules: {familySummary.familyRules || 'No rules yet'}</p>
+                  <p className="panel-muted">Family News: {familySummary.familyAnnouncement || 'No family news posted'}</p>
+                  <p className="panel-muted">Family Rules: {familySummary.familyRules || 'No family rules yet'}</p>
                   <p className="panel-muted">
                     Dynamic pricing: {familySummary.dynamicPricingEnabled ? 'On' : 'Off'}
                   </p>
+                  {familySummary.dynamicPricingEnabled ? (
+                    <p className="panel-muted">
+                      Dynamic guardrails: {Number(familySummary.dynamicPricingMinMultiplierPercent) || 100}% to {Number(familySummary.dynamicPricingMaxMultiplierPercent) || 220}% of base, max +{Number(familySummary.dynamicPricingMaxStepPercent) || 60}% per window
+                    </p>
+                  ) : null}
                   <p className="panel-muted">
                     Savings approvals: {
                       familySummary.savingsGoalApprovalMode === 'create_and_claim'
@@ -2217,10 +2612,17 @@ export default function ProfilePage() {
                     }
                   </p>
                   <p className="panel-muted">
-                    Pool job slots per child: {familySummary.maxActivePoolClaimsPerChild || 1}
+                    Shared chore slots per child: {familySummary.maxActivePoolClaimsPerChild || 1}
                   </p>
                   <p className="panel-muted">
                     Pending checks count toward slots: {familySummary.allowClaimingWithPendingChecks ? 'No' : 'Yes'}
+                  </p>
+                  <p className="panel-muted">
+                    Stale job bonus: {
+                      familySummary.staleJobBonusEnabled
+                        ? `On (+${Number(familySummary.staleJobBonusRatePercent) || 5}% every ${Number(familySummary.staleJobBonusPeriodHours) || 24}h, cap ${Number(familySummary.staleJobBonusCapPercent) || 30}%)`
+                        : 'Off'
+                    }
                   </p>
                   <p className="panel-muted">
                     Achievements: {familySummary.achievementsEnabled ? 'On' : 'Off'}
@@ -2275,9 +2677,13 @@ export default function ProfilePage() {
 
               {activeDialog === 'setup' ? (
                 <form className="auth-form dialog-content" onSubmit={handleSaveHousehold}>
+                  <p className="panel-muted">
+                    Quick start: complete the sections above, then use Advanced settings only if you want manual fine-tuning.
+                  </p>
+
                   <section className="dialog-section">
                     <p className="dialog-section-title">Household Identity</p>
-                    <p className="dialog-section-subtitle">Name and Family News message shown across the app.</p>
+                    <p className="dialog-section-subtitle">Name and Family Rules shown across the app.</p>
                     <input
                       className="job-input"
                       placeholder="Family name"
@@ -2286,7 +2692,7 @@ export default function ProfilePage() {
                       required
                     />
                     <MarkdownTextArea
-                      placeholder="Family News message"
+                      placeholder="Family rules"
                       value={familyRules}
                       onChange={setFamilyRules}
                       rows={4}
@@ -2295,7 +2701,7 @@ export default function ProfilePage() {
 
                   <section className="dialog-section">
                     <p className="dialog-section-title">Savings Approvals</p>
-                    <p className="dialog-section-subtitle">Control when a parent review is required for savings goals.</p>
+                    <p className="dialog-section-subtitle">Choose when parent approval is needed for savings goals.</p>
                     <label className="form-field">
                       <span className="form-label">Savings goal parent approvals</span>
                       <select
@@ -2303,33 +2709,61 @@ export default function ProfilePage() {
                         value={savingsGoalApprovalMode}
                         onChange={(event) => setSavingsGoalApprovalMode(event.target.value)}
                       >
-                        <option value="claim_only">Approve claim only (recommended)</option>
-                        <option value="create_and_claim">Approve create and claim</option>
-                        <option value="no_approval">No parent approval</option>
+                        <option value="claim_only">Approve claim only</option>
+                        <option value="create_and_claim">Approve create + claim</option>
+                        <option value="no_approval">No approval</option>
                       </select>
+                      <p className="form-help">Tip: Approve claim only is best for most families.</p>
                     </label>
                   </section>
 
                   <section className="dialog-section">
-                    <p className="dialog-section-title">Consequences</p>
-                    <p className="dialog-section-subtitle">Set what happens for missed jobs and denied parent checks.</p>
-
+                    <p className="dialog-section-title">Family Dashboard</p>
+                    <p className="dialog-section-subtitle">Choose whether kids see competitive Top cards.</p>
                     <label className="form-field">
-                      <span className="form-label">Consequence preset</span>
+                      <span className="form-label">Show Top Earner/Spender cards</span>
                       <select
                         className="job-input"
-                        value={getConsequencePreset()}
-                        onChange={(event) => applyConsequencePreset(event.target.value)}
+                        value={familyDashboardTopCardsEnabled ? 'on' : 'off'}
+                        onChange={(event) => setFamilyDashboardTopCardsEnabled(event.target.value === 'on')}
+                      >
+                        <option value="on">On</option>
+                        <option value="off">Off</option>
+                      </select>
+                      <p className="form-help">On: sibling competition view.</p>
+                      <p className="form-help">Off: simpler family view.</p>
+                    </label>
+                  </section>
+
+                  <section className="dialog-section">
+                    <p className="dialog-section-title">Family Settings Preset</p>
+                    <p className="dialog-section-subtitle">Choose one starting style for consequences, stale bonus, and dynamic pricing.</p>
+                    <label className="form-field">
+                      <span className="form-label">Quick family preset</span>
+                      <select
+                        className="job-input"
+                        value={getHouseholdPreset()}
+                        onChange={(event) => applyHouseholdPreset(event.target.value)}
                       >
                         <option value="custom">Custom</option>
                         <option value="gentle">Gentle</option>
                         <option value="balanced">Balanced</option>
                         <option value="strict">Strict</option>
                       </select>
-                      <p className="form-help">Presets apply starter values you can still edit.</p>
+                      <p className="form-help">Sets your starting style. Balanced works best for most families.</p>
                     </label>
+                  </section>
 
-                    <details className="dialog-subsection" open>
+                  <details className="dialog-subsection dialog-advanced-settings">
+                    <summary className="dialog-subsection-summary">Advanced fine-tuning</summary>
+                    <div className="dialog-subsection-body dialog-advanced-settings-body">
+                  <p className="form-help">Manual controls for fine-tuning.</p>
+
+                  <section className="dialog-advanced-group">
+                    <p className="dialog-section-title">Consequences</p>
+                    <p className="dialog-section-subtitle">Set what happens for missed jobs and denied parent checks.</p>
+
+                    <details className="dialog-subsection">
                       <summary className="dialog-subsection-summary">Missed or timed-out job</summary>
                       <div className="dialog-subsection-body">
                         <label className="form-field">
@@ -2365,9 +2799,11 @@ export default function ProfilePage() {
                                 value={missedJobTimingEnabled ? 'on' : 'off'}
                                 onChange={(event) => setMissedJobTimingEnabled(event.target.value === 'on')}
                               >
-                                <option value="off">Off (parent decides anytime)</option>
-                                <option value="on">On (time-based)</option>
+                                <option value="off">Off</option>
+                                <option value="on">On</option>
                               </select>
+                              <p className="form-help">Off: manual timing.</p>
+                              <p className="form-help">On: timer-based timing.</p>
                             </label>
                             {missedJobTimingEnabled ? (
                               <label className="form-field">
@@ -2422,14 +2858,14 @@ export default function ProfilePage() {
                     </details>
                   </section>
 
-                  <section className="dialog-section">
+                  <section className="dialog-advanced-group">
                     <p className="dialog-section-title">Job Flow Limits</p>
-                    <p className="dialog-section-subtitle">Control how many pool jobs a child can work on at once.</p>
-                    <details className="dialog-subsection" open>
+                    <p className="dialog-section-subtitle">Control how many shared chores a child can work on at once.</p>
+                    <details className="dialog-subsection">
                       <summary className="dialog-subsection-summary">Pool job claiming</summary>
                       <div className="dialog-subsection-body">
                         <label className="form-field">
-                          <span className="form-label">Max active pool jobs per child</span>
+                          <span className="form-label">Max active shared chores per child</span>
                           <input
                             className="job-input"
                             type="number"
@@ -2437,118 +2873,221 @@ export default function ProfilePage() {
                             value={maxActivePoolClaimsPerChild}
                             onChange={(event) => setMaxActivePoolClaimsPerChild(event.target.value)}
                           />
-                          <p className="form-help">Example: 2 lets a child keep two pool jobs active at the same time.</p>
+                          <p className="form-help">Example: 2 means a child can hold two shared chores at once.</p>
                         </label>
                         {maxPoolClaimsValue > 4 ? (
                           <p className="status-note">Large slot warning: high values reduce pacing and parent visibility.</p>
                         ) : null}
                         <label className="form-field">
-                          <span className="form-label">When waiting for parent check, free up that slot</span>
+                          <span className="form-label">If waiting for parent review, open another slot</span>
                           <select
                             className="job-input"
                             value={allowClaimingWithPendingChecks ? 'yes' : 'no'}
                             onChange={(event) => setAllowClaimingWithPendingChecks(event.target.value === 'yes')}
                           >
-                            <option value="no">No (still counts toward slot limit)</option>
-                            <option value="yes">Yes (allow claiming another pool job)</option>
+                            <option value="no">No</option>
+                            <option value="yes">Yes</option>
                           </select>
+                          <p className="form-help">No: waiting chores still count.</p>
+                          <p className="form-help">Yes: waiting chores free up a slot.</p>
                         </label>
+                      </div>
+                    </details>
+
+                    <details className="dialog-subsection">
+                      <summary className="dialog-subsection-summary">Stale job bonus</summary>
+                      <div className="dialog-subsection-body">
+                        <label className="form-field">
+                          <span className="form-label">Increase points for unclaimed chores over time</span>
+                          <select
+                            className="job-input"
+                            value={staleJobBonusEnabled ? 'on' : 'off'}
+                            onChange={(event) => setStaleJobBonusEnabled(event.target.value === 'on')}
+                          >
+                            <option value="off">No</option>
+                            <option value="on">Yes</option>
+                          </select>
+                          <p className="form-help">Helps ignored chores become more appealing automatically.</p>
+                        </label>
+
+                        {staleJobBonusEnabled ? (
+                          <>
+                            <label className="form-field">
+                              <span className="form-label">Start bonus after hours unclaimed</span>
+                              <input
+                                className="job-input"
+                                type="number"
+                                min="0"
+                                value={staleJobBonusStartHours}
+                                onChange={(event) => setStaleJobBonusStartHours(event.target.value)}
+                              />
+                              <p className="form-help">No bonus before this wait time.</p>
+                            </label>
+
+                            <label className="form-field">
+                              <span className="form-label">Bonus interval (hours)</span>
+                              <input
+                                className="job-input"
+                                type="number"
+                                min="1"
+                                value={staleJobBonusPeriodHours}
+                                onChange={(event) => setStaleJobBonusPeriodHours(event.target.value)}
+                              />
+                              <p className="form-help">How often points increase.</p>
+                            </label>
+
+                            <label className="form-field">
+                              <span className="form-label">Bonus % per interval</span>
+                              <input
+                                className="job-input"
+                                type="number"
+                                min="0"
+                                value={staleJobBonusRatePercent}
+                                onChange={(event) => setStaleJobBonusRatePercent(event.target.value)}
+                              />
+                              <p className="form-help">Percent increase applied each interval.</p>
+                            </label>
+
+                            <label className="form-field">
+                              <span className="form-label">Maximum total stale bonus %</span>
+                              <input
+                                className="job-input"
+                                type="number"
+                                min="0"
+                                value={staleJobBonusCapPercent}
+                                onChange={(event) => setStaleJobBonusCapPercent(event.target.value)}
+                              />
+                              <p className="form-help">Maximum total bonus allowed.</p>
+                            </label>
+
+                            {(staleRateValue > 20 || staleCapValue > 120) ? (
+                              <p className="status-note">High bonus warning: large values can feel inconsistent or gameable.</p>
+                            ) : null}
+
+                            <p className="form-help">
+                              Parent summary: after {staleStartHoursValue}h, jobs gain +{staleRateValue}% every {stalePeriodHoursValue}h, up to +{staleCapValue}% total.
+                            </p>
+                            <p className="form-help">
+                              Example: a 40-point chore can grow to about {Math.round(40 * (1 + (staleCapValue / 100)))} points before it caps.
+                            </p>
+                          </>
+                        ) : null}
                       </div>
                     </details>
                   </section>
 
-                  <section className="dialog-section">
-                    <p className="dialog-section-title">Family Dashboard</p>
-                    <p className="dialog-section-subtitle">Choose whether kids see competitive Top cards.</p>
-                    <label className="form-field">
-                      <span className="form-label">Show Top Earner/Spender cards</span>
-                      <select
-                        className="job-input"
-                        value={familyDashboardTopCardsEnabled ? 'on' : 'off'}
-                        onChange={(event) => setFamilyDashboardTopCardsEnabled(event.target.value === 'on')}
-                      >
-                        <option value="on">On (competitive mode)</option>
-                        <option value="off">Off (simplified mode)</option>
-                      </select>
-                      <p className="form-help">Helpful for multi-child competition; often unnecessary for single-child homes.</p>
-                    </label>
-                  </section>
-
-                  <section className="dialog-section">
-                    <p className="dialog-section-title">Recognition and Achievements</p>
-                    <p className="dialog-section-subtitle">Thresholds and custom badge builder moved to the dedicated Badges and Achievements dialog.</p>
-                    <div className="button-row">
-                      <button type="button" className="text-button" onClick={() => openDialog('badges')}>
-                        Open Badges and Achievements
-                      </button>
-                    </div>
-                  </section>
-
-                  <section className="dialog-section">
-                    <p className="dialog-section-title">Dynamic Pricing</p>
-                    <p className="dialog-section-subtitle">Tune demand and scarcity for reward costs.</p>
-                    <details className="dialog-subsection" open>
+                  <section className="dialog-advanced-group">
+                    <p className="dialog-section-title">Auto-Adjust Reward Prices (Optional)</p>
+                    <p className="dialog-section-subtitle">Optional: let reward prices adjust automatically based on demand.</p>
+                    <details className="dialog-subsection">
                       <summary className="dialog-subsection-summary">Pricing mode</summary>
                       <div className="dialog-subsection-body">
                         <label className="form-field">
-                          <span className="form-label">Dynamic reward pricing</span>
+                          <span className="form-label">Auto-adjust reward prices</span>
                           <select
                             className="job-input"
                             value={dynamicPricingEnabled ? 'on' : 'off'}
                             onChange={(event) => setDynamicPricingEnabled(event.target.value === 'on')}
                           >
-                            <option value="off">Off (fixed prices)</option>
-                            <option value="on">On (supply and demand)</option>
+                            <option value="off">Off</option>
+                            <option value="on">On</option>
                           </select>
+                          <p className="form-help">Off: fixed costs.</p>
+                          <p className="form-help">On: costs adjust over time.</p>
                         </label>
                         {dynamicPricingEnabled ? (
-                          <label className="form-field">
-                            <span className="form-label">Pricing window</span>
-                            <select
-                              className="job-input"
-                              value={dynamicPricingWindowPeriod}
-                              onChange={(event) => setDynamicPricingWindowPeriod(event.target.value)}
-                            >
-                              <option value="day">Per day</option>
-                              <option value="week">Per week</option>
-                            </select>
-                          </label>
-                        ) : null}
-                      </div>
-                    </details>
+                          <>
+                            <label className="form-field">
+                              <span className="form-label">Pricing window</span>
+                              <select
+                                className="job-input"
+                                value={dynamicPricingWindowPeriod}
+                                onChange={(event) => setDynamicPricingWindowPeriod(event.target.value)}
+                              >
+                                <option value="day">Per day</option>
+                                <option value="week">Per week</option>
+                              </select>
+                              <p className="form-help">How often pricing is recalculated.</p>
+                            </label>
 
-                    <details className="dialog-subsection">
-                      <summary className="dialog-subsection-summary">Advanced weights</summary>
-                      <div className="dialog-subsection-body">
-                        <p className="form-help">Used only when dynamic pricing is turned on.</p>
-                        <label className="form-field">
-                          <span className="form-label">Demand impact % per claim</span>
-                          <input
-                            className="job-input"
-                            type="number"
-                            min="0"
-                            disabled={!dynamicPricingEnabled}
-                            value={dynamicPricingDemandWeight}
-                            onChange={(event) => setDynamicPricingDemandWeight(event.target.value)}
-                          />
-                        </label>
-                        <label className="form-field">
-                          <span className="form-label">Scarcity impact % near limit</span>
-                          <input
-                            className="job-input"
-                            type="number"
-                            min="0"
-                            disabled={!dynamicPricingEnabled}
-                            value={dynamicPricingScarcityWeight}
-                            onChange={(event) => setDynamicPricingScarcityWeight(event.target.value)}
-                          />
-                        </label>
-                        {dynamicPricingEnabled && (demandWeightValue > 120 || scarcityWeightValue > 150) ? (
-                          <p className="status-note">Extreme pricing warning: large values can make rewards feel unpredictable.</p>
+                            <label className="form-field">
+                              <span className="form-label">Demand impact % per claim</span>
+                              <input
+                                className="job-input"
+                                type="number"
+                                min="0"
+                                value={dynamicPricingDemandWeight}
+                                onChange={(event) => setDynamicPricingDemandWeight(event.target.value)}
+                              />
+                              <p className="form-help">Higher values raise price faster when requested often.</p>
+                            </label>
+
+                            <label className="form-field">
+                              <span className="form-label">Scarcity impact % near limit</span>
+                              <input
+                                className="job-input"
+                                type="number"
+                                min="0"
+                                value={dynamicPricingScarcityWeight}
+                                onChange={(event) => setDynamicPricingScarcityWeight(event.target.value)}
+                              />
+                              <p className="form-help">Higher values raise price as claim limits are approached.</p>
+                            </label>
+
+                            <label className="form-field">
+                              <span className="form-label">Price floor % of base cost</span>
+                              <input
+                                className="job-input"
+                                type="number"
+                                min="25"
+                                value={dynamicPricingMinMultiplierPercent}
+                                onChange={(event) => setDynamicPricingMinMultiplierPercent(event.target.value)}
+                              />
+                              <p className="form-help">Lowest allowed price vs base cost.</p>
+                            </label>
+
+                            <label className="form-field">
+                              <span className="form-label">Price ceiling % of base cost</span>
+                              <input
+                                className="job-input"
+                                type="number"
+                                min={dynamicMinMultiplierValue}
+                                value={dynamicPricingMaxMultiplierPercent}
+                                onChange={(event) => setDynamicPricingMaxMultiplierPercent(event.target.value)}
+                              />
+                              <p className="form-help">Highest allowed price vs base cost.</p>
+                            </label>
+
+                            <label className="form-field">
+                              <span className="form-label">Max increase % per window</span>
+                              <input
+                                className="job-input"
+                                type="number"
+                                min="0"
+                                value={dynamicPricingMaxStepPercent}
+                                onChange={(event) => setDynamicPricingMaxStepPercent(event.target.value)}
+                              />
+                              <p className="form-help">Caps sudden jumps each pricing window.</p>
+                            </label>
+
+                            <p className="form-help">
+                              Guardrails active: prices stay between {dynamicMinMultiplierValue}% and {dynamicMaxMultiplierValue}% of base, with at most +{dynamicMaxStepValue}% growth per window.
+                            </p>
+                            <p className="form-help">
+                              Example: a 100-credit reward stays between {dynamicMinMultiplierValue} and {dynamicMaxMultiplierValue} credits.
+                            </p>
+
+                            {(demandWeightValue > 120 || scarcityWeightValue > 150) ? (
+                              <p className="status-note">Extreme pricing warning: large values can make rewards feel unpredictable.</p>
+                            ) : null}
+                          </>
                         ) : null}
                       </div>
                     </details>
                   </section>
+
+                    </div>
+                  </details>
 
                   <button type="submit" className="claim-button" disabled={dialogBusy}>
                     Save household settings
@@ -2558,6 +3097,7 @@ export default function ProfilePage() {
 
               {activeDialog === 'requests' ? (
                 <div className="dialog-content">
+                  <p className="panel-muted">Review what kids submitted and approve, adjust, or decline.</p>
                   <section
                     id="requests-section-jobs"
                     className={
@@ -2566,9 +3106,9 @@ export default function ProfilePage() {
                         : 'dialog-section'
                     }
                   >
-                    <p className="dialog-section-title">Job Check Requests</p>
+                    <p className="dialog-section-title">Chore Check Requests</p>
                     {pendingJobCheckRequests.length === 0 ? (
-                      <p className="panel-muted">No pending job check requests.</p>
+                      <p className="panel-muted">No pending chore check requests.</p>
                     ) : (
                       <ul className="mission-list">
                       {pendingJobCheckRequests.map((request) => {
@@ -2751,9 +3291,9 @@ export default function ProfilePage() {
                   </section>
 
                   <section className="dialog-section">
-                    <p className="dialog-section-title">Approved Rewards Awaiting Fulfillment</p>
+                    <p className="dialog-section-title">Approved Rewards To Deliver</p>
                     {approvedRewardRequests.length === 0 ? (
-                      <p className="panel-muted">No approved rewards waiting for fulfillment.</p>
+                      <p className="panel-muted">No approved rewards waiting to be delivered.</p>
                     ) : (
                       <ul className="mission-list">
                         {approvedRewardRequests.map((request) => {
@@ -3111,8 +3651,8 @@ export default function ProfilePage() {
               {activeDialog === 'jobs' ? (
                 <div className="dialog-content">
                   <form className="auth-form dialog-section" onSubmit={handleCreateJob}>
-                    <p className="dialog-section-title">Create or Edit Job</p>
-                    <p className="dialog-section-subtitle">Set assignment, cadence, and optional limits in one place.</p>
+                    <p className="dialog-section-title">Create or Edit Chore</p>
+                    <p className="dialog-section-subtitle">Set who can do it, how often, and how many points it is worth.</p>
                     <label className="form-field">
                       <span className="form-label">Apply to</span>
                       <select
@@ -3120,7 +3660,7 @@ export default function ProfilePage() {
                         value={jobScopeChildId}
                         onChange={(event) => setJobScopeChildId(event.target.value)}
                       >
-                        <option value="">Global pool (all kids)</option>
+                        <option value="">Shared (all kids)</option>
                         {childProfiles.map((child) => (
                           <option key={child.id} value={child.id}>
                             {child.avatar} {child.displayName}
@@ -3130,27 +3670,29 @@ export default function ProfilePage() {
                     </label>
                     <input
                       className="job-input"
-                      placeholder="Job title"
+                      placeholder="Chore title"
                       value={jobTitle}
                       onChange={(event) => setJobTitle(event.target.value)}
                       required
                     />
                     <label className="form-field">
-                      <span className="form-label">Reward type</span>
+                      <span className="form-label">Earning type</span>
                       <select
                         className="job-input"
                         value={jobRewardType}
                         onChange={(event) => setJobRewardType(event.target.value)}
                       >
-                        <option value="credits">Credits</option>
+                        <option value="credits">Points</option>
                         <option value="xp">XP</option>
                       </select>
+                      <p className="form-help">Points: spendable for rewards and savings, great for extra help.</p>
+                      <p className="form-help">XP: level progress only (not spendable), great for core responsibilities.</p>
                     </label>
                     <input
                       className="job-input"
                       type="number"
                       min="1"
-                      placeholder={jobRewardType === 'xp' ? 'XP amount' : 'Credits amount'}
+                      placeholder={jobRewardType === 'xp' ? 'XP amount' : 'Points amount'}
                       value={jobPoints}
                       onChange={(event) => setJobPoints(event.target.value)}
                       required
@@ -3251,7 +3793,7 @@ export default function ProfilePage() {
                     </label>
                     <div className="button-row">
                       <button type="submit" className="claim-button" disabled={dialogBusy}>
-                        {editingJobId ? 'Save job' : 'Add job'}
+                        {editingJobId ? 'Save chore' : 'Add chore'}
                       </button>
                       {editingJobId ? (
                         <button type="button" className="text-button" onClick={cancelEditJob}>
@@ -3262,7 +3804,7 @@ export default function ProfilePage() {
                   </form>
 
                   <section className="dialog-section">
-                    <p className="dialog-section-title">Current Jobs</p>
+                    <p className="dialog-section-title">Current Chores</p>
                     <ul className="mission-list">
                     {jobs
                       .filter((job) =>
@@ -3338,7 +3880,7 @@ export default function ProfilePage() {
                         value={rewardScopeChildId}
                         onChange={(event) => setRewardScopeChildId(event.target.value)}
                       >
-                        <option value="">Global pool (all kids)</option>
+                        <option value="">Shared (all kids)</option>
                         {childProfiles.map((child) => (
                           <option key={child.id} value={child.id}>
                             {child.avatar} {child.displayName}
@@ -3357,7 +3899,7 @@ export default function ProfilePage() {
                       className="job-input"
                       type="number"
                       min="1"
-                      placeholder="Cost"
+                      placeholder="Points cost"
                       value={rewardCost}
                       onChange={(event) => setRewardCost(event.target.value)}
                       required
@@ -3457,6 +3999,11 @@ export default function ProfilePage() {
                       <li key={reward.id}>
                         <span className="mission-main">{reward.title}</span>
                         <span className="mission-reward">{reward.cost}</span>
+                        {reward.pricingMeta?.dynamicPricingApplied ? (
+                          <span className="job-status-label">
+                            Base {reward.pricingMeta.baseCost} -&gt; Now {reward.pricingMeta.adjustedCost} -&gt; Next est {reward.pricingMeta.projectedNextCost}
+                          </span>
+                        ) : null}
                         <span className="job-status-label">
                           {reward.repeatMode === 'once' ? 'One-time' : 'Recurring'}
                         </span>
@@ -3571,15 +4118,48 @@ export default function ProfilePage() {
                 </div>
               ) : null}
 
-              {activeDialog === 'settings' ? (
+              {activeDialog === 'change-password' ? (
                 <div className="dialog-content">
-                  <p className="panel-label">Account</p>
-                  <p className="panel-muted">{displayName || 'Parent account'}</p>
-                  <p className="panel-muted">{userEmail}</p>
-                  <p className="panel-muted">Family: {familyId}</p>
+                  <section className="dialog-section">
+                    <p className="dialog-section-title">Update Password</p>
+                    <p className="panel-muted">Use your current password to set a new one.</p>
+                    <form className="auth-form" onSubmit={handleChangePassword}>
+                      <input
+                        className="job-input"
+                        type="password"
+                        placeholder="Current password"
+                        value={accountCurrentPassword}
+                        onChange={(event) => setAccountCurrentPassword(event.target.value)}
+                        required
+                      />
+                      <input
+                        className="job-input"
+                        type="password"
+                        placeholder="New password"
+                        value={accountNewPassword}
+                        onChange={(event) => setAccountNewPassword(event.target.value)}
+                        required
+                      />
+                      <input
+                        className="job-input"
+                        type="password"
+                        placeholder="Confirm new password"
+                        value={accountConfirmPassword}
+                        onChange={(event) => setAccountConfirmPassword(event.target.value)}
+                        required
+                      />
+                      <button type="submit" className="claim-button" disabled={accountBusy}>
+                        {accountBusy ? 'Updating...' : 'Update Password'}
+                      </button>
+                    </form>
+                  </section>
+                </div>
+              ) : null}
 
-                  <p className="panel-label">Feedback</p>
-                  <p className="panel-muted">Share notes, issues, or ideas for improving the app.</p>
+              {activeDialog === 'support' ? (
+                <div className="dialog-content">
+                  <p className="panel-label">Report Issue or Idea</p>
+                  <p className="panel-muted">Share notes, bugs, or ideas for improving the app.</p>
                   <form className="auth-form" onSubmit={handleSubmitFeedback}>
                     <label className="form-field">
                       <span className="form-label">Category</span>
@@ -3624,9 +4204,9 @@ export default function ProfilePage() {
               {activeDialog === 'analytics' ? (
                 <div className="dialog-content">
                   <section className="dialog-section">
-                    <p className="dialog-section-title">Family Analytics</p>
+                    <p className="dialog-section-title">Family Insights</p>
                     <p className="dialog-section-subtitle">
-                      Family-specific audit tools are visible to every parent.
+                      Helpful parent trends are shown here in plain language.
                     </p>
 
                     <details className="dialog-subsection" open>
@@ -3957,6 +4537,33 @@ export default function ProfilePage() {
               ) : null}
 
               {dialogBusy ? <p className="panel-muted">Working...</p> : null}
+            </div>
+          </section>
+        ) : null}
+
+        {pendingChildRemoval ? (
+          <section className="dialog-overlay" role="dialog" aria-modal="true" aria-label="Delete child confirmation">
+            <div className="dialog-card panel">
+              <div className="panel-head">
+                <p className="panel-label">Delete Child?</p>
+              </div>
+              <div className="dialog-content">
+                <p className="panel-muted">Are you sure you want to delete "{pendingChildRemoval.name}"?</p>
+                <p className="panel-muted">This action cannot be undone.</p>
+                <div className="button-row child-manage-actions">
+                  <button
+                    type="button"
+                    className="claim-button claim-button-deny"
+                    onClick={handleConfirmRemoveChild}
+                    disabled={saving}
+                  >
+                    {saving ? 'Deleting...' : 'Delete Child'}
+                  </button>
+                  <button type="button" className="text-button" onClick={handleCancelRemoveChild} disabled={saving}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
             </div>
           </section>
         ) : null}

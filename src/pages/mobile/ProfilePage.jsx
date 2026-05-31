@@ -227,6 +227,11 @@ export default function ProfilePage() {
   const [accountConfirmPassword, setAccountConfirmPassword] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [activeHelpDialog, setActiveHelpDialog] = useState(null)
+  const [setupSavedSnapshot, setSetupSavedSnapshot] = useState('')
+  const [badgeSavedSnapshot, setBadgeSavedSnapshot] = useState('')
+  const [editingJobSnapshot, setEditingJobSnapshot] = useState('')
+  const [editingRewardSnapshot, setEditingRewardSnapshot] = useState('')
 
   function toDateValue(value) {
     if (!value) {
@@ -338,6 +343,228 @@ export default function ProfilePage() {
   const streakDaysTargetValue = Math.max(1, Number(recognitionStreakDaysTarget) || 3)
   const helpingHandTargetValue = Math.max(1, Number(recognitionHelpingHandJobsTarget) || 1)
   const goalGetterTargetValue = Math.max(1, Number(recognitionGoalGetterTarget) || 1)
+
+  function buildSetupSnapshotFromSummary(summary) {
+    const source = summary || {}
+    const minMultiplier = Math.max(25, Number(source.dynamicPricingMinMultiplierPercent) || 100)
+    const maxMultiplier = Math.max(minMultiplier, Number(source.dynamicPricingMaxMultiplierPercent) || 220)
+
+    return {
+      profileName: source.profileName || '',
+      familyRules: source.familyRules || '',
+      savingsGoalApprovalMode: source.savingsGoalApprovalMode || 'claim_only',
+      missedJobConsequenceEnabled: Boolean(source.missedJobConsequenceEnabled),
+      missedJobPenaltyCredits: Math.max(0, Number(source.missedJobPenaltyCredits) || 0),
+      missedJobTimingEnabled: Boolean(source.missedJobTimingEnabled),
+      missedJobDefaultHours: Math.max(1, Number(source.missedJobDefaultHours) || 24),
+      failedJobCheckConsequenceEnabled: Boolean(source.failedJobCheckConsequenceEnabled),
+      failedJobCheckPenaltyCredits: Math.max(0, Number(source.failedJobCheckPenaltyCredits) || 0),
+      maxActivePoolClaimsPerChild: Math.max(1, Number(source.maxActivePoolClaimsPerChild) || 1),
+      allowClaimingWithPendingChecks: Boolean(source.allowClaimingWithPendingChecks),
+      familyDashboardTopCardsEnabled: source.familyDashboardTopCardsEnabled !== false,
+      dynamicPricingEnabled: Boolean(source.dynamicPricingEnabled),
+      dynamicPricingWindowPeriod: source.dynamicPricingWindowPeriod || 'week',
+      dynamicPricingDemandWeight: Math.max(0, Number(source.dynamicPricingDemandWeight) || 0),
+      dynamicPricingScarcityWeight: Math.max(0, Number(source.dynamicPricingScarcityWeight) || 0),
+      dynamicPricingMinMultiplierPercent: minMultiplier,
+      dynamicPricingMaxMultiplierPercent: maxMultiplier,
+      dynamicPricingMaxStepPercent: Math.max(0, Number(source.dynamicPricingMaxStepPercent) || 60),
+      staleJobBonusEnabled: Boolean(source.staleJobBonusEnabled),
+      staleJobBonusStartHours: Math.max(0, Number(source.staleJobBonusStartHours) || 24),
+      staleJobBonusPeriodHours: Math.max(1, Number(source.staleJobBonusPeriodHours) || 24),
+      staleJobBonusRatePercent: Math.max(0, Number(source.staleJobBonusRatePercent) || 5),
+      staleJobBonusCapPercent: Math.max(0, Number(source.staleJobBonusCapPercent) || 30),
+    }
+  }
+
+  function buildCurrentSetupSnapshot() {
+    return {
+      profileName: householdName,
+      familyRules,
+      savingsGoalApprovalMode,
+      missedJobConsequenceEnabled,
+      missedJobPenaltyCredits: missedPenaltyValue,
+      missedJobTimingEnabled,
+      missedJobDefaultHours: missedHoursValue,
+      failedJobCheckConsequenceEnabled,
+      failedJobCheckPenaltyCredits: failedCheckPenaltyValue,
+      maxActivePoolClaimsPerChild: maxPoolClaimsValue,
+      allowClaimingWithPendingChecks,
+      familyDashboardTopCardsEnabled,
+      dynamicPricingEnabled,
+      dynamicPricingWindowPeriod,
+      dynamicPricingDemandWeight: demandWeightValue,
+      dynamicPricingScarcityWeight: scarcityWeightValue,
+      dynamicPricingMinMultiplierPercent: dynamicMinMultiplierValue,
+      dynamicPricingMaxMultiplierPercent: dynamicMaxMultiplierValue,
+      dynamicPricingMaxStepPercent: dynamicMaxStepValue,
+      staleJobBonusEnabled,
+      staleJobBonusStartHours: staleStartHoursValue,
+      staleJobBonusPeriodHours: stalePeriodHoursValue,
+      staleJobBonusRatePercent: staleRateValue,
+      staleJobBonusCapPercent: staleCapValue,
+    }
+  }
+
+  function normalizeCustomBadgesForSnapshot(badges) {
+    if (!Array.isArray(badges)) {
+      return []
+    }
+
+    return badges.map((badge) => ({
+      id: badge.id || '',
+      label: badge.label || '',
+      icon: badge.icon || '',
+      category: badge.category === 'recognition' ? 'recognition' : 'achievement',
+      metric: badge.metric || 'completed_goals',
+      target: Math.max(1, Number(badge.target) || 1),
+    }))
+  }
+
+  function buildBadgeSnapshotFromSummary(summary) {
+    const source = summary || {}
+
+    return {
+      achievementsEnabled: source.achievementsEnabled !== false,
+      familyRecognitionEnabled: source.familyRecognitionEnabled !== false,
+      achievementFirstGoalTarget: Math.max(1, Number(source.achievementFirstGoalTarget) || 1),
+      achievementContributorCreditsTarget: Math.max(1, Number(source.achievementContributorCreditsTarget) || 100),
+      achievementHelperJobsTarget: Math.max(1, Number(source.achievementHelperJobsTarget) || 3),
+      achievementReadingJobsTarget: Math.max(1, Number(source.achievementReadingJobsTarget) || 5),
+      recognitionStreakDaysTarget: Math.max(1, Number(source.recognitionStreakDaysTarget) || 3),
+      recognitionHelpingHandJobsTarget: Math.max(1, Number(source.recognitionHelpingHandJobsTarget) || 1),
+      recognitionGoalGetterTarget: Math.max(1, Number(source.recognitionGoalGetterTarget) || 1),
+      customBadges: normalizeCustomBadgesForSnapshot(source.customBadges),
+    }
+  }
+
+  function buildCurrentBadgeSnapshot() {
+    return {
+      achievementsEnabled,
+      familyRecognitionEnabled,
+      achievementFirstGoalTarget: firstGoalTargetValue,
+      achievementContributorCreditsTarget: contributorCreditsTargetValue,
+      achievementHelperJobsTarget: helperJobsTargetValue,
+      achievementReadingJobsTarget: readingJobsTargetValue,
+      recognitionStreakDaysTarget: streakDaysTargetValue,
+      recognitionHelpingHandJobsTarget: helpingHandTargetValue,
+      recognitionGoalGetterTarget: goalGetterTargetValue,
+      customBadges: normalizeCustomBadgesForSnapshot(customBadges),
+    }
+  }
+
+  function deriveJobRecurrenceFrequency(job) {
+    if (!job.autoRecreate) {
+      return 'none'
+    }
+
+    if (Number(job.claimLimitCount) === 1 && job.claimLimitPeriod === 'day') {
+      return 'daily'
+    }
+
+    if (Number(job.claimLimitCount) === 1 && job.claimLimitPeriod === 'week') {
+      return 'weekly'
+    }
+
+    return 'weekly'
+  }
+
+  function buildJobEditSnapshot(values) {
+    const source = values || {}
+    const perChildLimitCount = Math.max(0, Number(source.jobLimitCount) || 0)
+    const familyLimitCount = Math.max(0, Number(source.jobFamilyLimitCount) || 0)
+
+    return {
+      title: String(source.jobTitle || '').trim(),
+      rewardType: source.jobRewardType === 'xp' ? 'xp' : 'credits',
+      points: Math.max(0, Number(source.jobPoints) || 0),
+      childId: source.jobScopeChildId || '',
+      recurrence: source.jobRecurrenceFrequency || 'none',
+      perChildLimitCount,
+      perChildLimitPeriod: perChildLimitCount > 0 ? (source.jobLimitPeriod || 'week') : '',
+      familyLimitCount,
+      familyLimitPeriod: familyLimitCount > 0 ? (source.jobFamilyLimitPeriod || 'week') : '',
+      missedAfterHours: Math.max(0, Number(source.jobMissedAfterHours) || 0),
+      badgeContribution:
+        source.jobBadgeContribution === 'helper' || source.jobBadgeContribution === 'reading'
+          ? source.jobBadgeContribution
+          : 'none',
+    }
+  }
+
+  function buildRewardEditSnapshot(values) {
+    const source = values || {}
+    const recurrence =
+      source.rewardRecurrenceFrequency === 'once'
+      || source.rewardRecurrenceFrequency === 'daily'
+      || source.rewardRecurrenceFrequency === 'weekly'
+      || source.rewardRecurrenceFrequency === 'custom'
+        ? source.rewardRecurrenceFrequency
+        : 'weekly'
+    const perChildLimitCount =
+      recurrence === 'daily' || recurrence === 'weekly'
+        ? 1
+        : recurrence === 'custom'
+          ? Math.max(0, Number(source.rewardLimitCount) || 0)
+          : 0
+    const perChildLimitPeriod =
+      recurrence === 'daily'
+        ? 'day'
+        : recurrence === 'weekly'
+          ? 'week'
+          : recurrence === 'custom' && perChildLimitCount > 0
+            ? (source.rewardLimitPeriod || 'day')
+            : ''
+    const familyLimitCount = Math.max(0, Number(source.rewardFamilyLimitCount) || 0)
+
+    return {
+      title: String(source.rewardTitle || '').trim(),
+      cost: Math.max(0, Number(source.rewardCost) || 0),
+      childId: source.rewardScopeChildId || '',
+      recurrence,
+      perChildLimitCount,
+      perChildLimitPeriod,
+      familyLimitCount,
+      familyLimitPeriod: familyLimitCount > 0 ? (source.rewardFamilyLimitPeriod || 'day') : '',
+    }
+  }
+
+  const currentSetupSnapshot = JSON.stringify(buildCurrentSetupSnapshot())
+  const hasSetupChanges = activeDialog === 'setup' && setupSavedSnapshot !== '' && currentSetupSnapshot !== setupSavedSnapshot
+  const currentBadgeSnapshot = JSON.stringify(buildCurrentBadgeSnapshot())
+  const hasBadgeChanges = activeDialog === 'badges' && badgeSavedSnapshot !== '' && currentBadgeSnapshot !== badgeSavedSnapshot
+  const currentJobEditSnapshot = JSON.stringify(
+    buildJobEditSnapshot({
+      jobTitle,
+      jobRewardType,
+      jobPoints,
+      jobScopeChildId,
+      jobRecurrenceFrequency,
+      jobLimitCount,
+      jobLimitPeriod,
+      jobFamilyLimitCount,
+      jobFamilyLimitPeriod,
+      jobMissedAfterHours,
+      jobBadgeContribution,
+    }),
+  )
+  const hasJobEditChanges = Boolean(editingJobId && editingJobSnapshot && currentJobEditSnapshot !== editingJobSnapshot)
+  const currentRewardEditSnapshot = JSON.stringify(
+    buildRewardEditSnapshot({
+      rewardTitle,
+      rewardCost,
+      rewardScopeChildId,
+      rewardRecurrenceFrequency,
+      rewardLimitCount,
+      rewardLimitPeriod,
+      rewardFamilyLimitCount,
+      rewardFamilyLimitPeriod,
+    }),
+  )
+  const hasRewardEditChanges = Boolean(
+    editingRewardId && editingRewardSnapshot && currentRewardEditSnapshot !== editingRewardSnapshot,
+  )
+
   const childNameById = childProfiles.reduce((accumulator, child) => {
     accumulator[child.id] = `${child.avatar || '🧒'} ${child.displayName || 'Kid'}`
     return accumulator
@@ -1062,9 +1289,11 @@ export default function ProfilePage() {
       if (dialog === 'jobs') {
         setJobScopeChildId('')
         setJobBadgeContribution('none')
+        setEditingJobSnapshot('')
       }
       if (dialog === 'rewards') {
         setRewardScopeChildId('')
+        setEditingRewardSnapshot('')
       }
       setDialogBusy(true)
       try {
@@ -1101,6 +1330,7 @@ export default function ProfilePage() {
       setStaleJobBonusPeriodHours(String(familySummary.staleJobBonusPeriodHours || 24))
       setStaleJobBonusRatePercent(String(familySummary.staleJobBonusRatePercent || 5))
       setStaleJobBonusCapPercent(String(familySummary.staleJobBonusCapPercent || 30))
+      setSetupSavedSnapshot(JSON.stringify(buildSetupSnapshotFromSummary(familySummary)))
     }
 
     if (dialog === 'badges') {
@@ -1119,6 +1349,7 @@ export default function ProfilePage() {
       setCustomBadgeCategory('achievement')
       setCustomBadgeMetric('completed_goals')
       setCustomBadgeTarget('1')
+      setBadgeSavedSnapshot(JSON.stringify(buildBadgeSnapshotFromSummary(familySummary)))
     }
 
     if (dialog === 'savings') {
@@ -1457,6 +1688,50 @@ export default function ProfilePage() {
     return 'custom'
   }
 
+  function HelpButton({ label, lines = [] }) {
+    if (!Array.isArray(lines) || lines.length === 0) {
+      return null
+    }
+
+    return (
+      <button
+        type="button"
+        className="inline-help-trigger"
+        aria-haspopup="dialog"
+        aria-label={`Help for ${label}`}
+        title={`Help for ${label}`}
+        onClick={() => setActiveHelpDialog({ label, lines })}
+      >
+        ?
+      </button>
+    )
+  }
+
+  function renderHelpDetailLine(line, index) {
+    const text = String(line || '').trim()
+    const separatorIndex = text.indexOf(':')
+
+    if (separatorIndex > 0 && separatorIndex < 42) {
+      const heading = text.slice(0, separatorIndex + 1)
+      const detail = text.slice(separatorIndex + 1).trim()
+      const isLongHeading = heading.length > 18
+      const headingLengthClass = isLongHeading ? 'help-popover-item-title-long' : ''
+
+      return (
+        <li key={`help-line:${index}`} className="help-popover-item">
+          <span className={`help-popover-item-title ${headingLengthClass}`.trim()}>{heading}</span>
+          {detail ? <span className="help-popover-item-detail">{detail}</span> : null}
+        </li>
+      )
+    }
+
+    return (
+      <li key={`help-line:${index}`} className="help-popover-item">
+        <span className="help-popover-item-detail">{text}</span>
+      </li>
+    )
+  }
+
   function handleAddCustomBadge() {
     const label = String(customBadgeLabel || '').trim()
     if (!label) {
@@ -1522,6 +1797,7 @@ export default function ProfilePage() {
       setJobRecurrenceFrequency('none')
       setJobMissedAfterHours('')
       setJobBadgeContribution('none')
+      setEditingJobSnapshot('')
       await loadDialogData()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not create job.')
@@ -1585,6 +1861,7 @@ export default function ProfilePage() {
       setRewardLimitPeriod('day')
       setRewardFamilyLimitCount('')
       setRewardFamilyLimitPeriod('day')
+      setEditingRewardSnapshot('')
       await loadDialogData()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not create reward.')
@@ -1669,6 +1946,7 @@ export default function ProfilePage() {
         staleJobBonusRatePercent: staleRateValue,
         staleJobBonusCapPercent: staleCapValue,
       })
+      setSetupSavedSnapshot(currentSetupSnapshot)
       closeDialog()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not save household settings.')
@@ -1713,6 +1991,7 @@ export default function ProfilePage() {
         recognitionHelpingHandJobsTarget: helpingHandTargetValue,
         recognitionGoalGetterTarget: goalGetterTargetValue,
       }))
+      setBadgeSavedSnapshot(currentBadgeSnapshot)
       closeDialog()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not save badge settings.')
@@ -2036,6 +2315,7 @@ export default function ProfilePage() {
   }
 
   function startEditJob(job) {
+    const recurrence = deriveJobRecurrenceFrequency(job)
     setEditingJobId(job.id)
     setJobTitle(job.title || '')
     setJobRewardType(job.rewardType === 'xp' ? 'xp' : 'credits')
@@ -2045,39 +2325,62 @@ export default function ProfilePage() {
     setJobLimitPeriod(job.claimLimitPeriod || 'week')
     setJobFamilyLimitCount(job.familyClaimLimitCount > 0 ? String(job.familyClaimLimitCount) : '')
     setJobFamilyLimitPeriod(job.familyClaimLimitPeriod || 'week')
-    if (!job.autoRecreate) {
-      setJobRecurrenceFrequency('none')
-    } else if (Number(job.claimLimitCount) === 1 && job.claimLimitPeriod === 'day') {
-      setJobRecurrenceFrequency('daily')
-    } else if (Number(job.claimLimitCount) === 1 && job.claimLimitPeriod === 'week') {
-      setJobRecurrenceFrequency('weekly')
-    } else {
-      setJobRecurrenceFrequency('weekly')
-    }
+    setJobRecurrenceFrequency(recurrence)
     setJobMissedAfterHours(job.missedAfterHours > 0 ? String(job.missedAfterHours) : '')
     setJobBadgeContribution(job.badgeContribution || 'none')
+    setEditingJobSnapshot(
+      JSON.stringify(
+        buildJobEditSnapshot({
+          jobTitle: job.title || '',
+          jobRewardType: job.rewardType === 'xp' ? 'xp' : 'credits',
+          jobPoints: String(job.points || 0),
+          jobScopeChildId: job.childId || '',
+          jobRecurrenceFrequency: recurrence,
+          jobLimitCount: job.claimLimitCount > 0 ? String(job.claimLimitCount) : '',
+          jobLimitPeriod: job.claimLimitPeriod || 'week',
+          jobFamilyLimitCount: job.familyClaimLimitCount > 0 ? String(job.familyClaimLimitCount) : '',
+          jobFamilyLimitPeriod: job.familyClaimLimitPeriod || 'week',
+          jobMissedAfterHours: job.missedAfterHours > 0 ? String(job.missedAfterHours) : '',
+          jobBadgeContribution: job.badgeContribution || 'none',
+        }),
+      ),
+    )
   }
 
   function startEditReward(reward) {
+    const recurrence =
+      reward.repeatMode === 'once'
+        ? 'once'
+        : Number(reward.claimLimitCount) === 1 && reward.claimLimitPeriod === 'day'
+          ? 'daily'
+          : Number(reward.claimLimitCount) === 1 && reward.claimLimitPeriod === 'week'
+            ? 'weekly'
+            : 'custom'
     setEditingRewardId(reward.id)
     setRewardTitle(reward.title || '')
     setRewardCost(String(reward.cost || 0))
     setRewardScopeChildId(reward.childId || '')
-    if (reward.repeatMode === 'once') {
-      setRewardRecurrenceFrequency('once')
-    } else if (Number(reward.claimLimitCount) === 1 && reward.claimLimitPeriod === 'day') {
-      setRewardRecurrenceFrequency('daily')
-    } else if (Number(reward.claimLimitCount) === 1 && reward.claimLimitPeriod === 'week') {
-      setRewardRecurrenceFrequency('weekly')
-    } else {
-      setRewardRecurrenceFrequency('custom')
-    }
+    setRewardRecurrenceFrequency(recurrence)
     setRewardLimitCount(reward.claimLimitCount > 0 ? String(reward.claimLimitCount) : '')
     setRewardLimitPeriod(reward.claimLimitPeriod || 'day')
     setRewardFamilyLimitCount(
       reward.familyClaimLimitCount > 0 ? String(reward.familyClaimLimitCount) : '',
     )
     setRewardFamilyLimitPeriod(reward.familyClaimLimitPeriod || 'day')
+    setEditingRewardSnapshot(
+      JSON.stringify(
+        buildRewardEditSnapshot({
+          rewardTitle: reward.title || '',
+          rewardCost: String(reward.cost || 0),
+          rewardScopeChildId: reward.childId || '',
+          rewardRecurrenceFrequency: recurrence,
+          rewardLimitCount: reward.claimLimitCount > 0 ? String(reward.claimLimitCount) : '',
+          rewardLimitPeriod: reward.claimLimitPeriod || 'day',
+          rewardFamilyLimitCount: reward.familyClaimLimitCount > 0 ? String(reward.familyClaimLimitCount) : '',
+          rewardFamilyLimitPeriod: reward.familyClaimLimitPeriod || 'day',
+        }),
+      ),
+    )
   }
 
   function cancelEditJob() {
@@ -2093,6 +2396,7 @@ export default function ProfilePage() {
     setJobRecurrenceFrequency('none')
     setJobMissedAfterHours('')
     setJobBadgeContribution('none')
+    setEditingJobSnapshot('')
   }
 
   function cancelEditReward() {
@@ -2105,6 +2409,7 @@ export default function ProfilePage() {
     setRewardLimitPeriod('day')
     setRewardFamilyLimitCount('')
     setRewardFamilyLimitPeriod('day')
+    setEditingRewardSnapshot('')
   }
 
   const pendingJobCheckRequests = jobCheckRequests.filter((request) => request.status === 'pending')
@@ -2154,6 +2459,23 @@ export default function ProfilePage() {
     + approvedRewardRequests.length
     + pendingGoalRequests.length
     + pendingGoalApprovals.length
+
+  useEffect(() => {
+    if (!activeHelpDialog) {
+      return undefined
+    }
+
+    function handleEscape(event) {
+      if (event.key === 'Escape') {
+        setActiveHelpDialog(null)
+      }
+    }
+
+    window.addEventListener('keydown', handleEscape)
+    return () => {
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [activeHelpDialog])
 
   return (
     <>
@@ -2560,8 +2882,14 @@ export default function ProfilePage() {
                   {activeDialog === 'support' ? 'Support' : null}
                   {activeDialog === 'analytics' ? 'Family Insights' : null}
                 </p>
-                <button type="button" className="text-button" onClick={closeDialog}>
-                  Close
+                <button
+                  type="button"
+                  className="dialog-close-button"
+                  onClick={closeDialog}
+                  aria-label="Close dialog"
+                  title="Close"
+                >
+                  <span aria-hidden="true">X</span>
                 </button>
               </div>
 
@@ -2703,7 +3031,18 @@ export default function ProfilePage() {
                     <p className="dialog-section-title">Savings Approvals</p>
                     <p className="dialog-section-subtitle">Choose when parent approval is needed for savings goals.</p>
                     <label className="form-field">
-                      <span className="form-label">Savings goal parent approvals</span>
+                      <div className="form-label-row">
+                        <span className="form-label">Savings goal parent approvals</span>
+                        <HelpButton
+                          label="Savings goal parent approvals"
+                          lines={[
+                            'Controls when you must approve savings goals.',
+                            'Approve claim only: kids can create goals, you approve payouts.',
+                            'Approve create + claim: you approve both new goals and payouts.',
+                            'No approval: fully self-serve. Best only for older, trusted kids.',
+                          ]}
+                        />
+                      </div>
                       <select
                         className="job-input"
                         value={savingsGoalApprovalMode}
@@ -2713,7 +3052,6 @@ export default function ProfilePage() {
                         <option value="create_and_claim">Approve create + claim</option>
                         <option value="no_approval">No approval</option>
                       </select>
-                      <p className="form-help">Tip: Approve claim only is best for most families.</p>
                     </label>
                   </section>
 
@@ -2721,7 +3059,17 @@ export default function ProfilePage() {
                     <p className="dialog-section-title">Family Dashboard</p>
                     <p className="dialog-section-subtitle">Choose whether kids see competitive Top cards.</p>
                     <label className="form-field">
-                      <span className="form-label">Show Top Earner/Spender cards</span>
+                      <div className="form-label-row">
+                        <span className="form-label">Show Top Earner/Spender cards</span>
+                        <HelpButton
+                          label="Show Top Earner/Spender cards"
+                          lines={[
+                            'Shows leaderboard-style cards on Home.',
+                            'On: highlights who earned/spent most to add motivation.',
+                            'Off: removes competition and keeps the dashboard calmer.',
+                          ]}
+                        />
+                      </div>
                       <select
                         className="job-input"
                         value={familyDashboardTopCardsEnabled ? 'on' : 'off'}
@@ -2730,8 +3078,6 @@ export default function ProfilePage() {
                         <option value="on">On</option>
                         <option value="off">Off</option>
                       </select>
-                      <p className="form-help">On: sibling competition view.</p>
-                      <p className="form-help">Off: simpler family view.</p>
                     </label>
                   </section>
 
@@ -2739,7 +3085,18 @@ export default function ProfilePage() {
                     <p className="dialog-section-title">Family Settings Preset</p>
                     <p className="dialog-section-subtitle">Choose one starting style for consequences, stale bonus, and dynamic pricing.</p>
                     <label className="form-field">
-                      <span className="form-label">Quick family preset</span>
+                      <div className="form-label-row">
+                        <span className="form-label">Quick family preset</span>
+                        <HelpButton
+                          label="Quick family preset"
+                          lines={[
+                            'Applies a starter bundle for consequences, stale bonus, and pricing.',
+                            'Gentle: more forgiving settings and softer penalties.',
+                            'Balanced: recommended default for most families.',
+                            'Strict: tighter limits and stronger accountability.',
+                          ]}
+                        />
+                      </div>
                       <select
                         className="job-input"
                         value={getHouseholdPreset()}
@@ -2750,14 +3107,12 @@ export default function ProfilePage() {
                         <option value="balanced">Balanced</option>
                         <option value="strict">Strict</option>
                       </select>
-                      <p className="form-help">Sets your starting style. Balanced works best for most families.</p>
                     </label>
                   </section>
 
                   <details className="dialog-subsection dialog-advanced-settings">
                     <summary className="dialog-subsection-summary">Advanced fine-tuning</summary>
                     <div className="dialog-subsection-body dialog-advanced-settings-body">
-                  <p className="form-help">Manual controls for fine-tuning.</p>
 
                   <section className="dialog-advanced-group">
                     <p className="dialog-section-title">Consequences</p>
@@ -2793,7 +3148,17 @@ export default function ProfilePage() {
                               <p className="status-note">High penalty warning: this can feel harsh for younger kids.</p>
                             ) : null}
                             <label className="form-field">
-                              <span className="form-label">Apply missed rule only after time window</span>
+                              <div className="form-label-row">
+                                <span className="form-label">Apply missed rule only after time window</span>
+                                <HelpButton
+                                  label="Apply missed rule only after time window"
+                                  lines={[
+                                    'Decides how a claimed chore becomes "missed."',
+                                    'Off: parent decides manually when to mark missed.',
+                                    'On: the app can mark missed after the hour limit.',
+                                  ]}
+                                />
+                              </div>
                               <select
                                 className="job-input"
                                 value={missedJobTimingEnabled ? 'on' : 'off'}
@@ -2802,8 +3167,6 @@ export default function ProfilePage() {
                                 <option value="off">Off</option>
                                 <option value="on">On</option>
                               </select>
-                              <p className="form-help">Off: manual timing.</p>
-                              <p className="form-help">On: timer-based timing.</p>
                             </label>
                             {missedJobTimingEnabled ? (
                               <label className="form-field">
@@ -2865,7 +3228,17 @@ export default function ProfilePage() {
                       <summary className="dialog-subsection-summary">Pool job claiming</summary>
                       <div className="dialog-subsection-body">
                         <label className="form-field">
-                          <span className="form-label">Max active shared chores per child</span>
+                          <div className="form-label-row">
+                            <span className="form-label">Max active shared chores per child</span>
+                            <HelpButton
+                              label="Max active shared chores per child"
+                              lines={[
+                                'Sets how many shared chores one child can hold at once.',
+                                'Lower values improve pacing and fairness across siblings.',
+                                'Example: 2 means one child can hold two active shared chores.',
+                              ]}
+                            />
+                          </div>
                           <input
                             className="job-input"
                             type="number"
@@ -2873,13 +3246,22 @@ export default function ProfilePage() {
                             value={maxActivePoolClaimsPerChild}
                             onChange={(event) => setMaxActivePoolClaimsPerChild(event.target.value)}
                           />
-                          <p className="form-help">Example: 2 means a child can hold two shared chores at once.</p>
                         </label>
                         {maxPoolClaimsValue > 4 ? (
                           <p className="status-note">Large slot warning: high values reduce pacing and parent visibility.</p>
                         ) : null}
                         <label className="form-field">
-                          <span className="form-label">If waiting for parent review, open another slot</span>
+                          <div className="form-label-row">
+                            <span className="form-label">If waiting for parent review, open another slot</span>
+                            <HelpButton
+                              label="If waiting for parent review, open another slot"
+                              lines={[
+                                'Controls whether "pending review" chores still use a slot.',
+                                'No: pending chores still count toward the limit.',
+                                'Yes: pending chores free up a slot so kids can claim another.',
+                              ]}
+                            />
+                          </div>
                           <select
                             className="job-input"
                             value={allowClaimingWithPendingChecks ? 'yes' : 'no'}
@@ -2888,8 +3270,6 @@ export default function ProfilePage() {
                             <option value="no">No</option>
                             <option value="yes">Yes</option>
                           </select>
-                          <p className="form-help">No: waiting chores still count.</p>
-                          <p className="form-help">Yes: waiting chores free up a slot.</p>
                         </label>
                       </div>
                     </details>
@@ -2898,7 +3278,17 @@ export default function ProfilePage() {
                       <summary className="dialog-subsection-summary">Stale job bonus</summary>
                       <div className="dialog-subsection-body">
                         <label className="form-field">
-                          <span className="form-label">Increase points for unclaimed chores over time</span>
+                          <div className="form-label-row">
+                            <span className="form-label">Increase points for unclaimed chores over time</span>
+                            <HelpButton
+                              label="Increase points for unclaimed chores over time"
+                              lines={[
+                                'Automatically increases points on chores no one claims.',
+                                'Useful for nudging less-popular chores without parent reminders.',
+                                'If Off, chore points stay fixed unless you edit them manually.',
+                              ]}
+                            />
+                          </div>
                           <select
                             className="job-input"
                             value={staleJobBonusEnabled ? 'on' : 'off'}
@@ -2907,13 +3297,21 @@ export default function ProfilePage() {
                             <option value="off">No</option>
                             <option value="on">Yes</option>
                           </select>
-                          <p className="form-help">Helps ignored chores become more appealing automatically.</p>
                         </label>
 
                         {staleJobBonusEnabled ? (
                           <>
                             <label className="form-field">
-                              <span className="form-label">Start bonus after hours unclaimed</span>
+                              <div className="form-label-row">
+                                <span className="form-label">Start bonus after hours unclaimed</span>
+                                <HelpButton
+                                  label="Start bonus after hours unclaimed"
+                                  lines={[
+                                    'Wait time before stale bonus starts.',
+                                    'No bonus is added until this many hours pass unclaimed.',
+                                  ]}
+                                />
+                              </div>
                               <input
                                 className="job-input"
                                 type="number"
@@ -2921,11 +3319,19 @@ export default function ProfilePage() {
                                 value={staleJobBonusStartHours}
                                 onChange={(event) => setStaleJobBonusStartHours(event.target.value)}
                               />
-                              <p className="form-help">No bonus before this wait time.</p>
                             </label>
 
                             <label className="form-field">
-                              <span className="form-label">Bonus interval (hours)</span>
+                              <div className="form-label-row">
+                                <span className="form-label">Bonus interval (hours)</span>
+                                <HelpButton
+                                  label="Bonus interval (hours)"
+                                  lines={[
+                                    'How often the stale bonus is added after it starts.',
+                                    'Smaller interval means points increase more frequently.',
+                                  ]}
+                                />
+                              </div>
                               <input
                                 className="job-input"
                                 type="number"
@@ -2933,11 +3339,19 @@ export default function ProfilePage() {
                                 value={staleJobBonusPeriodHours}
                                 onChange={(event) => setStaleJobBonusPeriodHours(event.target.value)}
                               />
-                              <p className="form-help">How often points increase.</p>
                             </label>
 
                             <label className="form-field">
-                              <span className="form-label">Bonus % per interval</span>
+                              <div className="form-label-row">
+                                <span className="form-label">Bonus % per interval</span>
+                                <HelpButton
+                                  label="Bonus % per interval"
+                                  lines={[
+                                    'Percent increase added each bonus interval.',
+                                    'Higher values make ignored chores grow faster in value.',
+                                  ]}
+                                />
+                              </div>
                               <input
                                 className="job-input"
                                 type="number"
@@ -2945,11 +3359,20 @@ export default function ProfilePage() {
                                 value={staleJobBonusRatePercent}
                                 onChange={(event) => setStaleJobBonusRatePercent(event.target.value)}
                               />
-                              <p className="form-help">Percent increase applied each interval.</p>
                             </label>
 
                             <label className="form-field">
-                              <span className="form-label">Maximum total stale bonus %</span>
+                              <div className="form-label-row">
+                                <span className="form-label">Maximum total stale bonus %</span>
+                                <HelpButton
+                                  label="Maximum total stale bonus %"
+                                  lines={[
+                                    'Hard cap on total stale bonus for a chore.',
+                                    `Parent summary: after ${staleStartHoursValue}h, jobs gain +${staleRateValue}% every ${stalePeriodHoursValue}h, up to +${staleCapValue}% total.`,
+                                    `Example: a 40-point chore can grow to about ${Math.round(40 * (1 + (staleCapValue / 100)))} points before it caps.`,
+                                  ]}
+                                />
+                              </div>
                               <input
                                 className="job-input"
                                 type="number"
@@ -2957,19 +3380,12 @@ export default function ProfilePage() {
                                 value={staleJobBonusCapPercent}
                                 onChange={(event) => setStaleJobBonusCapPercent(event.target.value)}
                               />
-                              <p className="form-help">Maximum total bonus allowed.</p>
                             </label>
 
                             {(staleRateValue > 20 || staleCapValue > 120) ? (
                               <p className="status-note">High bonus warning: large values can feel inconsistent or gameable.</p>
                             ) : null}
 
-                            <p className="form-help">
-                              Parent summary: after {staleStartHoursValue}h, jobs gain +{staleRateValue}% every {stalePeriodHoursValue}h, up to +{staleCapValue}% total.
-                            </p>
-                            <p className="form-help">
-                              Example: a 40-point chore can grow to about {Math.round(40 * (1 + (staleCapValue / 100)))} points before it caps.
-                            </p>
                           </>
                         ) : null}
                       </div>
@@ -2983,7 +3399,17 @@ export default function ProfilePage() {
                       <summary className="dialog-subsection-summary">Pricing mode</summary>
                       <div className="dialog-subsection-body">
                         <label className="form-field">
-                          <span className="form-label">Auto-adjust reward prices</span>
+                          <div className="form-label-row">
+                            <span className="form-label">Auto-adjust reward prices</span>
+                            <HelpButton
+                              label="Auto-adjust reward prices"
+                              lines={[
+                                'Turns dynamic reward pricing on or off.',
+                                'Off: reward costs stay fixed at the value you set.',
+                                'On: costs can rise/fall based on demand and scarcity settings.',
+                              ]}
+                            />
+                          </div>
                           <select
                             className="job-input"
                             value={dynamicPricingEnabled ? 'on' : 'off'}
@@ -2992,13 +3418,20 @@ export default function ProfilePage() {
                             <option value="off">Off</option>
                             <option value="on">On</option>
                           </select>
-                          <p className="form-help">Off: fixed costs.</p>
-                          <p className="form-help">On: costs adjust over time.</p>
                         </label>
                         {dynamicPricingEnabled ? (
                           <>
                             <label className="form-field">
-                              <span className="form-label">Pricing window</span>
+                              <div className="form-label-row">
+                                <span className="form-label">Pricing window</span>
+                                <HelpButton
+                                  label="Pricing window"
+                                  lines={[
+                                    'How often dynamic pricing updates.',
+                                    'Per day reacts faster; per week is steadier and easier to predict.',
+                                  ]}
+                                />
+                              </div>
                               <select
                                 className="job-input"
                                 value={dynamicPricingWindowPeriod}
@@ -3007,11 +3440,19 @@ export default function ProfilePage() {
                                 <option value="day">Per day</option>
                                 <option value="week">Per week</option>
                               </select>
-                              <p className="form-help">How often pricing is recalculated.</p>
                             </label>
 
                             <label className="form-field">
-                              <span className="form-label">Demand impact % per claim</span>
+                              <div className="form-label-row">
+                                <span className="form-label">Demand impact % per claim</span>
+                                <HelpButton
+                                  label="Demand impact % per claim"
+                                  lines={[
+                                    'How strongly repeated claims push a reward price up.',
+                                    'Higher value means popular rewards become expensive faster.',
+                                  ]}
+                                />
+                              </div>
                               <input
                                 className="job-input"
                                 type="number"
@@ -3019,11 +3460,19 @@ export default function ProfilePage() {
                                 value={dynamicPricingDemandWeight}
                                 onChange={(event) => setDynamicPricingDemandWeight(event.target.value)}
                               />
-                              <p className="form-help">Higher values raise price faster when requested often.</p>
                             </label>
 
                             <label className="form-field">
-                              <span className="form-label">Scarcity impact % near limit</span>
+                              <div className="form-label-row">
+                                <span className="form-label">Scarcity impact % near limit</span>
+                                <HelpButton
+                                  label="Scarcity impact % near limit"
+                                  lines={[
+                                    'How strongly low remaining supply increases price.',
+                                    'Higher value means prices rise more near daily/weekly limits.',
+                                  ]}
+                                />
+                              </div>
                               <input
                                 className="job-input"
                                 type="number"
@@ -3031,11 +3480,19 @@ export default function ProfilePage() {
                                 value={dynamicPricingScarcityWeight}
                                 onChange={(event) => setDynamicPricingScarcityWeight(event.target.value)}
                               />
-                              <p className="form-help">Higher values raise price as claim limits are approached.</p>
                             </label>
 
                             <label className="form-field">
-                              <span className="form-label">Price floor % of base cost</span>
+                              <div className="form-label-row">
+                                <span className="form-label">Price floor % of base cost</span>
+                                <HelpButton
+                                  label="Price floor % of base cost"
+                                  lines={[
+                                    'Lowest price allowed relative to base cost.',
+                                    'Example: 80% floor on a 100-point reward means it never drops below 80.',
+                                  ]}
+                                />
+                              </div>
                               <input
                                 className="job-input"
                                 type="number"
@@ -3043,11 +3500,19 @@ export default function ProfilePage() {
                                 value={dynamicPricingMinMultiplierPercent}
                                 onChange={(event) => setDynamicPricingMinMultiplierPercent(event.target.value)}
                               />
-                              <p className="form-help">Lowest allowed price vs base cost.</p>
                             </label>
 
                             <label className="form-field">
-                              <span className="form-label">Price ceiling % of base cost</span>
+                              <div className="form-label-row">
+                                <span className="form-label">Price ceiling % of base cost</span>
+                                <HelpButton
+                                  label="Price ceiling % of base cost"
+                                  lines={[
+                                    'Highest price allowed relative to base cost.',
+                                    'Example: 220% ceiling on a 100-point reward means max 220.',
+                                  ]}
+                                />
+                              </div>
                               <input
                                 className="job-input"
                                 type="number"
@@ -3055,11 +3520,20 @@ export default function ProfilePage() {
                                 value={dynamicPricingMaxMultiplierPercent}
                                 onChange={(event) => setDynamicPricingMaxMultiplierPercent(event.target.value)}
                               />
-                              <p className="form-help">Highest allowed price vs base cost.</p>
                             </label>
 
                             <label className="form-field">
-                              <span className="form-label">Max increase % per window</span>
+                              <div className="form-label-row">
+                                <span className="form-label">Max increase % per window</span>
+                                <HelpButton
+                                  label="Max increase % per window"
+                                  lines={[
+                                    'Limits sudden price jumps each pricing window.',
+                                    `Guardrails: ${dynamicMinMultiplierValue}% to ${dynamicMaxMultiplierValue}% of base, max +${dynamicMaxStepValue}% per window.`,
+                                    `Example: a 100-point reward stays between ${dynamicMinMultiplierValue} and ${dynamicMaxMultiplierValue} points.`,
+                                  ]}
+                                />
+                              </div>
                               <input
                                 className="job-input"
                                 type="number"
@@ -3067,15 +3541,7 @@ export default function ProfilePage() {
                                 value={dynamicPricingMaxStepPercent}
                                 onChange={(event) => setDynamicPricingMaxStepPercent(event.target.value)}
                               />
-                              <p className="form-help">Caps sudden jumps each pricing window.</p>
                             </label>
-
-                            <p className="form-help">
-                              Guardrails active: prices stay between {dynamicMinMultiplierValue}% and {dynamicMaxMultiplierValue}% of base, with at most +{dynamicMaxStepValue}% growth per window.
-                            </p>
-                            <p className="form-help">
-                              Example: a 100-credit reward stays between {dynamicMinMultiplierValue} and {dynamicMaxMultiplierValue} credits.
-                            </p>
 
                             {(demandWeightValue > 120 || scarcityWeightValue > 150) ? (
                               <p className="status-note">Extreme pricing warning: large values can make rewards feel unpredictable.</p>
@@ -3089,9 +3555,11 @@ export default function ProfilePage() {
                     </div>
                   </details>
 
-                  <button type="submit" className="claim-button" disabled={dialogBusy}>
-                    Save household settings
-                  </button>
+                  <div className="dialog-sticky-actions">
+                    <button type="submit" className="claim-button dialog-sticky-submit" disabled={dialogBusy || !hasSetupChanges}>
+                      Save
+                    </button>
+                  </div>
                 </form>
               ) : null}
 
@@ -3457,7 +3925,17 @@ export default function ProfilePage() {
                       <p className="dialog-section-title">Display Controls</p>
                       <p className="dialog-section-subtitle">Choose where badges show up.</p>
                       <label className="form-field">
-                        <span className="form-label">Show kid achievements</span>
+                        <div className="form-label-row">
+                          <span className="form-label">Show kid achievements</span>
+                          <HelpButton
+                            label="Show kid achievements"
+                            lines={[
+                              'Controls whether achievement badges are shown across the app.',
+                              'On: kids can see milestone progress and celebration badges.',
+                              'Off: hides achievement badge UI while keeping data saved.',
+                            ]}
+                          />
+                        </div>
                         <select
                           className="job-input"
                           value={achievementsEnabled ? 'on' : 'off'}
@@ -3468,7 +3946,17 @@ export default function ProfilePage() {
                         </select>
                       </label>
                       <label className="form-field">
-                        <span className="form-label">Show family recognition cards</span>
+                        <div className="form-label-row">
+                          <span className="form-label">Show family recognition cards</span>
+                          <HelpButton
+                            label="Show family recognition cards"
+                            lines={[
+                              'Controls recognition highlights like streaks and helpfulness.',
+                              'On: shows recognition cards on family views.',
+                              'Off: hides recognition cards for a simpler layout.',
+                            ]}
+                          />
+                        </div>
                         <select
                           className="job-input"
                           value={familyRecognitionEnabled ? 'on' : 'off'}
@@ -3484,7 +3972,16 @@ export default function ProfilePage() {
                       <p className="dialog-section-title">Built-in Badge Thresholds</p>
                       <p className="dialog-section-subtitle">Adjust defaults for built-in badges.</p>
                       <label className="form-field">
-                        <span className="form-label">First Goal target</span>
+                        <div className="form-label-row">
+                          <span className="form-label">First Goal target</span>
+                          <HelpButton
+                            label="First Goal target"
+                            lines={[
+                              'Sets how many completed goals unlock the First Goal badge.',
+                              'Use 1 for early encouragement; higher values make it more challenging.',
+                            ]}
+                          />
+                        </div>
                         <input
                           className="job-input"
                           type="number"
@@ -3494,7 +3991,16 @@ export default function ProfilePage() {
                         />
                       </label>
                       <label className="form-field">
-                        <span className="form-label">Contributor target (credits earned)</span>
+                        <div className="form-label-row">
+                          <span className="form-label">Contributor target (credits earned)</span>
+                          <HelpButton
+                            label="Contributor target"
+                            lines={[
+                              'Credits-earned threshold for the Contributor badge.',
+                              'Lower values unlock sooner; higher values reward long-term consistency.',
+                            ]}
+                          />
+                        </div>
                         <input
                           className="job-input"
                           type="number"
@@ -3504,7 +4010,16 @@ export default function ProfilePage() {
                         />
                       </label>
                       <label className="form-field">
-                        <span className="form-label">Helper target (helper-tagged jobs)</span>
+                        <div className="form-label-row">
+                          <span className="form-label">Helper target (helper-tagged jobs)</span>
+                          <HelpButton
+                            label="Helper target"
+                            lines={[
+                              'How many helper-tagged chores are needed for this badge.',
+                              'Only jobs tagged Helper count toward this target.',
+                            ]}
+                          />
+                        </div>
                         <input
                           className="job-input"
                           type="number"
@@ -3514,7 +4029,16 @@ export default function ProfilePage() {
                         />
                       </label>
                       <label className="form-field">
-                        <span className="form-label">Reading target (reading-tagged jobs)</span>
+                        <div className="form-label-row">
+                          <span className="form-label">Reading target (reading-tagged jobs)</span>
+                          <HelpButton
+                            label="Reading target"
+                            lines={[
+                              'How many reading-tagged chores are needed for this badge.',
+                              'Only jobs tagged Reading count toward this target.',
+                            ]}
+                          />
+                        </div>
                         <input
                           className="job-input"
                           type="number"
@@ -3524,7 +4048,16 @@ export default function ProfilePage() {
                         />
                       </label>
                       <label className="form-field">
-                        <span className="form-label">Streak target (days)</span>
+                        <div className="form-label-row">
+                          <span className="form-label">Streak target (days)</span>
+                          <HelpButton
+                            label="Streak target"
+                            lines={[
+                              'Required consecutive days for streak recognition.',
+                              'Use a shorter streak for younger kids, longer for older kids.',
+                            ]}
+                          />
+                        </div>
                         <input
                           className="job-input"
                           type="number"
@@ -3534,7 +4067,16 @@ export default function ProfilePage() {
                         />
                       </label>
                       <label className="form-field">
-                        <span className="form-label">Helping Hand target</span>
+                        <div className="form-label-row">
+                          <span className="form-label">Helping Hand target</span>
+                          <HelpButton
+                            label="Helping Hand target"
+                            lines={[
+                              'Target count for the Helping Hand recognition badge.',
+                              'Counts actions tied to your helper badge configuration.',
+                            ]}
+                          />
+                        </div>
                         <input
                           className="job-input"
                           type="number"
@@ -3544,7 +4086,16 @@ export default function ProfilePage() {
                         />
                       </label>
                       <label className="form-field">
-                        <span className="form-label">Goal Getter target</span>
+                        <div className="form-label-row">
+                          <span className="form-label">Goal Getter target</span>
+                          <HelpButton
+                            label="Goal Getter target"
+                            lines={[
+                              'How many completed goals unlock Goal Getter recognition.',
+                              'Raise it for a harder long-term milestone.',
+                            ]}
+                          />
+                        </div>
                         <input
                           className="job-input"
                           type="number"
@@ -3559,7 +4110,16 @@ export default function ProfilePage() {
                       <p className="dialog-section-title">Custom Badge Builder</p>
                       <p className="dialog-section-subtitle">Create your own achievement or recognition badges.</p>
                       <label className="form-field">
-                        <span className="form-label">Badge label</span>
+                        <div className="form-label-row">
+                          <span className="form-label">Badge label</span>
+                          <HelpButton
+                            label="Badge label"
+                            lines={[
+                              'Name shown to kids for this custom badge.',
+                              'Keep it short and positive so it is easy to understand.',
+                            ]}
+                          />
+                        </div>
                         <input
                           className="job-input"
                           placeholder="Ex: Weekend Warrior"
@@ -3568,7 +4128,16 @@ export default function ProfilePage() {
                         />
                       </label>
                       <label className="form-field">
-                        <span className="form-label">Icon</span>
+                        <div className="form-label-row">
+                          <span className="form-label">Icon</span>
+                          <HelpButton
+                            label="Icon"
+                            lines={[
+                              'Emoji icon shown with the custom badge.',
+                              'Use one emoji for best readability in lists and cards.',
+                            ]}
+                          />
+                        </div>
                         <input
                           className="job-input"
                           placeholder="🏅"
@@ -3577,7 +4146,16 @@ export default function ProfilePage() {
                         />
                       </label>
                       <label className="form-field">
-                        <span className="form-label">Category</span>
+                        <div className="form-label-row">
+                          <span className="form-label">Category</span>
+                          <HelpButton
+                            label="Badge category"
+                            lines={[
+                              'Achievement: milestone/progress badge.',
+                              'Recognition: positive behavior highlight badge.',
+                            ]}
+                          />
+                        </div>
                         <select
                           className="job-input"
                           value={customBadgeCategory}
@@ -3588,7 +4166,16 @@ export default function ProfilePage() {
                         </select>
                       </label>
                       <label className="form-field">
-                        <span className="form-label">Track metric</span>
+                        <div className="form-label-row">
+                          <span className="form-label">Track metric</span>
+                          <HelpButton
+                            label="Track metric"
+                            lines={[
+                              'Select what is counted toward this badge.',
+                              'The chosen metric is compared to Target to determine unlocks.',
+                            ]}
+                          />
+                        </div>
                         <select
                           className="job-input"
                           value={customBadgeMetric}
@@ -3602,7 +4189,16 @@ export default function ProfilePage() {
                         </select>
                       </label>
                       <label className="form-field">
-                        <span className="form-label">Target</span>
+                        <div className="form-label-row">
+                          <span className="form-label">Target</span>
+                          <HelpButton
+                            label="Badge target"
+                            lines={[
+                              'Required value to unlock this custom badge.',
+                              'Example: target 5 with helper jobs means unlock at 5 helper jobs.',
+                            ]}
+                          />
+                        </div>
                         <input
                           className="job-input"
                           type="number"
@@ -3640,7 +4236,7 @@ export default function ProfilePage() {
                     </section>
 
                     <div className="button-row">
-                      <button type="submit" className="claim-button" disabled={dialogBusy}>
+                      <button type="submit" className="claim-button" disabled={dialogBusy || !hasBadgeChanges}>
                         {dialogBusy ? 'Saving...' : 'Save Badge Settings'}
                       </button>
                     </div>
@@ -3654,7 +4250,17 @@ export default function ProfilePage() {
                     <p className="dialog-section-title">Create or Edit Chore</p>
                     <p className="dialog-section-subtitle">Set who can do it, how often, and how many points it is worth.</p>
                     <label className="form-field">
-                      <span className="form-label">Apply to</span>
+                      <div className="form-label-row">
+                        <span className="form-label">Apply to</span>
+                        <HelpButton
+                          label="Apply chore to"
+                          lines={[
+                            'Choose who can see and claim this chore.',
+                            'Shared (all kids): available to everyone.',
+                            'Specific child: only that child can claim it.',
+                          ]}
+                        />
+                      </div>
                       <select
                         className="job-input"
                         value={jobScopeChildId}
@@ -3676,7 +4282,17 @@ export default function ProfilePage() {
                       required
                     />
                     <label className="form-field">
-                      <span className="form-label">Earning type</span>
+                      <div className="form-label-row">
+                        <span className="form-label">Earning type</span>
+                        <HelpButton
+                          label="Earning type"
+                          lines={[
+                            'Choose what kids earn when this chore is completed.',
+                            'Points: spendable for rewards and savings, great for extra help.',
+                            'XP: level progress only (not spendable), great for core responsibilities.',
+                          ]}
+                        />
+                      </div>
                       <select
                         className="job-input"
                         value={jobRewardType}
@@ -3685,8 +4301,6 @@ export default function ProfilePage() {
                         <option value="credits">Points</option>
                         <option value="xp">XP</option>
                       </select>
-                      <p className="form-help">Points: spendable for rewards and savings, great for extra help.</p>
-                      <p className="form-help">XP: level progress only (not spendable), great for core responsibilities.</p>
                     </label>
                     <input
                       className="job-input"
@@ -3698,7 +4312,17 @@ export default function ProfilePage() {
                       required
                     />
                     <label className="form-field">
-                      <span className="form-label">Recurrence frequency</span>
+                      <div className="form-label-row">
+                        <span className="form-label">Recurrence frequency</span>
+                        <HelpButton
+                          label="Chore recurrence frequency"
+                          lines={[
+                            'One-time: can be completed once only.',
+                            'Every day: resets daily.',
+                            'Every week: resets weekly.',
+                          ]}
+                        />
+                      </div>
                       <select
                         className="job-input"
                         value={jobRecurrenceFrequency}
@@ -3716,9 +4340,16 @@ export default function ProfilePage() {
                       <p className="panel-muted">This job can be completed once each week.</p>
                     ) : null}
                     <label className="form-field">
-                      <span className="form-label">Per-child claim limit (optional)</span>
-                      <p className="form-help">How often one child can claim this same job.</p>
-                      <p className="form-help">Example: 2 per week means each child can complete it twice weekly.</p>
+                      <div className="form-label-row">
+                        <span className="form-label">Per-child claim limit (optional)</span>
+                        <HelpButton
+                          label="Per-child claim limit"
+                          lines={[
+                            'Sets how often one child can claim this chore.',
+                            'Example: 2 per week means each child can complete it twice weekly.',
+                          ]}
+                        />
+                      </div>
                       <div className="job-form">
                         <input
                           className="job-input"
@@ -3740,9 +4371,16 @@ export default function ProfilePage() {
                       </div>
                     </label>
                     <label className="form-field">
-                      <span className="form-label">Family-wide total limit (optional)</span>
-                      <p className="form-help">How often all children combined can claim this job.</p>
-                      <p className="form-help">Example: 3 per week means the whole household can complete it three times total.</p>
+                      <div className="form-label-row">
+                        <span className="form-label">Family-wide total limit (optional)</span>
+                        <HelpButton
+                          label="Family-wide total limit"
+                          lines={[
+                            'Sets how often all children combined can claim this chore.',
+                            'Example: 3 per week means the whole household can complete it three times total.',
+                          ]}
+                        />
+                      </div>
                       <div className="job-form">
                         <input
                           className="job-input"
@@ -3764,7 +4402,16 @@ export default function ProfilePage() {
                       </div>
                     </label>
                     <label className="form-field">
-                      <span className="form-label">Missed timeout override (hours, optional)</span>
+                      <div className="form-label-row">
+                        <span className="form-label">Missed timeout override (hours, optional)</span>
+                        <HelpButton
+                          label="Missed timeout override"
+                          lines={[
+                            'Optional per-chore timeout before it can be marked missed.',
+                            'Leave blank to use your family-wide timeout setting.',
+                          ]}
+                        />
+                      </div>
                       <input
                         className="job-input"
                         type="number"
@@ -3779,7 +4426,17 @@ export default function ProfilePage() {
                       />
                     </label>
                     <label className="form-field">
-                      <span className="form-label">Badge contribution tag</span>
+                      <div className="form-label-row">
+                        <span className="form-label">Badge contribution tag</span>
+                        <HelpButton
+                          label="Badge contribution tag"
+                          lines={[
+                            'Choose whether this chore contributes to badge tracking.',
+                            'Helper: counts toward helpfulness achievements/recognition.',
+                            'Reading: counts toward reading-focused achievements.',
+                          ]}
+                        />
+                      </div>
                       <select
                         className="job-input"
                         value={jobBadgeContribution}
@@ -3789,10 +4446,9 @@ export default function ProfilePage() {
                         <option value="helper">Helper</option>
                         <option value="reading">Reading</option>
                       </select>
-                      <p className="form-help">Tagged jobs feed achievement and recognition counts for kids.</p>
                     </label>
                     <div className="button-row">
-                      <button type="submit" className="claim-button" disabled={dialogBusy}>
+                      <button type="submit" className="claim-button" disabled={dialogBusy || (editingJobId && !hasJobEditChanges)}>
                         {editingJobId ? 'Save chore' : 'Add chore'}
                       </button>
                       {editingJobId ? (
@@ -3874,7 +4530,17 @@ export default function ProfilePage() {
                 <div className="dialog-content">
                   <form className="auth-form" onSubmit={handleCreateReward}>
                     <label className="form-field">
-                      <span className="form-label">Apply to</span>
+                      <div className="form-label-row">
+                        <span className="form-label">Apply to</span>
+                        <HelpButton
+                          label="Apply reward to"
+                          lines={[
+                            'Choose who can request this reward.',
+                            'Shared (all kids): available to everyone.',
+                            'Specific child: only that child can request it.',
+                          ]}
+                        />
+                      </div>
                       <select
                         className="job-input"
                         value={rewardScopeChildId}
@@ -3905,7 +4571,17 @@ export default function ProfilePage() {
                       required
                     />
                     <label className="form-field">
-                      <span className="form-label">Recurrence frequency</span>
+                      <div className="form-label-row">
+                        <span className="form-label">Recurrence frequency</span>
+                        <HelpButton
+                          label="Reward recurrence frequency"
+                          lines={[
+                            'One-time: can be requested only once.',
+                            'Every day/week: auto-limited to once per period.',
+                            'Custom claim limit: set your own count and period.',
+                          ]}
+                        />
+                      </div>
                       <select
                         className="job-input"
                         value={rewardRecurrenceFrequency}
@@ -3925,9 +4601,16 @@ export default function ProfilePage() {
                     ) : null}
                     {rewardRecurrenceFrequency === 'custom' ? (
                       <label className="form-field">
-                        <span className="form-label">Per-child request limit (custom)</span>
-                        <p className="form-help">How often one child can request this reward.</p>
-                        <p className="form-help">Example: 1 per day means each child can request it once daily.</p>
+                        <div className="form-label-row">
+                          <span className="form-label">Per-child request limit (custom)</span>
+                          <HelpButton
+                            label="Per-child request limit"
+                            lines={[
+                              'Sets how often one child can request this reward.',
+                              'Example: 1 per day means each child can request it once daily.',
+                            ]}
+                          />
+                        </div>
                         <div className="job-form">
                           <input
                             className="job-input"
@@ -3950,9 +4633,16 @@ export default function ProfilePage() {
                       </label>
                     ) : null}
                     <label className="form-field">
-                      <span className="form-label">Family-wide total limit (optional)</span>
-                      <p className="form-help">How often all children combined can request this reward.</p>
-                      <p className="form-help">Example: 2 per week means all children together can request it twice.</p>
+                      <div className="form-label-row">
+                        <span className="form-label">Family-wide total limit (optional)</span>
+                        <HelpButton
+                          label="Family-wide total reward limit"
+                          lines={[
+                            'Sets how often all children combined can request this reward.',
+                            'Example: 2 per week means all children together can request it twice.',
+                          ]}
+                        />
+                      </div>
                       <div className="job-form">
                         <input
                           className="job-input"
@@ -3974,7 +4664,7 @@ export default function ProfilePage() {
                       </div>
                     </label>
                     <div className="button-row">
-                      <button type="submit" className="claim-button" disabled={dialogBusy}>
+                      <button type="submit" className="claim-button" disabled={dialogBusy || (editingRewardId && !hasRewardEditChanges)}>
                         {editingRewardId ? 'Save reward' : 'Add reward'}
                       </button>
                       {editingRewardId ? (
@@ -4038,24 +4728,58 @@ export default function ProfilePage() {
                       <p className="dialog-section-subtitle">
                         Set a shared family goal or assign the goal to a child.
                       </p>
-                      <input
-                        className="job-input"
-                        placeholder="Goal name"
-                        value={savingsGoalName}
-                        onChange={(event) => setSavingsGoalName(event.target.value)}
-                        required
-                      />
-                      <input
-                        className="job-input"
-                        type="number"
-                        min="1"
-                        placeholder="Target credits"
-                        value={savingsGoalTarget}
-                        onChange={(event) => setSavingsGoalTarget(event.target.value)}
-                        required
-                      />
                       <label className="form-field">
-                        <span className="form-label">Goal scope</span>
+                        <div className="form-label-row">
+                          <span className="form-label">Goal name</span>
+                          <HelpButton
+                            label="Goal name"
+                            lines={[
+                              'Short name kids will recognize right away.',
+                              'Use simple names like Movie Night or Lego Set.',
+                            ]}
+                          />
+                        </div>
+                        <input
+                          className="job-input"
+                          placeholder="Goal name"
+                          value={savingsGoalName}
+                          onChange={(event) => setSavingsGoalName(event.target.value)}
+                          required
+                        />
+                      </label>
+                      <label className="form-field">
+                        <div className="form-label-row">
+                          <span className="form-label">Target credits</span>
+                          <HelpButton
+                            label="Target credits"
+                            lines={[
+                              'Total credits needed to complete this goal.',
+                              'Choose a realistic amount so progress feels steady.',
+                            ]}
+                          />
+                        </div>
+                        <input
+                          className="job-input"
+                          type="number"
+                          min="1"
+                          placeholder="Target credits"
+                          value={savingsGoalTarget}
+                          onChange={(event) => setSavingsGoalTarget(event.target.value)}
+                          required
+                        />
+                      </label>
+                      <label className="form-field">
+                        <div className="form-label-row">
+                          <span className="form-label">Goal scope</span>
+                          <HelpButton
+                            label="Goal scope"
+                            lines={[
+                              'Choose whether this goal is family-wide or for one child.',
+                              'Whole family: appears on Home for everyone to contribute toward.',
+                              'Child: only tracks progress for the selected child.',
+                            ]}
+                          />
+                        </div>
                         <select
                           className="job-input"
                           value={savingsGoalScope}
@@ -4068,9 +4792,6 @@ export default function ProfilePage() {
                             </option>
                           ))}
                         </select>
-                        <p className="form-help">
-                          Family goals appear on Home for everyone to contribute toward.
-                        </p>
                       </label>
                     </section>
 
@@ -4162,7 +4883,16 @@ export default function ProfilePage() {
                   <p className="panel-muted">Share notes, bugs, or ideas for improving the app.</p>
                   <form className="auth-form" onSubmit={handleSubmitFeedback}>
                     <label className="form-field">
-                      <span className="form-label">Category</span>
+                      <div className="form-label-row">
+                        <span className="form-label">Category</span>
+                        <HelpButton
+                          label="Feedback category"
+                          lines={[
+                            'Choose the type of feedback you are sending.',
+                            'Bug: broken behavior. Idea: new feature. Confusing: unclear UX.',
+                          ]}
+                        />
+                      </div>
                       <select
                         className="job-input"
                         value={feedbackCategory}
@@ -4426,7 +5156,16 @@ export default function ProfilePage() {
                         <p className="panel-label" style={{ marginTop: '0.6rem' }}>Run Report (CSV)</p>
                         <div className="job-form">
                           <label className="form-field">
-                            <span className="form-label">Timeframe</span>
+                            <div className="form-label-row">
+                              <span className="form-label">Timeframe</span>
+                              <HelpButton
+                                label="Audit report timeframe"
+                                lines={[
+                                  'Select how far back to include events in the CSV report.',
+                                  'Longer ranges include more history and larger exports.',
+                                ]}
+                              />
+                            </div>
                             <select
                               className="job-input"
                               value={auditReportRange}
@@ -4439,7 +5178,16 @@ export default function ProfilePage() {
                             </select>
                           </label>
                           <label className="form-field">
-                            <span className="form-label">Child</span>
+                            <div className="form-label-row">
+                              <span className="form-label">Child</span>
+                              <HelpButton
+                                label="Audit report child filter"
+                                lines={[
+                                  'Limit report rows to one child or include everyone.',
+                                  'All children gives a full family-level report.',
+                                ]}
+                              />
+                            </div>
                             <select
                               className="job-input"
                               value={auditReportChildId}
@@ -4454,7 +5202,16 @@ export default function ProfilePage() {
                             </select>
                           </label>
                           <label className="form-field">
-                            <span className="form-label">Event type</span>
+                            <div className="form-label-row">
+                              <span className="form-label">Event type</span>
+                              <HelpButton
+                                label="Audit report event type"
+                                lines={[
+                                  'Filter to missed jobs, denied checks, or penalty-only events.',
+                                  'All events includes every consequence event in the timeframe.',
+                                ]}
+                              />
+                            </div>
                             <select
                               className="job-input"
                               value={auditReportType}
@@ -4561,6 +5318,41 @@ export default function ProfilePage() {
                   </button>
                   <button type="button" className="text-button" onClick={handleCancelRemoveChild} disabled={saving}>
                     Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {activeHelpDialog ? (
+          <section
+            className="help-popover-overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Help for ${activeHelpDialog.label}`}
+            onClick={() => setActiveHelpDialog(null)}
+          >
+            <div className="help-popover-card" onClick={(event) => event.stopPropagation()}>
+              <div className="help-popover-head">
+                <p className="panel-label">{activeHelpDialog.label}</p>
+              </div>
+              <div className="help-popover-body">
+                {activeHelpDialog.lines.length > 0 ? (
+                  <p className="help-popover-summary">{activeHelpDialog.lines[0]}</p>
+                ) : null}
+                {activeHelpDialog.lines.length > 1 ? (
+                  <ul className="help-popover-list">
+                    {activeHelpDialog.lines.slice(1).map((line, index) => renderHelpDetailLine(line, index))}
+                  </ul>
+                ) : null}
+                <div className="help-popover-actions">
+                  <button
+                    type="button"
+                    className="help-popover-ok-button"
+                    onClick={() => setActiveHelpDialog(null)}
+                  >
+                    Okay
                   </button>
                 </div>
               </div>

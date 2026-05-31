@@ -1104,6 +1104,206 @@ body.parent-session-active {
   word-break: break-word;
 }
 
+.form-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
+.form-label-row .form-label {
+  margin: 0;
+}
+
+.inline-help-trigger {
+  appearance: none;
+  inline-size: 20px;
+  block-size: 20px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid #bfd0e7;
+  background: #f3f8ff;
+  color: #335783;
+  font-size: 0.73rem;
+  font-weight: 800;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.inline-help-trigger:focus-visible {
+  outline: 2px solid rgba(78, 121, 184, 0.45);
+  outline-offset: 1px;
+}
+
+.help-popover-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(143, 186, 255, 0.24), transparent 40%),
+    rgba(8, 18, 40, 0.56);
+  backdrop-filter: blur(2px);
+}
+
+.help-popover-card {
+  width: min(460px, 100%);
+  max-height: 78vh;
+  overflow-y: auto;
+  border: 1px solid #c9daef;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #f6f9ff 100%);
+  box-shadow:
+    0 20px 42px rgba(10, 30, 56, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.56rem;
+  transform-origin: center top;
+  animation: help-popover-enter 150ms ease-out;
+}
+
+.help-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  padding: 0.2rem 0.15rem 0.34rem;
+  border-bottom: 1px solid #d7e2f1;
+}
+
+.help-popover-head .panel-label {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.96rem;
+  color: #1d3f6c;
+}
+
+.help-popover-body {
+  display: grid;
+  gap: 0.42rem;
+}
+
+.help-popover-summary {
+  margin: -0.04rem 0 0.45rem;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: #456180;
+  padding: 0 0.15rem;
+}
+
+.help-popover-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #b8cde6;
+  border-radius: 10px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #fdfeff, #f2f8ff);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    inset 0 -1px 0 rgba(168, 190, 217, 0.28);
+}
+
+.help-popover-item {
+  margin: 0;
+  padding: 0.48rem 0.6rem;
+  font-size: 0.83rem;
+  line-height: 1.42;
+  color: #3f5d7c;
+  background: linear-gradient(180deg, #ffffff, #f3f8ff);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+.help-popover-item + .help-popover-item {
+  border-top: 1px solid #c7d8ec;
+}
+
+.help-popover-item-title {
+  display: inline;
+  font-weight: 800;
+  color: #284d7b;
+}
+
+.help-popover-item-title-long {
+  font-size: 0.83rem;
+}
+
+.help-popover-item-detail {
+  display: inline;
+  margin-left: 0.24rem;
+  color: #456280;
+  line-height: 1.38;
+}
+
+.help-popover-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.15rem;
+}
+
+.help-popover-ok-button {
+  appearance: none;
+  min-height: 2rem;
+  padding: 0.32rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid #9dbbe0;
+  background: linear-gradient(180deg, #e9f3ff, #dcecff);
+  color: #244a79;
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.help-popover-ok-button:hover {
+  background: linear-gradient(180deg, #e1eeff, #d3e6ff);
+}
+
+.help-popover-ok-button:focus-visible {
+  outline: 2px solid rgba(78, 121, 184, 0.45);
+  outline-offset: 1px;
+}
+
+@keyframes help-popover-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .help-popover-card {
+    animation: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .help-popover-card {
+    width: 100%;
+    max-height: 80vh;
+    border-radius: 14px;
+    padding: 0.78rem;
+  }
+
+  .dialog-close-button {
+    inline-size: 2.1rem;
+    block-size: 2.1rem;
+  }
+}
+
 .form-help {
   font-size: 0.8rem;
   line-height: 1.4;
@@ -1612,6 +1812,36 @@ body.parent-session-active {
   justify-content: space-between;
   align-items: center;
   gap: 0.5rem;
+}
+
+.dialog-close-button {
+  appearance: none;
+  inline-size: 2rem;
+  block-size: 2rem;
+  padding: 0;
+  border: 1px solid #c2d4ea;
+  border-radius: 999px;
+  background: #f3f8ff;
+  color: #31557f;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.dialog-close-button span {
+  font-size: 0.82rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.dialog-close-button:hover {
+  background: #e8f1ff;
+}
+
+.dialog-close-button:focus-visible {
+  outline: 2px solid rgba(78, 121, 184, 0.45);
+  outline-offset: 1px;
 }
 
 .panel-label {
@@ -2598,6 +2828,23 @@ body.parent-session-active {
   min-width: 0;
 }
 
+.dialog-sticky-actions {
+  position: sticky;
+  bottom: -0.9rem;
+  z-index: 3;
+  margin-top: 0.4rem;
+  margin-left: -0.9rem;
+  margin-right: -0.9rem;
+  padding: 0.55rem 0.9rem 0.32rem;
+  border-top: 1px solid #e4ebf5;
+  background: #ffffff;
+  box-shadow: 0 -4px 10px rgba(24, 45, 74, 0.05);
+}
+
+.dialog-sticky-submit {
+  width: 100%;
+}
+
 .dialog-subsection-body .job-input {
   width: 100%;
   max-width: 100%;
@@ -3509,6 +3756,55 @@ body.parent-session-active {
   .kid-savings-panel .mission-reward,
   .kid-savings-panel .statement-spend {
     font-size: 1.1rem;
+  }
+}
+
+@media (max-width: 560px) {
+  .home-section-subtitle {
+    margin-bottom: 0.4rem;
+    font-size: 0.84rem;
+  }
+
+  .family-podium,
+  .family-trend-grid {
+    grid-template-columns: 1fr;
+    gap: 0.4rem;
+  }
+
+  .family-score-card,
+  .family-trend-card,
+  .family-insight-card,
+  .family-grid-list li,
+  .family-job-item,
+  .family-kid-goal-card {
+    padding: 0.58rem;
+  }
+
+  .family-score-card strong,
+  .family-trend-card strong,
+  .family-insight-card strong {
+    font-size: 0.86rem;
+  }
+
+  .family-score-card span,
+  .family-trend-card span {
+    display: none;
+  }
+
+  .family-kid-row {
+    padding: 0.68rem;
+    gap: 0.55rem;
+  }
+
+  .family-stat-pill,
+  .family-status-pill,
+  .family-badge {
+    font-size: 0.68rem;
+  }
+
+  .family-job-list,
+  .family-grid-list {
+    gap: 0.48rem;
   }
 }
 

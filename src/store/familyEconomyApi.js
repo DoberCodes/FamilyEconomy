@@ -7,7 +7,7 @@ import {
   getFamilyStoreData,
   getHouseholdOnboardingData,
 } from '../services/familyEconomyService'
-import { toQueryError, getErrorMessage } from './familyEconomyApiUtils'
+import { familyQuery, toQueryError, getErrorMessage } from './familyEconomyApiUtils'
 import { buildFamilyMutationEndpoints } from './familyEconomyMutationEndpoints'
 
 export const familyEconomyApi = createApi({
@@ -20,104 +20,67 @@ export const familyEconomyApi = createApi({
     'HouseholdOnboarding',
   ],
   endpoints: (builder) => ({
-    getFamilyDashboard: builder.query({
-      async queryFn(context) {
-        try {
-          const result = await getFamilyDashboard(context)
-          return { data: result.data }
-        } catch (error) {
-          return { error: toQueryError(error, 'Could not load family dashboard.') }
-        }
-      },
-      providesTags: (_result, _error, context) => [
-        { type: 'FamilyDashboard', id: context.familyId },
-      ],
-    }),
-    getFamilyStoreData: builder.query({
-      async queryFn(context) {
-        try {
-          const result = await getFamilyStoreData(context)
-          return { data: result.data }
-        } catch (error) {
-          return { error: toQueryError(error, 'Could not load reward store.') }
-        }
-      },
-      providesTags: (_result, _error, context) => [
-        { type: 'FamilyStore', id: context.familyId },
-      ],
-    }),
-    getHouseholdOnboardingData: builder.query({
-      async queryFn(context) {
-        try {
-          const result = await getHouseholdOnboardingData(context)
-          return { data: result.data }
-        } catch (error) {
-          return { error: toQueryError(error, 'Could not load household setup data.') }
-        }
-      },
-      providesTags: (_result, _error, context) => [
-        { type: 'HouseholdOnboarding', id: context.familyId },
-      ],
-    }),
-    getFamilyHomeData: builder.query({
-      async queryFn(context) {
-        try {
-          const [dashboardResult, storeResult, onboardingResult] = await Promise.all([
-            getFamilyDashboard(context),
-            getFamilyStoreData(context),
-            getHouseholdOnboardingData({
-              familyId: context.familyId,
-              userId: context.userId,
-              userRole: context.userRole,
-            }),
-          ])
+    getFamilyDashboard: familyQuery(
+      builder,
+      async (context) => (await getFamilyDashboard(context)).data,
+      'Could not load family dashboard.',
+      ['FamilyDashboard'],
+    ),
+    getFamilyStoreData: familyQuery(
+      builder,
+      async (context) => (await getFamilyStoreData(context)).data,
+      'Could not load reward store.',
+      ['FamilyStore'],
+    ),
+    getHouseholdOnboardingData: familyQuery(
+      builder,
+      async (context) => (await getHouseholdOnboardingData(context)).data,
+      'Could not load household setup data.',
+      ['HouseholdOnboarding'],
+    ),
+    getFamilyHomeData: familyQuery(
+      builder,
+      async (context) => {
+        const [dashboardResult, storeResult, onboardingResult] = await Promise.all([
+          getFamilyDashboard(context),
+          getFamilyStoreData(context),
+          getHouseholdOnboardingData({
+            familyId: context.familyId,
+            userId: context.userId,
+            userRole: context.userRole,
+          }),
+        ])
 
-          return {
-            data: {
-              dashboard: dashboardResult.data,
-              store: storeResult.data,
-              childProfiles: onboardingResult.data.childProfiles || [],
-              family: onboardingResult.data.family || null,
-            },
-          }
-        } catch (error) {
-          return { error: toQueryError(error, 'Could not load family data right now.') }
+        return {
+          dashboard: dashboardResult.data,
+          store: storeResult.data,
+          childProfiles: onboardingResult.data.childProfiles || [],
+          family: onboardingResult.data.family || null,
         }
       },
-      providesTags: (_result, _error, context) => [
-        { type: 'FamilyHome', id: context.familyId },
-        { type: 'FamilyDashboard', id: context.familyId },
-        { type: 'FamilyStore', id: context.familyId },
-        { type: 'HouseholdOnboarding', id: context.familyId },
-      ],
-    }),
-    getKidProfileSessionData: builder.query({
-      async queryFn(context) {
-        try {
-          const [dashboardResult, storeResult, checkResult, consequenceResult] = await Promise.all([
-            getFamilyDashboard(context),
-            getFamilyStoreData(context),
-            getFamilyJobCheckRequests(context),
-            getFamilyConsequenceEvents(context),
-          ])
+      'Could not load family data right now.',
+      ['FamilyHome', 'FamilyDashboard', 'FamilyStore', 'HouseholdOnboarding'],
+    ),
+    getKidProfileSessionData: familyQuery(
+      builder,
+      async (context) => {
+        const [dashboardResult, storeResult, checkResult, consequenceResult] = await Promise.all([
+          getFamilyDashboard(context),
+          getFamilyStoreData(context),
+          getFamilyJobCheckRequests(context),
+          getFamilyConsequenceEvents(context),
+        ])
 
-          return {
-            data: {
-              dashboard: dashboardResult.data,
-              store: storeResult.data,
-              jobCheckRequests: checkResult.data.requests || [],
-              consequenceEvents: consequenceResult.data.events || [],
-            },
-          }
-        } catch (error) {
-          return { error: toQueryError(error, 'Could not load child profile data.') }
+        return {
+          dashboard: dashboardResult.data,
+          store: storeResult.data,
+          jobCheckRequests: checkResult.data.requests || [],
+          consequenceEvents: consequenceResult.data.events || [],
         }
       },
-      providesTags: (_result, _error, context) => [
-        { type: 'FamilyDashboard', id: context.familyId },
-        { type: 'FamilyStore', id: context.familyId },
-      ],
-    }),
+      'Could not load child profile data.',
+      ['FamilyDashboard', 'FamilyStore'],
+    ),
     ...buildFamilyMutationEndpoints(builder),
   }),
 })

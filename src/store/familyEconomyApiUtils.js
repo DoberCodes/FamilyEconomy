@@ -12,7 +12,7 @@ export function toQueryError(error, fallback) {
   }
 }
 
-function familyTags(context, tagTypes) {
+export function familyTags(context, tagTypes) {
   return tagTypes.map((type) => ({ type, id: context.familyId }))
 }
 
@@ -20,6 +20,24 @@ function invalidateFamilyTags(tagTypes) {
   return (_result, error, { context }) => (
     error ? [] : familyTags(context, tagTypes)
   )
+}
+
+function provideFamilyTags(tagTypes) {
+  return (_result, _error, context) => familyTags(context, tagTypes)
+}
+
+export function familyQuery(builder, loadData, fallback, tagTypes) {
+  return builder.query({
+    async queryFn(context) {
+      try {
+        const data = await loadData(context)
+        return { data }
+      } catch (error) {
+        return { error: toQueryError(error, fallback) }
+      }
+    },
+    providesTags: provideFamilyTags(tagTypes),
+  })
 }
 
 export function familyMutation(builder, operation, fallback, tagTypes) {

@@ -22,6 +22,12 @@ import {
   setParentControlsUnlocked,
   updateProfileFields,
 } from '../store/authSlice'
+import {
+  isParentAuthenticatedSnapshot,
+  shouldCompleteProfileSnapshot,
+  shouldRedirectToParentHomeSnapshot,
+} from '../store/authSelectors'
+import { isBlockedByClientSignal, normalizeErrorMessage } from '../utils/errorUtils'
 import { serializeAuthProfile } from '../utils/serializeUtils'
 
 const AuthContext = createContext(null)
@@ -43,44 +49,11 @@ function normalizeFamilyId(value) {
 }
 
 function isBlockedByClient(error) {
-  const text = [
-    error?.message,
-    error?.code,
-    error?.name,
-    error?.cause?.message,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
-
-  return text.includes('err_blocked_by_client') || text.includes('blocked by client')
+  return isBlockedByClientSignal(error)
 }
 
 function getReadableErrorMessage(error, fallback = 'Authentication failed.') {
-  if (typeof error === 'string' && error.trim()) {
-    return error.trim()
-  }
-
-  if (typeof error?.message === 'string' && error.message.trim()) {
-    return error.message.trim()
-  }
-
-  if (typeof error?.cause?.message === 'string' && error.cause.message.trim()) {
-    return error.cause.message.trim()
-  }
-
-  if (error && typeof error === 'object') {
-    try {
-      const serialized = JSON.stringify(error)
-      if (serialized && serialized !== '{}') {
-        return serialized
-      }
-    } catch {
-      return fallback
-    }
-  }
-
-  return fallback
+  return normalizeErrorMessage(error, fallback)
 }
 
 function mapAuthError(error) {
@@ -145,6 +118,15 @@ export function AuthProvider({ children }) {
   const dispatch = useDispatch()
   const AUTH_INIT_TIMEOUT_MS = 7000
   const PROFILE_LOAD_TIMEOUT_MS = 7000
+  const authSnapshot = {
+    loading,
+    isAuthenticated,
+    familyId,
+    userRole,
+  }
+  const isParentAuthenticated = isParentAuthenticatedSnapshot(authSnapshot)
+  const shouldRedirectToParentHome = shouldRedirectToParentHomeSnapshot(authSnapshot)
+  const shouldCompleteProfile = shouldCompleteProfileSnapshot(authSnapshot)
 
   const parentPinStorageKey = familyId
     ? `family-economy-parent-pin:${familyId}`
@@ -482,6 +464,9 @@ export function AuthProvider({ children }) {
   const value = {
     loading,
     isAuthenticated,
+    isParentAuthenticated,
+    shouldRedirectToParentHome,
+    shouldCompleteProfile,
     hasFirebaseConfig,
     userId,
     userEmail,

@@ -1,33 +1,7 @@
 import { createSlice } from '@reduxjs/toolkit'
 
 import { hasFirebaseConfig } from '../lib/firebase'
-
-function normalizeErrorText(error) {
-  if (typeof error === 'string') {
-    return error
-  }
-
-  if (typeof error?.message === 'string') {
-    return error.message
-  }
-
-  if (typeof error?.cause?.message === 'string') {
-    return error.cause.message
-  }
-
-  if (error && typeof error === 'object') {
-    try {
-      const serialized = JSON.stringify(error)
-      if (serialized && serialized !== '{}') {
-        return serialized
-      }
-    } catch {
-      return 'Authentication failed.'
-    }
-  }
-
-  return String(error || '')
-}
+import { normalizeErrorMessage } from '../utils/errorUtils'
 
 const initialState = {
   loading: Boolean(hasFirebaseConfig),
@@ -62,7 +36,7 @@ const authSlice = createSlice({
       state.loading = Boolean(action.payload)
     },
     setAuthStatusError(state, action) {
-      state.authStatusError = normalizeErrorText(action.payload)
+      state.authStatusError = normalizeErrorMessage(action.payload, '')
     },
     setAuthProfile(state, action) {
       const profile = action.payload

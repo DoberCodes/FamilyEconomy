@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
 
 import { useAuth } from '../context/AuthContext'
+import { isBlockedByClientSignal, normalizeErrorMessage } from '../utils/errorUtils'
 
 function createFamilyId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -9,37 +10,6 @@ function createFamilyId() {
   }
 
   return `family-${Math.random().toString(36).slice(2, 10)}`
-}
-
-function containsBlockedClientSignal(value) {
-  return String(value || '').toLowerCase().includes('blocked')
-}
-
-function getReadableErrorMessage(error, fallbackMessage) {
-  if (typeof error === 'string' && error.trim()) {
-    return error.trim()
-  }
-
-  if (typeof error?.message === 'string' && error.message.trim()) {
-    return error.message.trim()
-  }
-
-  if (typeof error?.cause?.message === 'string' && error.cause.message.trim()) {
-    return error.cause.message.trim()
-  }
-
-  if (error && typeof error === 'object') {
-    try {
-      const serialized = JSON.stringify(error)
-      if (serialized && serialized !== '{}') {
-        return serialized
-      }
-    } catch {
-      return fallbackMessage
-    }
-  }
-
-  return fallbackMessage
 }
 
 export default function AuthPage() {
@@ -50,6 +20,8 @@ export default function AuthPage() {
     login,
     register,
     completeProfile,
+    shouldRedirectToParentHome,
+    shouldCompleteProfile,
     familyId,
     userRole,
     displayName: currentDisplayName,
@@ -64,10 +36,10 @@ export default function AuthPage() {
   const [newFamilyId, setNewFamilyId] = useState(() => createFamilyId())
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const authStatusText = getReadableErrorMessage(authStatusError, '')
-  const localErrorText = getReadableErrorMessage(error, '')
+  const authStatusText = normalizeErrorMessage(authStatusError, '')
+  const localErrorText = normalizeErrorMessage(error, '')
   const blockedByClient =
-    containsBlockedClientSignal(authStatusText) || containsBlockedClientSignal(localErrorText)
+    isBlockedByClientSignal(authStatusText) || isBlockedByClientSignal(localErrorText)
 
   if (!hasFirebaseConfig) {
     return (
@@ -82,7 +54,7 @@ export default function AuthPage() {
     )
   }
 
-  if (!loading && isAuthenticated && familyId && userRole) {
+  if (shouldRedirectToParentHome) {
     return <Navigate to="/mobile/home" replace />
   }
 
@@ -104,13 +76,13 @@ export default function AuthPage() {
         role: 'parent',
       })
     } catch (caughtError) {
-      setError(getReadableErrorMessage(caughtError, 'Could not save profile.'))
+      setError(normalizeErrorMessage(caughtError, 'Could not save profile.'))
     } finally {
       setSaving(false)
     }
   }
 
-  if (!loading && isAuthenticated && (!familyId || !userRole)) {
+  if (shouldCompleteProfile) {
     return (
       <main className="phone-content auth-wrap">
         <section className="panel auth-card">
@@ -166,7 +138,7 @@ export default function AuthPage() {
         await login(email, password)
       }
     } catch (caughtError) {
-      setError(getReadableErrorMessage(caughtError, 'Authentication failed.'))
+      setError(normalizeErrorMessage(caughtError, 'Authentication failed.'))
     } finally {
       setSaving(false)
     }

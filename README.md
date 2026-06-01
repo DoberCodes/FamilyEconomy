@@ -9,6 +9,7 @@ Minimal React app scaffolded with Vite.
 - Vision: [docs/VISION.md](docs/VISION.md)
 - Features: [docs/FEATURES.md](docs/FEATURES.md)
 - Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- Redux conversion status: [docs/redux-conversion-status.md](docs/redux-conversion-status.md)
 - Roadmap: [docs/ROADMAP.md](docs/ROADMAP.md)
 - Roadmap phase status: [docs/roadmap-status.md](docs/roadmap-status.md)
 - Product brief (Phase 0): [docs/product-brief.md](docs/product-brief.md)

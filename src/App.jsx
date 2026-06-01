@@ -15,10 +15,7 @@ import ProfilePage from './pages/mobile/ProfilePage'
 import SavingsPage from './pages/mobile/SavingsPage'
 import StorePage from './pages/mobile/StorePage'
 import { getHouseholdOnboardingData } from './services/familyEconomyService'
-
-function containsBlockedClientSignal(value) {
-  return String(value || '').toLowerCase().includes('blocked')
-}
+import { isBlockedByClientSignal } from './utils/errorUtils'
 
 function resolveUiTheme(pathname, userRole) {
   if (userRole === 'kid') {
@@ -56,7 +53,7 @@ function UiThemeSync() {
 }
 
 function MobileAppRoutes() {
-  const { loading, isAuthenticated, userRole, familyId, userId, activeChildProfile, authStatusError } =
+  const { loading, isAuthenticated, isParentAuthenticated, userRole, familyId, userId, activeChildProfile, authStatusError } =
     useAuth()
   const location = useLocation()
   const [loadingTimedOut, setLoadingTimedOut] = useState(false)
@@ -64,7 +61,7 @@ function MobileAppRoutes() {
   const [needsOnboarding, setNeedsOnboarding] = useState(false)
   const AUTH_LOADING_TIMEOUT_MS = 8000
   const ONBOARDING_TIMEOUT_MS = 7000
-  const blockedByClient = containsBlockedClientSignal(authStatusError)
+  const blockedByClient = isBlockedByClientSignal(authStatusError)
 
   useEffect(() => {
     if (!loading) {
@@ -154,7 +151,7 @@ function MobileAppRoutes() {
     )
   }
 
-  if (!isAuthenticated || userRole !== 'parent') {
+  if (!isParentAuthenticated) {
     return <Navigate to="/auth" replace />
   }
 

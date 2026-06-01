@@ -236,7 +236,7 @@ function normalizeConsequenceEvent(event, fallbackId) {
     penaltyCredits: Math.max(0, Number(event.penaltyCredits) || 0),
     createdBy: event.createdBy || null,
     source: event.source || 'unknown',
-    createdAt: event.createdAt || null,
+    createdAt: serializeDateValue(event.createdAt),
   }
 }
 
@@ -804,19 +804,19 @@ function normalizeRewardRequest(request, fallbackId) {
     parentNote: request.parentNote || '',
     counterRewardTitle: request.counterRewardTitle || '',
     counterCost: Number(request.counterCost) || 0,
-    childRespondedAt: request.childRespondedAt || null,
-    fulfilledAt: request.fulfilledAt || null,
+    childRespondedAt: serializeDateValue(request.childRespondedAt),
+    fulfilledAt: serializeDateValue(request.fulfilledAt),
     fulfilledBy: request.fulfilledBy || null,
     reviewedBy: request.reviewedBy || null,
     autoApproved: Boolean(request.autoApproved),
-    notificationDismissedAt: request.notificationDismissedAt || null,
+    notificationDismissedAt: serializeDateValue(request.notificationDismissedAt),
     notificationDismissedBy: request.notificationDismissedBy || null,
     linkedRewardId: request.linkedRewardId || null,
     linkedRewardTitle: request.linkedRewardTitle || '',
     linkedRewardCost: Number(request.linkedRewardCost) || 0,
-    createdAt: request.createdAt || null,
-    reviewedAt: request.reviewedAt || null,
-    updatedAt: request.updatedAt || null,
+    createdAt: serializeDateValue(request.createdAt),
+    reviewedAt: serializeDateValue(request.reviewedAt),
+    updatedAt: serializeDateValue(request.updatedAt),
   }
 }
 
@@ -845,8 +845,8 @@ function normalizeJobCheckRequest(request, fallbackId) {
     requestedBy: request.requestedBy || null,
     status: request.status || 'pending',
     reviewedBy: request.reviewedBy || null,
-    createdAt: request.createdAt || null,
-    reviewedAt: request.reviewedAt || null,
+    createdAt: serializeDateValue(request.createdAt),
+    reviewedAt: serializeDateValue(request.reviewedAt),
   }
 }
 

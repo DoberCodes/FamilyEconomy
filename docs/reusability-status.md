@@ -2,6 +2,27 @@
 
 This tracks reusable component, hook, service, and shared type opportunities that should keep the codebase easier to maintain as Family Economy grows.
 
+## Redux Conversion Snapshot - 2026-06-01
+
+Redux and RTK Query migration status: `in-progress`
+
+Completed so far:
+
+1. Redux store and RTK Query foundation are in place.
+2. Auth state, auth selectors, and auth/profile serialization have been centralized.
+3. Shared dashboard, store, onboarding, home, and kid-session reads now flow through RTK Query.
+4. First mutation flows plus onboarding writes and child session PIN setup now flow through RTK Query.
+5. Shared query and mutation boilerplate is centralized in `src/store/familyEconomyApiUtils.js`.
+6. Firestore timestamp serialization is handled before Redux cache writes.
+
+Still left:
+
+1. Move deeper `ProfilePage` shared reads behind RTK Query.
+2. Add more focused shared endpoints/hooks for feedback, approvals, jobs, savings goals, job-check requests, and consequence events where page-local orchestration still exists.
+3. Keep shrinking direct service imports inside large pages when the data is shared or needs cache invalidation.
+
+See `docs/redux-conversion-status.md` for the detailed tracker.
+
 ## File Size Direction
 
 - Aim for roughly 200 lines or less for new reusable components, hooks, selectors, and feature modules.

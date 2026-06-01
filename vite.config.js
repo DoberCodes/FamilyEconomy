@@ -8,5 +8,19 @@ export default defineConfig(({ mode }) => {
   return {
     base: env.VITE_BASE_PATH || '/',
     plugins: [react()],
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('react')) {
+                return 'vendor-react'
+              }
+              return 'vendor'
+            }
+          },
+        },
+      },
+    },
   }
 })

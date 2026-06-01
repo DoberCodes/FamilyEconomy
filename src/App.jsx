@@ -16,6 +16,10 @@ import SavingsPage from './pages/mobile/SavingsPage'
 import StorePage from './pages/mobile/StorePage'
 import { getHouseholdOnboardingData } from './services/familyEconomyService'
 
+function containsBlockedClientSignal(value) {
+  return String(value || '').toLowerCase().includes('blocked')
+}
+
 function resolveUiTheme(pathname, userRole) {
   if (userRole === 'kid') {
     return 'theme-playful'
@@ -52,11 +56,30 @@ function UiThemeSync() {
 }
 
 function MobileAppRoutes() {
-  const { loading, isAuthenticated, userRole, familyId, userId, activeChildProfile } =
+  const { loading, isAuthenticated, userRole, familyId, userId, activeChildProfile, authStatusError } =
     useAuth()
   const location = useLocation()
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false)
   const [checkingOnboarding, setCheckingOnboarding] = useState(true)
   const [needsOnboarding, setNeedsOnboarding] = useState(false)
+  const AUTH_LOADING_TIMEOUT_MS = 8000
+  const ONBOARDING_TIMEOUT_MS = 7000
+  const blockedByClient = containsBlockedClientSignal(authStatusError)
+
+  useEffect(() => {
+    if (!loading) {
+      setLoadingTimedOut(false)
+      return undefined
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setLoadingTimedOut(true)
+    }, AUTH_LOADING_TIMEOUT_MS)
+
+    return () => {
+      clearTimeout(timeoutId)
+    }
+  }, [loading, AUTH_LOADING_TIMEOUT_MS])
 
   useEffect(() => {
     let active = true
@@ -71,12 +94,20 @@ function MobileAppRoutes() {
       }
 
       setCheckingOnboarding(true)
+      let timeoutId
       try {
-        const result = await getHouseholdOnboardingData({
-          familyId,
-          userId,
-          userRole,
-        })
+        const result = await Promise.race([
+          getHouseholdOnboardingData({
+            familyId,
+            userId,
+            userRole,
+          }),
+          new Promise((_, reject) => {
+            timeoutId = window.setTimeout(() => {
+              reject(new Error('Onboarding request timed out.'))
+            }, ONBOARDING_TIMEOUT_MS)
+          }),
+        ])
 
         if (!active) {
           return
@@ -90,6 +121,9 @@ function MobileAppRoutes() {
         }
         setNeedsOnboarding(true)
       } finally {
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+        }
         if (active) {
           setCheckingOnboarding(false)
         }
@@ -101,14 +135,20 @@ function MobileAppRoutes() {
     return () => {
       active = false
     }
-  }, [loading, isAuthenticated, userRole, familyId, userId, location.pathname])
+  }, [loading, isAuthenticated, userRole, familyId, userId, location.pathname, ONBOARDING_TIMEOUT_MS])
 
-  if (loading || checkingOnboarding) {
+  if ((loading && !loadingTimedOut) || checkingOnboarding) {
     return (
       <main className="phone-content auth-wrap">
         <section className="panel auth-card">
           <p className="panel-label">Family Economy</p>
           <p className="panel-muted">Loading secure parent session...</p>
+          {blockedByClient ? (
+            <p className="status-note status-error">
+              Browser privacy/ad-block settings are blocking Firebase requests. Allow
+              firestore.googleapis.com and identitytoolkit.googleapis.com for this site.
+            </p>
+          ) : null}
         </section>
       </main>
     )

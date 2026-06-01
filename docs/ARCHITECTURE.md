@@ -21,6 +21,7 @@
 - `src/services/policyUtils.js` contains claim countdown and policy helper logic.
 - `src/domain/familyEconomyTypes.js` contains shared domain constants, status labels, and lightweight typedefs.
 - `src/utils/dateUtils.js` contains reusable Firestore/date parsing and time-window helpers.
+- `src/utils/serializeUtils.js` contains shared serialization helpers for Firestore timestamps and auth/profile payloads so Redux and logging stay serializable.
 - `src/hooks/` contains reusable UI/data coordination hooks such as async action state, effective family actor context, and family resource/data loaders.
 - `src/store/` contains the Redux store and RTK Query API layer for shared family data caching.
 - `src/services/dashboardSelectors.js` contains derived dashboard and savings-goal view calculations.

@@ -396,9 +396,9 @@ function normalizeJob(job) {
       Number.isFinite(missedAfterHoursRaw) && missedAfterHoursRaw > 0
         ? missedAfterHoursRaw
         : null,
-    claimedAt: job.claimedAt || null,
-    completedAt: job.completedAt || null,
-    createdAt: job.createdAt || null,
+    claimedAt: serializeDateValue(job.claimedAt),
+    completedAt: serializeDateValue(job.completedAt),
+    createdAt: serializeDateValue(job.createdAt),
     createdBy: job.createdBy || null,
     requiresApproval:
       job.requiresApproval === true ? true
@@ -446,29 +446,29 @@ function normalizeGoal(goal, fallbackId) {
     target,
     status,
     requestedBy: goal.requestedBy || null,
-    requestedAt: goal.requestedAt || null,
+    requestedAt: serializeDateValue(goal.requestedAt),
     parentReviewedBy: goal.parentReviewedBy || null,
-    parentReviewedAt: goal.parentReviewedAt || null,
+    parentReviewedAt: serializeDateValue(goal.parentReviewedAt),
     counterTarget: Number(goal.counterTarget) || 0,
     counterNote: goal.counterNote || '',
-    counteredAt: goal.counteredAt || null,
+    counteredAt: serializeDateValue(goal.counteredAt),
     counteredBy: goal.counteredBy || null,
     contributionHistory: Array.isArray(goal.contributionHistory)
       ? goal.contributionHistory.map((entry, index) => ({
         id: entry.id || `${fallbackId || goal.id || 'goal'}:contribution:${index}`,
         childId: entry.childId || null,
         amount: Math.max(0, Number(entry.amount) || 0),
-        createdAt: entry.createdAt || null,
+        createdAt: serializeDateValue(entry.createdAt),
       }))
       : [],
     negotiationHistory: Array.isArray(goal.negotiationHistory)
       ? goal.negotiationHistory
       : [],
-    readyToClaimAt: goal.readyToClaimAt || null,
-    completedAt: goal.completedAt || null,
-    approvedAt: goal.approvedAt || null,
+    readyToClaimAt: serializeDateValue(goal.readyToClaimAt),
+    completedAt: serializeDateValue(goal.completedAt),
+    approvedAt: serializeDateValue(goal.approvedAt),
     approvedBy: goal.approvedBy || null,
-    updatedAt: goal.updatedAt || null,
+    updatedAt: serializeDateValue(goal.updatedAt),
   }
 }
 

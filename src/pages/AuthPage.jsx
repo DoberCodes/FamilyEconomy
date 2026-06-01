@@ -11,6 +11,37 @@ function createFamilyId() {
   return `family-${Math.random().toString(36).slice(2, 10)}`
 }
 
+function containsBlockedClientSignal(value) {
+  return String(value || '').toLowerCase().includes('blocked')
+}
+
+function getReadableErrorMessage(error, fallbackMessage) {
+  if (typeof error === 'string' && error.trim()) {
+    return error.trim()
+  }
+
+  if (typeof error?.message === 'string' && error.message.trim()) {
+    return error.message.trim()
+  }
+
+  if (typeof error?.cause?.message === 'string' && error.cause.message.trim()) {
+    return error.cause.message.trim()
+  }
+
+  if (error && typeof error === 'object') {
+    try {
+      const serialized = JSON.stringify(error)
+      if (serialized && serialized !== '{}') {
+        return serialized
+      }
+    } catch {
+      return fallbackMessage
+    }
+  }
+
+  return fallbackMessage
+}
+
 export default function AuthPage() {
   const {
     isAuthenticated,
@@ -33,6 +64,10 @@ export default function AuthPage() {
   const [newFamilyId, setNewFamilyId] = useState(() => createFamilyId())
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const authStatusText = getReadableErrorMessage(authStatusError, '')
+  const localErrorText = getReadableErrorMessage(error, '')
+  const blockedByClient =
+    containsBlockedClientSignal(authStatusText) || containsBlockedClientSignal(localErrorText)
 
   if (!hasFirebaseConfig) {
     return (
@@ -69,7 +104,7 @@ export default function AuthPage() {
         role: 'parent',
       })
     } catch (caughtError) {
-      setError(caughtError.message || 'Could not save profile.')
+      setError(getReadableErrorMessage(caughtError, 'Could not save profile.'))
     } finally {
       setSaving(false)
     }
@@ -104,7 +139,7 @@ export default function AuthPage() {
             >
               Generate new family ID
             </button>
-            {error ? <p className="status-note status-error">{error}</p> : null}
+            {localErrorText ? <p className="status-note status-error">{localErrorText}</p> : null}
             <button className="claim-button" type="submit" disabled={saving}>
               {saving ? 'Saving...' : 'Save profile'}
             </button>
@@ -131,7 +166,7 @@ export default function AuthPage() {
         await login(email, password)
       }
     } catch (caughtError) {
-      setError(caughtError.message || 'Authentication failed.')
+      setError(getReadableErrorMessage(caughtError, 'Authentication failed.'))
     } finally {
       setSaving(false)
     }
@@ -142,11 +177,19 @@ export default function AuthPage() {
       <section className="panel auth-card">
         <p className="panel-label">Family Economy</p>
         <p className="panel-muted">Parent account required. App defaults to kid-safe view after sign in.</p>
+        {blockedByClient ? (
+          <p className="status-note status-error">
+            Browser privacy/ad-block settings are blocking Firebase requests. Allow
+            firestore.googleapis.com and identitytoolkit.googleapis.com for this site.
+          </p>
+        ) : null}
         <h1 className="auth-title">
           {mode === 'register' ? 'Create parent account' : 'Parent sign in'}
         </h1>
 
-        {authStatusError ? <p className="status-note status-error">{authStatusError}</p> : null}
+        {authStatusText ? (
+          <p className="status-note status-error">{authStatusText}</p>
+        ) : null}
 
         <form className="auth-form" onSubmit={handleSubmit}>
           {mode === 'register' ? (
@@ -186,7 +229,7 @@ export default function AuthPage() {
             </button>
           </div>
 
-          {error ? <p className="status-note status-error">{error}</p> : null}
+          {localErrorText ? <p className="status-note status-error">{localErrorText}</p> : null}
 
           <button className="claim-button" type="submit" disabled={saving}>
             {saving

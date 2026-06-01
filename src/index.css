@@ -1155,6 +1155,56 @@ body.parent-session-active {
   margin: 0 auto;
 }
 
+.loading-shell {
+  text-align: center;
+  gap: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 13rem;
+}
+
+.loading-shell-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.loading-dots {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.loading-dots span {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.35;
+  animation: loadingDotPulse 0.9s ease-in-out infinite;
+}
+
+.loading-dots span:nth-child(2) {
+  animation-delay: 0.12s;
+}
+
+.loading-dots span:nth-child(3) {
+  animation-delay: 0.24s;
+}
+
+@keyframes loadingDotPulse {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translateY(-0.35rem);
+    opacity: 1;
+  }
+}
+
 .auth-title {
   margin: 0.45rem 0 0.65rem;
   font-size: 1.55rem;
@@ -2683,7 +2733,9 @@ body.parent-session-active {
 
 .kid-savings-overview-panel .xp-track-light {
   background: #dce8fa;
-   margin-top: 0.45rem;
+  margin-top: 0.45rem;
+}
+
 .kid-savings-overview-panel .xp-track-light span {
   background: linear-gradient(90deg, #72c0ff, #4f7dff);
 }
@@ -2840,10 +2892,12 @@ body.parent-session-active {
 
 .panel-title-row {
   display: flex;
-   align-items: center;
-   justify-content: space-between;
-   gap: 0.75rem;
-   margin-bottom: 0.55rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.55rem;
+}
+
 .panel-title-row .panel-label {
   margin: 0;
 }

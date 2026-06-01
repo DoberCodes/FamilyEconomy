@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -12,6 +13,16 @@ import {
 import { doc, getDocFromServer, setDoc, serverTimestamp } from 'firebase/firestore'
 
 import { auth, db, hasFirebaseConfig } from '../lib/firebase'
+import {
+  resetAuthState,
+  setActiveChildProfile,
+  setAuthLoading,
+  setAuthProfile,
+  setAuthStatusError,
+  setParentControlsUnlocked,
+  updateProfileFields,
+} from '../store/authSlice'
+import { serializeAuthProfile } from '../utils/serializeUtils'
 
 const AuthContext = createContext(null)
 
@@ -31,11 +42,60 @@ function normalizeFamilyId(value) {
     .replace(/\s+/g, '-')
 }
 
+function isBlockedByClient(error) {
+  const text = [
+    error?.message,
+    error?.code,
+    error?.name,
+    error?.cause?.message,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+
+  return text.includes('err_blocked_by_client') || text.includes('blocked by client')
+}
+
+function getReadableErrorMessage(error, fallback = 'Authentication failed.') {
+  if (typeof error === 'string' && error.trim()) {
+    return error.trim()
+  }
+
+  if (typeof error?.message === 'string' && error.message.trim()) {
+    return error.message.trim()
+  }
+
+  if (typeof error?.cause?.message === 'string' && error.cause.message.trim()) {
+    return error.cause.message.trim()
+  }
+
+  if (error && typeof error === 'object') {
+    try {
+      const serialized = JSON.stringify(error)
+      if (serialized && serialized !== '{}') {
+        return serialized
+      }
+    } catch {
+      return fallback
+    }
+  }
+
+  return fallback
+}
+
 function mapAuthError(error) {
   const code = error?.code || ''
 
   if (code === 'auth/invalid-credential' || code === 'auth/wrong-password') {
     return 'Invalid email or password.'
+  }
+
+  if (code === 'auth/invalid-api-key' || error?.message?.includes('invalid-api-key')) {
+    return 'Firebase API key is invalid. Check VITE_FIREBASE_API_KEY and your Firebase project configuration.'
+  }
+
+  if (code === 'auth/app-not-authorized') {
+    return 'This app is not authorized for Firebase Auth. Add this domain to Firebase Auth Authorized Domains.'
   }
 
   if (code === 'auth/requires-recent-login') {
@@ -66,103 +126,130 @@ function mapAuthError(error) {
     return 'This domain is not authorized for Firebase Auth. Add localhost to Authorized Domains in Firebase Auth settings.'
   }
 
-  if (code === 'auth/network-request-failed') {
+  if (code === 'auth/network-request-failed' || isBlockedByClient(error)) {
     return 'Network request failed. If you use an ad blocker/privacy extension, allow identitytoolkit.googleapis.com and firestore.googleapis.com.'
   }
 
-  if (code === 'auth/api-key-not-valid.-please-pass-a-valid-api-key.') {
+  if (code === 'auth/api-key-not-valid.-please-pass-a-valid-api-key.' || error?.message?.includes('api key is invalid')) {
     return 'Firebase API key is invalid. Check VITE_FIREBASE_API_KEY in .env.'
   }
 
-  return error?.message || 'Authentication failed.'
+  const fallbackMessage = getReadableErrorMessage(error, 'Authentication failed.')
+  const withCode = code ? `${fallbackMessage} (${code})` : fallbackMessage
+  return withCode
 }
 
 export function AuthProvider({ children }) {
-  const [authUser, setAuthUser] = useState(null)
-  const [profile, setProfile] = useState(null)
-  const [loading, setLoading] = useState(hasFirebaseConfig)
-  const [parentControlsUnlocked, setParentControlsUnlocked] = useState(false)
-  const [activeChildProfile, setActiveChildProfileState] = useState(null)
-  const [authStatusError, setAuthStatusError] = useState('')
+  const [authUser, setAuthUserState] = useState(null)
+  const { loading, isAuthenticated, userId, userEmail, displayName, familyId, userRole, parentControlsUnlocked, activeChildProfile, authStatusError } = useSelector((state) => state.auth)
+  const dispatch = useDispatch()
+  const AUTH_INIT_TIMEOUT_MS = 7000
+  const PROFILE_LOAD_TIMEOUT_MS = 7000
 
-  const parentPinStorageKey = profile?.familyId
-    ? `family-economy-parent-pin:${profile.familyId}`
+  const parentPinStorageKey = familyId
+    ? `family-economy-parent-pin:${familyId}`
     : 'family-economy-parent-pin:default'
-  const activeChildStorageKey = profile?.familyId
-    ? `family-economy-active-child:${profile.familyId}`
+  const activeChildStorageKey = familyId
+    ? `family-economy-active-child:${familyId}`
     : null
 
   useEffect(() => {
     if (!auth || !db || !hasFirebaseConfig) {
+      dispatch(setAuthLoading(false))
       return undefined
     }
 
+    const authInitTimer = window.setTimeout(() => {
+      dispatch(setAuthLoading(false))
+    }, AUTH_INIT_TIMEOUT_MS)
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setAuthUser(user)
-      setAuthStatusError('')
+      setAuthUserState(user)
+      dispatch(setAuthStatusError(''))
 
       if (!user) {
-        setProfile(null)
-        setParentControlsUnlocked(false)
-        setActiveChildProfileState(null)
-        setLoading(false)
+        clearTimeout(authInitTimer)
+        dispatch(resetAuthState())
         return
       }
 
+      const basicAuthProfile = serializeAuthProfile(user, user.uid)
+      dispatch(setAuthProfile(basicAuthProfile))
+
+      let profileTimeoutId
       try {
         const profileRef = doc(db, 'users', user.uid)
-        const profileSnap = await getDocFromServer(profileRef)
+        const profileSnap = await Promise.race([
+          getDocFromServer(profileRef),
+          new Promise((_, reject) => {
+            profileTimeoutId = window.setTimeout(() => {
+              reject(new Error('Profile load timeout while reading users/{uid}.'))
+            }, PROFILE_LOAD_TIMEOUT_MS)
+          }),
+        ])
 
         if (!profileSnap.exists()) {
-          setProfile(null)
-          setParentControlsUnlocked(false)
-          setActiveChildProfileState(null)
-          setLoading(false)
+          dispatch(setParentControlsUnlocked(false))
+          dispatch(setActiveChildProfile(null))
           return
         }
 
         const profileData = profileSnap.data()
+        const safeProfile = serializeAuthProfile(profileData, profileSnap.id)
         const childKey = `family-economy-active-child:${profileData.familyId}`
 
-        setProfile(profileData)
+        dispatch(setAuthProfile(safeProfile))
 
         try {
           const stored = localStorage.getItem(childKey)
           if (!stored) {
-            setActiveChildProfileState(null)
+            dispatch(setActiveChildProfile(null))
           } else {
             const parsed = JSON.parse(stored)
-            setActiveChildProfileState(parsed?.id ? parsed : null)
+            dispatch(setActiveChildProfile(parsed?.id ? parsed : null))
           }
         } catch {
-          setActiveChildProfileState(null)
+          dispatch(setActiveChildProfile(null))
         }
 
-        setParentControlsUnlocked(false)
-        setLoading(false)
+        dispatch(setParentControlsUnlocked(false))
       } catch (error) {
-        setProfile(null)
-        setParentControlsUnlocked(false)
-        setActiveChildProfileState(null)
-        setLoading(false)
-        setAuthStatusError(
-          'Could not load parent profile from Firestore. If you use an ad blocker/privacy extension, allow firestore.googleapis.com.',
-        )
+        const blockedByClient = isBlockedByClient(error)
+        dispatch(setParentControlsUnlocked(false))
+        dispatch(setActiveChildProfile(null))
+        dispatch(setAuthStatusError(
+          blockedByClient
+            ? 'Your browser is blocking Firebase requests. Allow firestore.googleapis.com and identitytoolkit.googleapis.com in your ad blocker/privacy extension.'
+            : 'Could not load parent profile from Firestore. If you use an ad blocker/privacy extension, allow firestore.googleapis.com.',
+        ))
         console.error('Failed to load auth profile from Firestore:', error)
+      } finally {
+        if (profileTimeoutId) {
+          clearTimeout(profileTimeoutId)
+        }
+        clearTimeout(authInitTimer)
+        dispatch(setAuthLoading(false))
       }
     })
 
-    return unsubscribe
-  }, [])
+    return () => {
+      clearTimeout(authInitTimer)
+      unsubscribe()
+    }
+  }, [dispatch, AUTH_INIT_TIMEOUT_MS, PROFILE_LOAD_TIMEOUT_MS])
 
   async function login(email, password) {
     if (!auth) {
       throw new Error('Firebase Auth is not configured.')
     }
 
+    dispatch(setAuthStatusError(''))
+
     try {
       await signInWithEmailAndPassword(auth, email, password)
     } catch (error) {
+      dispatch(setAuthStatusError(mapAuthError(error)))
+      console.error('Login failed:', error)
       throw new Error(mapAuthError(error), { cause: error })
     }
   }
@@ -172,6 +259,8 @@ export function AuthProvider({ children }) {
       throw new Error('Firebase Auth is not configured.')
     }
 
+    dispatch(setAuthStatusError(''))
+
     const resolvedFamilyId = normalizeFamilyId(familyId)
 
     let userCredential
@@ -179,6 +268,8 @@ export function AuthProvider({ children }) {
     try {
       userCredential = await createUserWithEmailAndPassword(auth, email, password)
     } catch (error) {
+      dispatch(setAuthStatusError(mapAuthError(error)))
+      console.error('Registration failed:', error)
       throw new Error(mapAuthError(error), { cause: error })
     }
 
@@ -194,19 +285,35 @@ export function AuthProvider({ children }) {
     try {
       await setDoc(doc(db, 'users', userCredential.user.uid), userProfile)
     } catch (error) {
+      dispatch(setAuthStatusError(getReadableErrorMessage(error, 'Could not create parent profile document.')))
+      if (isBlockedByClient(error)) {
+        throw new Error(
+          'Your browser is blocking Firebase requests. Allow firestore.googleapis.com and identitytoolkit.googleapis.com in your ad blocker/privacy extension.',
+          { cause: error },
+        )
+      }
+
       throw new Error(
         error?.message || 'Could not create parent profile document.',
         { cause: error },
       )
     }
 
-    setProfile({ ...userProfile, createdAt: new Date(), updatedAt: new Date() })
+    dispatch(setAuthProfile({
+      id: userCredential.user.uid,
+      email,
+      displayName,
+      familyId: resolvedFamilyId,
+      role,
+    }))
   }
 
   async function completeProfile({ displayName, familyId, role }) {
     if (!authUser || !db) {
       throw new Error('You must be signed in to complete profile.')
     }
+
+    dispatch(setAuthStatusError(''))
 
     const resolvedFamilyId = normalizeFamilyId(familyId)
 
@@ -221,15 +328,17 @@ export function AuthProvider({ children }) {
     try {
       await setDoc(doc(db, 'users', authUser.uid), patch, { merge: true })
     } catch (error) {
+      dispatch(setAuthStatusError(getReadableErrorMessage(error, 'Could not save parent profile.')))
       throw new Error(error?.message || 'Could not save parent profile.', {
         cause: error,
       })
     }
 
-    setProfile((current) => ({
-      ...(current || {}),
-      ...patch,
-      updatedAt: new Date(),
+    dispatch(updateProfileFields({
+      displayName,
+      familyId: resolvedFamilyId,
+      role,
+      email: authUser.email,
     }))
   }
 
@@ -239,8 +348,8 @@ export function AuthProvider({ children }) {
     }
 
     await signOut(auth)
-    setParentControlsUnlocked(false)
-    setActiveChildProfileState(null)
+    dispatch(setParentControlsUnlocked(false))
+    dispatch(setActiveChildProfile(null))
   }
 
   async function unlockParentWithPassword(password) {
@@ -250,7 +359,7 @@ export function AuthProvider({ children }) {
 
     try {
       await signInWithEmailAndPassword(auth, authUser.email, password)
-      setParentControlsUnlocked(true)
+      dispatch(setParentControlsUnlocked(true))
     } catch (error) {
       throw new Error(mapAuthError(error), { cause: error })
     }
@@ -306,8 +415,7 @@ export function AuthProvider({ children }) {
       }
 
       await setDoc(doc(db, 'users', authUser.uid), patch, { merge: true })
-      setProfile((current) => ({
-        ...(current || {}),
+      dispatch(updateProfileFields({
         ...patch,
         updatedAt: new Date(),
       }))
@@ -316,15 +424,15 @@ export function AuthProvider({ children }) {
     }
   }
 
-  const setActiveChildProfile = useCallback((childProfile) => {
+  const setActiveChildProfileLocal = useCallback((childProfile) => {
     if (!activeChildStorageKey) {
-      setActiveChildProfileState(null)
+      dispatch(setActiveChildProfile(null))
       return
     }
 
     if (!childProfile?.id) {
       localStorage.removeItem(activeChildStorageKey)
-      setActiveChildProfileState(null)
+      dispatch(setActiveChildProfile(null))
       return
     }
 
@@ -335,8 +443,8 @@ export function AuthProvider({ children }) {
     }
 
     localStorage.setItem(activeChildStorageKey, JSON.stringify(normalized))
-    setActiveChildProfileState(normalized)
-  }, [activeChildStorageKey])
+    dispatch(setActiveChildProfile(normalized))
+  }, [activeChildStorageKey, dispatch])
 
   function hasParentPin() {
     return Boolean(localStorage.getItem(parentPinStorageKey))
@@ -350,7 +458,7 @@ export function AuthProvider({ children }) {
     }
 
     localStorage.setItem(parentPinStorageKey, value)
-    setParentControlsUnlocked(true)
+    dispatch(setParentControlsUnlocked(true))
   }
 
   function unlockParentControls(pin) {
@@ -364,22 +472,22 @@ export function AuthProvider({ children }) {
       throw new Error('Incorrect Parent PIN.')
     }
 
-    setParentControlsUnlocked(true)
+    dispatch(setParentControlsUnlocked(true))
   }
 
   function lockParentControls() {
-    setParentControlsUnlocked(false)
+    dispatch(setParentControlsUnlocked(false))
   }
 
   const value = {
     loading,
-    isAuthenticated: Boolean(authUser),
+    isAuthenticated,
     hasFirebaseConfig,
-    userId: authUser?.uid || null,
-    userEmail: authUser?.email || null,
-    displayName: profile?.displayName || null,
-    familyId: profile?.familyId || null,
-    userRole: profile?.role || null,
+    userId,
+    userEmail,
+    displayName,
+    familyId,
+    userRole,
     parentControlsUnlocked,
     activeChildProfile,
     authStatusError,
@@ -393,7 +501,7 @@ export function AuthProvider({ children }) {
     updateParentPassword,
     updateParentEmail,
     lockParentControls,
-    setActiveChildProfile,
+    setActiveChildProfile: setActiveChildProfileLocal,
     logout,
   }
 

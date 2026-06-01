@@ -14,9 +14,11 @@
     "test": "npm run test:logic && npm run test:rules"
   },
   "dependencies": {
+    "@reduxjs/toolkit": "^2.12.0",
     "firebase": "^12.13.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "react-redux": "^9.3.0",
     "react-router-dom": "^7.15.1"
   },
   "devDependencies": {

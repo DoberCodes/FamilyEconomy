@@ -3,9 +3,12 @@ import { useNavigate, useParams } from 'react-router-dom'
 
 import FormattedRichText from '../../components/shared/FormattedRichText'
 import BalanceCard from '../../components/mobile/cards/BalanceCard'
-import LevelCard from '../../components/mobile/cards/LevelCard'
 import StreakCard from '../../components/mobile/cards/StreakCard'
+import KidPinCodeField from '../../components/mobile/kidProfile/KidPinCodeField'
+import KidProfileHeader from '../../components/mobile/kidProfile/KidProfileHeader'
+import { EMPTY_KID_DASHBOARD } from '../../components/mobile/kidProfile/kidProfileConstants'
 import TopStatusBar from '../../components/mobile/TopStatusBar'
+import ProgressTrack from '../../components/shared/ProgressTrack'
 import { useAuth } from '../../context/AuthContext'
 import {
   getGoalStatusLabel as displayGoalStatus,
@@ -15,50 +18,34 @@ import {
 } from '../../domain/familyEconomyTypes'
 import { trackAnalyticsEvent } from '../../services/analytics'
 import {
-  acceptSavingsGoalCounter,
-  cancelSavingsGoal,
-  claimJob,
-  createGoal,
-  declineSavingsGoalCounter,
-  contributeToSavingsGoal,
   getFamilyConsequenceEvents,
   getFamilyDashboard,
   getFamilyJobCheckRequests,
   getFamilyStoreData,
   getHouseholdOnboardingData,
-  createCustomRewardRequest,
-  acceptRewardRequestTerms,
-  claimApprovedRewardProposal,
-  declineRewardRequestTerms,
-  requestJobCheck,
-  requestReward,
   setChildSessionCode,
 } from '../../services/familyEconomyService'
 import { computeClaimCountdownData } from '../../services/policyUtils.js'
+import {
+  useAcceptRewardRequestTermsMutation,
+  useAcceptSavingsGoalCounterMutation,
+  useCancelSavingsGoalMutation,
+  useClaimApprovedRewardProposalMutation,
+  useClaimJobMutation,
+  useContributeToSavingsGoalMutation,
+  useCreateCustomRewardRequestMutation,
+  useCreateGoalMutation,
+  useDeclineRewardRequestTermsMutation,
+  useDeclineSavingsGoalCounterMutation,
+  useRequestJobCheckMutation,
+  useRequestRewardMutation,
+} from '../../store/familyEconomyApi'
 import {
   formatShortDate as formatDate,
   getWindowLabel,
   getWindowStart,
   toDate,
 } from '../../utils/dateUtils'
-
-const tabs = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'rules', label: 'Family News' },
-  { key: 'jobs', label: 'Jobs' },
-  { key: 'statement', label: 'Credits' },
-  { key: 'savings', label: 'Savings' },
-  { key: 'rewards', label: 'Rewards' },
-]
-
-const emptyDashboard = {
-  profileName: '',
-  level: { current: 1, xp: 0, nextXp: 500 },
-  balance: { credits: 0 },
-  jobs: [],
-  goals: [],
-  streakDays: 0,
-}
 
 export default function KidProfilePage() {
   const { childId } = useParams()
@@ -70,9 +57,21 @@ export default function KidProfilePage() {
     activeChildProfile,
     setActiveChildProfile,
   } = useAuth()
+  const [acceptRewardRequestTermsMutation] = useAcceptRewardRequestTermsMutation()
+  const [acceptSavingsGoalCounterMutation] = useAcceptSavingsGoalCounterMutation()
+  const [cancelSavingsGoalMutation] = useCancelSavingsGoalMutation()
+  const [claimApprovedRewardProposalMutation] = useClaimApprovedRewardProposalMutation()
+  const [claimJobMutation] = useClaimJobMutation()
+  const [contributeToSavingsGoalMutation] = useContributeToSavingsGoalMutation()
+  const [createCustomRewardRequestMutation] = useCreateCustomRewardRequestMutation()
+  const [createGoalMutation] = useCreateGoalMutation()
+  const [declineRewardRequestTermsMutation] = useDeclineRewardRequestTermsMutation()
+  const [declineSavingsGoalCounterMutation] = useDeclineSavingsGoalCounterMutation()
+  const [requestJobCheckMutation] = useRequestJobCheckMutation()
+  const [requestRewardMutation] = useRequestRewardMutation()
 
   const [childProfiles, setChildProfiles] = useState([])
-  const [dashboard, setDashboard] = useState(emptyDashboard)
+  const [dashboard, setDashboard] = useState(EMPTY_KID_DASHBOARD)
   const [storeData, setStoreData] = useState({ rewards: [], requests: [] })
   const [jobCheckRequests, setJobCheckRequests] = useState([])
   const [consequenceEvents, setConsequenceEvents] = useState([])
@@ -410,7 +409,7 @@ export default function KidProfilePage() {
       } catch (caughtError) {
         if (!cancelled) {
           setError(caughtError.message || 'Could not load child profile.')
-          setDashboard(emptyDashboard)
+          setDashboard(EMPTY_KID_DASHBOARD)
           setStoreData({ rewards: [], requests: [] })
           setConsequenceEvents([])
         }
@@ -621,7 +620,10 @@ export default function KidProfilePage() {
     setError('')
 
     try {
-      await requestJobCheck(job, getChildSessionContext())
+      await requestJobCheckMutation({
+        job,
+        context: getChildSessionContext(),
+      }).unwrap()
       await refreshChildData(resolvedChild.id)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not request a job check.')
@@ -639,7 +641,10 @@ export default function KidProfilePage() {
     setError('')
 
     try {
-      await claimJob(job.id, getChildSessionContext())
+      await claimJobMutation({
+        jobId: job.id,
+        context: getChildSessionContext(),
+      }).unwrap()
       await refreshChildData(resolvedChild.id)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not start this job.')
@@ -657,7 +662,10 @@ export default function KidProfilePage() {
     setError('')
 
     try {
-      await requestReward(reward, getChildSessionContext())
+      await requestRewardMutation({
+        reward,
+        context: getChildSessionContext(),
+      }).unwrap()
       await refreshChildData(resolvedChild.id)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not request reward.')
@@ -676,14 +684,14 @@ export default function KidProfilePage() {
     setError('')
 
     try {
-      await createCustomRewardRequest(
-        {
+      await createCustomRewardRequestMutation({
+        requestPayload: {
           rewardTitle: customRewardTitle,
           cost: Number(customRewardCost) || 0,
           childNote: customRewardNote,
         },
-        getChildSessionContext(),
-      )
+        context: getChildSessionContext(),
+      }).unwrap()
       setCustomRewardTitle('')
       setCustomRewardCost('100')
       setCustomRewardNote('')
@@ -704,7 +712,10 @@ export default function KidProfilePage() {
     setError('')
 
     try {
-      await acceptRewardRequestTerms(request.id, getChildSessionContext())
+      await acceptRewardRequestTermsMutation({
+        requestId: request.id,
+        context: getChildSessionContext(),
+      }).unwrap()
       await refreshChildData(resolvedChild.id)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not accept these reward terms.')
@@ -722,7 +733,10 @@ export default function KidProfilePage() {
     setError('')
 
     try {
-      await declineRewardRequestTerms(request.id, getChildSessionContext())
+      await declineRewardRequestTermsMutation({
+        requestId: request.id,
+        context: getChildSessionContext(),
+      }).unwrap()
       await refreshChildData(resolvedChild.id)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not decline these reward terms.')
@@ -740,7 +754,10 @@ export default function KidProfilePage() {
     setError('')
 
     try {
-      await claimApprovedRewardProposal(request.id, getChildSessionContext())
+      await claimApprovedRewardProposalMutation({
+        requestId: request.id,
+        context: getChildSessionContext(),
+      }).unwrap()
       await refreshChildData(resolvedChild.id)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not claim this approved reward yet.')
@@ -758,8 +775,8 @@ export default function KidProfilePage() {
     setSavingForRewardId(reward.id)
 
     try {
-      await createGoal(
-        {
+      await createGoalMutation({
+        goalPayload: {
           name: reward.title,
           rewardId: reward.id,
           rewardTitle: reward.title,
@@ -767,8 +784,8 @@ export default function KidProfilePage() {
           childId: resolvedChild.id,
           saved: 0,
         },
-        getChildSessionContext(),
-      )
+        context: getChildSessionContext(),
+      }).unwrap()
       await refreshChildData(resolvedChild.id)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not request savings goal.')
@@ -787,7 +804,10 @@ export default function KidProfilePage() {
     setError('')
 
     try {
-      await cancelSavingsGoal(goalId, getChildSessionContext())
+      await cancelSavingsGoalMutation({
+        goalId,
+        context: getChildSessionContext(),
+      }).unwrap()
       await refreshChildData(resolvedChild.id)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not cancel savings goal.')
@@ -808,18 +828,13 @@ export default function KidProfilePage() {
     const contribution = Number(contributionAmount) || 0
 
     try {
-      await contributeToSavingsGoal(activeChildGoal.id, contribution, getChildSessionContext())
+      await contributeToSavingsGoalMutation({
+        goalId: activeChildGoal.id,
+        amount: contribution,
+        context: getChildSessionContext(),
+      }).unwrap()
 
-      const dashboardResult = await getFamilyDashboard({
-        familyId,
-        userId,
-        userRole,
-        selectedChildId: resolvedChild?.id,
-      })
-
-      setDashboard(dashboardResult.data)
-      updateCreditsCelebration(resolvedChild?.id, dashboardResult.data.balance?.credits)
-      updateGoalMilestoneCelebration(resolvedChild?.id, dashboardResult.data.goals)
+      await refreshChildData(resolvedChild?.id)
       setContributionAmount('25')
     } catch (caughtError) {
       setError(caughtError.message || 'Could not move credits into savings.')
@@ -840,23 +855,13 @@ export default function KidProfilePage() {
     const contribution = Number(familyContributionAmount) || 0
 
     try {
-      await contributeToSavingsGoal(familySavingsGoal.id, contribution, {
-        familyId,
-        userId,
-        userRole,
-        selectedChildId: resolvedChild?.id,
-      })
+      await contributeToSavingsGoalMutation({
+        goalId: familySavingsGoal.id,
+        amount: contribution,
+        context: getChildSessionContext(),
+      }).unwrap()
 
-      const dashboardResult = await getFamilyDashboard({
-        familyId,
-        userId,
-        userRole,
-        selectedChildId: resolvedChild?.id,
-      })
-
-      setDashboard(dashboardResult.data)
-      updateCreditsCelebration(resolvedChild?.id, dashboardResult.data.balance?.credits)
-      updateGoalMilestoneCelebration(resolvedChild?.id, dashboardResult.data.goals)
+      await refreshChildData(resolvedChild?.id)
       setFamilyContributionAmount('25')
     } catch (caughtError) {
       setError(caughtError.message || 'Could not move credits into the family savings goal.')
@@ -874,7 +879,10 @@ export default function KidProfilePage() {
     setResolvingGoalCounter('accept')
 
     try {
-      await acceptSavingsGoalCounter(childGoal.id, getChildSessionContext())
+      await acceptSavingsGoalCounterMutation({
+        goalId: childGoal.id,
+        context: getChildSessionContext(),
+      }).unwrap()
       await refreshChildData(resolvedChild?.id)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not accept this counter offer.')
@@ -892,7 +900,10 @@ export default function KidProfilePage() {
     setResolvingGoalCounter('decline')
 
     try {
-      await declineSavingsGoalCounter(childGoal.id, getChildSessionContext())
+      await declineSavingsGoalCounterMutation({
+        goalId: childGoal.id,
+        context: getChildSessionContext(),
+      }).unwrap()
       await refreshChildData(resolvedChild?.id)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not decline this counter offer.')
@@ -1610,57 +1621,19 @@ export default function KidProfilePage() {
       <main className="phone-content kid-session-shell">
         {kidSessionReady ? (
           <>
-            <LevelCard
-              level={dashboard.level}
+            <KidProfileHeader
+              dashboard={dashboard}
               profileName={resolvedChild?.displayName || dashboard.profileName}
-              subtitle="Your kid session is active. This space is just for you."
-              creditsBalance={dashboard.balance.credits}
-            >
-              {achievementsEnabled || familyRecognitionEnabled ? (
-                <section className="hero-badge-strip" aria-label="Top badges and recognition">
-                  <div className="hero-badge-head">
-                    <p className="hero-badge-heading">Top badges</p>
-                    <span className="hero-badge-total">{allEarnedBadges.length} earned</span>
-                  </div>
-                  {topHeroBadges.length === 0 ? (
-                    <p className="hero-badge-empty">Complete goals and help your family to unlock badges.</p>
-                  ) : (
-                    <div className="hero-badge-row">
-                      {topHeroBadges.map((badge) => (
-                        <span key={`hero:${badge.id}`} className="hero-badge-chip">
-                          {badge.icon} {badge.label}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </section>
-              ) : null}
-            </LevelCard>
-
-            <section className="panel quick-nav-panel" aria-label="Quick navigation">
-              <p className="panel-label quick-nav-title">Quick Adventure Nav</p>
-              <p className="panel-muted quick-nav-subtitle">Jump to what you want to do next.</p>
-              <div className="quick-nav-row" role="tablist" aria-label="Child dashboard sections">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    className={activeTab === tab.key ? 'quick-nav-tab quick-nav-tab-active' : 'quick-nav-tab'}
-                    onClick={() => handleTabChange(tab.key)}
-                    role="tab"
-                    aria-selected={activeTab === tab.key}
-                  >
-                    {activeTab === tab.key ? <span className="quick-nav-active-icon" aria-hidden="true">✦</span> : null}
-                    {tab.label}
-                    {(tab.key === 'rules' && hasUnreadHouseRulesUpdate)
-                    || (tab.key === 'jobs' && hasUnreadJobsUpdate)
-                    || (tab.key === 'rewards' && hasUnreadRewardsUpdate) ? (
-                      <span className="quick-nav-badge">New</span>
-                    ) : null}
-                  </button>
-                ))}
-              </div>
-            </section>
+              achievementsEnabled={achievementsEnabled}
+              familyRecognitionEnabled={familyRecognitionEnabled}
+              topHeroBadges={topHeroBadges}
+              earnedBadgeCount={allEarnedBadges.length}
+              activeTab={activeTab}
+              onTabChange={handleTabChange}
+              hasUnreadHouseRulesUpdate={hasUnreadHouseRulesUpdate}
+              hasUnreadJobsUpdate={hasUnreadJobsUpdate}
+              hasUnreadRewardsUpdate={hasUnreadRewardsUpdate}
+            />
           </>
         ) : null}
 
@@ -1706,52 +1679,25 @@ export default function KidProfilePage() {
             {childHasSessionCode ? (
               <>
                 <form className="auth-form kid-lock-form" onSubmit={handleUnlockSession}>
-                  <div className="credential-input-wrap">
-                    <input
-                      className="job-input"
-                      type={showSessionCode ? 'text' : 'password'}
-                      inputMode="numeric"
-                      pattern="[0-9]{4}"
-                      placeholder="4-digit code"
-                      value={sessionCodeInput}
-                      onChange={(event) => setSessionCodeInput(event.target.value)}
-                      required
-                    />
-                    <button
-                      type="button"
-                      className="credential-icon-button"
-                      onClick={() => setShowSessionCode((current) => !current)}
-                      aria-label={showSessionCode ? 'Hide PIN code' : 'Show PIN code'}
-                    >
-                      <span className="credential-icon" aria-hidden="true">{showSessionCode ? '👁' : '🙈'}</span>
-                    </button>
-                  </div>
+                  <KidPinCodeField
+                    value={sessionCodeInput}
+                    onChange={setSessionCodeInput}
+                    showCode={showSessionCode}
+                    onToggleShow={() => setShowSessionCode((current) => !current)}
+                  />
                   <button type="submit" className="claim-button kid-lock-button">Unlock</button>
                 </form>
               </>
             ) : resolvedChild?.allowChildSetSessionCode ? (
               <>
                 <form className="auth-form kid-lock-form" onSubmit={handleCreateChildSessionCode}>
-                  <div className="credential-input-wrap">
-                    <input
-                      className="job-input"
-                      type={showSessionCode ? 'text' : 'password'}
-                      inputMode="numeric"
-                      pattern="[0-9]{4}"
-                      placeholder="Create 4-digit code"
-                      value={sessionCodeInput}
-                      onChange={(event) => setSessionCodeInput(event.target.value)}
-                      required
-                    />
-                    <button
-                      type="button"
-                      className="credential-icon-button"
-                      onClick={() => setShowSessionCode((current) => !current)}
-                      aria-label={showSessionCode ? 'Hide PIN code' : 'Show PIN code'}
-                    >
-                      <span className="credential-icon" aria-hidden="true">{showSessionCode ? '👁' : '🙈'}</span>
-                    </button>
-                  </div>
+                  <KidPinCodeField
+                    value={sessionCodeInput}
+                    onChange={setSessionCodeInput}
+                    showCode={showSessionCode}
+                    onToggleShow={() => setShowSessionCode((current) => !current)}
+                    placeholder="Create 4-digit code"
+                  />
                   <button type="submit" className="claim-button kid-lock-button">Save Code</button>
                 </form>
               </>
@@ -1775,26 +1721,13 @@ export default function KidProfilePage() {
               You can set a 4-digit PIN to protect your session next time.
             </p>
             <form className="auth-form kid-lock-form" onSubmit={handleCreateChildSessionCode}>
-              <div className="credential-input-wrap">
-                <input
-                  className="job-input"
-                  type={showSessionCode ? 'text' : 'password'}
-                  inputMode="numeric"
-                  pattern="[0-9]{4}"
-                  placeholder="Create 4-digit code"
-                  value={sessionCodeInput}
-                  onChange={(event) => setSessionCodeInput(event.target.value)}
-                  required
-                />
-                <button
-                  type="button"
-                  className="credential-icon-button"
-                  onClick={() => setShowSessionCode((current) => !current)}
-                  aria-label={showSessionCode ? 'Hide PIN code' : 'Show PIN code'}
-                >
-                  <span className="credential-icon" aria-hidden="true">{showSessionCode ? '👁' : '🙈'}</span>
-                </button>
-              </div>
+              <KidPinCodeField
+                value={sessionCodeInput}
+                onChange={setSessionCodeInput}
+                showCode={showSessionCode}
+                onToggleShow={() => setShowSessionCode((current) => !current)}
+                placeholder="Create 4-digit code"
+              />
               <button type="submit" className="claim-button kid-lock-button">
                 Save My PIN
               </button>
@@ -1842,9 +1775,7 @@ export default function KidProfilePage() {
                       {childGoalCompleted ? (
                         <p className="panel-muted">Huge win. You completed this quest and can start a new dream anytime.</p>
                       ) : null}
-                      <div className="xp-track xp-track-light">
-                        <span style={{ width: `${childGoalProgress}%` }}></span>
-                      </div>
+                      <ProgressTrack value={childGoalProgress} light label="Savings quest progress" />
                     </>
                   ) : null}
                 </>
@@ -2328,9 +2259,7 @@ export default function KidProfilePage() {
                   <p className="panel-muted">
                     {activeChildGoal.saved}/{activeChildGoal.target} credits ({childGoalProgress}%)
                   </p>
-                  <div className="xp-track xp-track-light">
-                    <span style={{ width: `${childGoalProgress}%` }}></span>
-                  </div>
+                  <ProgressTrack value={childGoalProgress} light label="Savings snapshot progress" />
                 </>
               ) : pendingChildGoalRequest ? (
                 <p className="panel-muted">
@@ -2570,9 +2499,7 @@ export default function KidProfilePage() {
                             ))}
                           </div>
                         ) : null}
-                        <div className="xp-track xp-track-light">
-                          <span style={{ width: `${pct}%` }}></span>
-                        </div>
+                        <ProgressTrack value={pct} light label={`${goal.name || 'Savings goal'} progress`} />
                         {goal.status !== 'completed' ? (
                           cancelGoalConfirmId === goal.id ? (
                             <div className="button-row" style={{ marginTop: '0.5rem' }}>
@@ -2641,9 +2568,7 @@ export default function KidProfilePage() {
                         {familySavingsGoal.saved}/{familySavingsGoal.target} credits ({familySavingsGoalProgress}%)
                       </p>
                     </div>
-                    <div className="xp-track xp-track-light">
-                      <span style={{ width: `${familySavingsGoalProgress}%` }}></span>
-                    </div>
+                    <ProgressTrack value={familySavingsGoalProgress} light label="Family savings goal progress" />
                     <div>
                       <p className="money-section-kicker" style={{ marginBottom: '0.35rem' }}>Contributors</p>
                       {familySavingsContributors.length > 0 ? (

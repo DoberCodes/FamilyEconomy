@@ -3,19 +3,20 @@ import FamilyActorNotice from '../../components/shared/FamilyActorNotice'
 import StatusNote from '../../components/shared/StatusNote'
 import useAsyncAction from '../../hooks/useAsyncAction'
 import useFamilyDashboard from '../../hooks/useFamilyDashboard'
-import { claimJob } from '../../services/familyEconomyService'
+import { useClaimJobMutation } from '../../store/familyEconomyApi'
 
 export default function JobsPage() {
   const {
     familyId,
     effectiveUserId,
     effectiveRole,
+    selectedChildId,
     jobs,
     loading,
     error,
-    refresh,
   } = useFamilyDashboard()
   const claimAction = useAsyncAction({ defaultErrorMessage: 'Could not claim job.' })
+  const [claimJobMutation] = useClaimJobMutation()
 
   async function handleClaimJob(job) {
     if (!job.id) {
@@ -24,12 +25,16 @@ export default function JobsPage() {
     }
 
     await claimAction.run(async () => {
-      await claimJob(job.id, {
-        familyId,
-        userId: effectiveUserId,
-        userRole: effectiveRole,
+      await claimJobMutation({
+        jobId: job.id,
+        context: {
+          familyId,
+          userId: effectiveUserId,
+          userRole: effectiveRole,
+          selectedChildId,
+        },
       })
-      await refresh({ silent: true })
+        .unwrap()
     }, {
       busyKey: job.id,
       errorMessage: 'Could not claim job.',

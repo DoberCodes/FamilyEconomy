@@ -1,5 +1,6 @@
 import EmptyState from '../../components/shared/EmptyState'
 import FamilyActorNotice from '../../components/shared/FamilyActorNotice'
+import ProgressTrack from '../../components/shared/ProgressTrack'
 import StatusNote from '../../components/shared/StatusNote'
 import StatusPill from '../../components/shared/StatusPill'
 import { getGoalStatusLabel as displayGoalStatus } from '../../domain/familyEconomyTypes'
@@ -49,9 +50,7 @@ export default function SavingsPage() {
                 <StatusPill>{spotlightGoal.saved}/{spotlightGoal.target} credits</StatusPill>
                 <StatusPill>{getRemainingGoalCredits(spotlightGoal)} to go</StatusPill>
               </div>
-              <div className="xp-track xp-track-light">
-                <span style={{ width: `${spotlightGoalPct}%` }}></span>
-              </div>
+              <ProgressTrack value={spotlightGoalPct} light label="Goal spotlight progress" />
             </div>
           ) : null}
           {goals.length === 0 ? (
@@ -66,9 +65,7 @@ export default function SavingsPage() {
                     <small>
                       {goal.saved}/{goal.target} • {displayGoalStatus(goal.status)}
                     </small>
-                    <div className="xp-track xp-track-light">
-                      <span style={{ width: `${pct}%` }}></span>
-                    </div>
+                    <ProgressTrack value={pct} light label={`${goal.name || 'Goal'} progress`} />
                   </li>
                 )
               })}

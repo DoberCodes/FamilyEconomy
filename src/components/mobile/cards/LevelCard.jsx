@@ -1,3 +1,5 @@
+import ProgressTrack from '../../shared/ProgressTrack'
+
 export default function LevelCard({ level, profileName, subtitle, creditsBalance, children }) {
   const safeNextXp = Number(level?.nextXp) || 500
   const safeXp = Number(level?.xp) || 0
@@ -25,9 +27,7 @@ export default function LevelCard({ level, profileName, subtitle, creditsBalance
 
       <div className="level-box">
         <p>Level {level.current}</p>
-        <div className="xp-track">
-          <span style={{ width: `${progress}%` }}></span>
-        </div>
+        <ProgressTrack value={progress} label="XP progress" />
         <small>
           {safeXp} / {safeNextXp} XP
         </small>

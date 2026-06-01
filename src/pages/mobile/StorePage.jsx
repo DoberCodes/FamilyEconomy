@@ -5,7 +5,7 @@ import StatusPill from '../../components/shared/StatusPill'
 import { getRewardRequestStatusLabel } from '../../domain/familyEconomyTypes'
 import useAsyncAction from '../../hooks/useAsyncAction'
 import useFamilyStoreData from '../../hooks/useFamilyStoreData'
-import { requestReward } from '../../services/familyEconomyService'
+import { useRequestRewardMutation } from '../../store/familyEconomyApi'
 
 export default function StorePage() {
   const {
@@ -17,19 +17,22 @@ export default function StorePage() {
     requests,
     loading,
     error,
-    refresh,
   } = useFamilyStoreData()
   const requestAction = useAsyncAction({ defaultErrorMessage: 'Could not submit reward request.' })
+  const [requestRewardMutation] = useRequestRewardMutation()
 
   async function handleRequestReward(reward) {
     await requestAction.run(async () => {
-      await requestReward(reward, {
-        familyId,
-        userId: effectiveUserId,
-        userRole: effectiveRole,
-        selectedChildId,
+      await requestRewardMutation({
+        reward,
+        context: {
+          familyId,
+          userId: effectiveUserId,
+          userRole: effectiveRole,
+          selectedChildId,
+        },
       })
-      await refresh({ silent: true })
+        .unwrap()
     }, {
       busyKey: reward.id,
       errorMessage: 'Could not submit reward request.',

@@ -3,6 +3,7 @@ import BalanceCard from '../../components/mobile/cards/BalanceCard'
 import LevelCard from '../../components/mobile/cards/LevelCard'
 import JobsCard from '../../components/mobile/cards/MissionsCard'
 import StreakCard from '../../components/mobile/cards/StreakCard'
+import ProgressTrack from '../../components/shared/ProgressTrack'
 import StatusNote from '../../components/shared/StatusNote'
 import {
   getActivityBadgeMeta,
@@ -918,9 +919,7 @@ export default function HomePage() {
                     </div>
                     <p className="family-goal-math">{familySavingsGoal.saved} / {familySavingsGoal.target} Credits</p>
                     <p className="family-goal-percent">{familySavingsGoalPct}%</p>
-                    <div className="xp-track xp-track-light">
-                      <span style={{ width: `${familySavingsGoalPct}%` }}></span>
-                    </div>
+                    <ProgressTrack value={familySavingsGoalPct} light label="Family goal progress" />
                     <div>
                       <p className="money-section-kicker" style={{ marginBottom: '0.35rem' }}>Contributors</p>
                       {familySavingsContributors.length > 0 ? (
@@ -983,9 +982,7 @@ export default function HomePage() {
                                 <span className="family-insight-note">
                                   {getGoalStatusLabel(childMomentum.goal.status)} • {childMomentum.goal.saved}/{childMomentum.goal.target} credits
                                 </span>
-                                <div className="xp-track xp-track-light">
-                                  <span style={{ width: `${childMomentum.pct}%` }}></span>
-                                </div>
+                                <ProgressTrack value={childMomentum.pct} light label={`${child.displayName} goal progress`} />
                               </>
                             )}
                           </article>
@@ -1110,9 +1107,7 @@ export default function HomePage() {
                     <span className="limit-chip">{kidGoalSpotlight.saved}/{kidGoalSpotlight.target} credits</span>
                     <span className="limit-chip">{Math.max(0, Number(kidGoalSpotlight.target) - Number(kidGoalSpotlight.saved || 0))} to go</span>
                   </div>
-                  <div className="xp-track xp-track-light">
-                    <span style={{ width: `${kidGoalProgressPct}%` }}></span>
-                  </div>
+                  <ProgressTrack value={kidGoalProgressPct} light label="Goal spotlight progress" />
                 </>
               )}
             </section>

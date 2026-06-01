@@ -37,3 +37,16 @@ When significant features, architecture, or domain concepts change:
 - Update the appropriate documentation files.
 - Do not allow documentation to drift from implementation.
 - Call out outdated documentation when discovered.
+
+## Refactoring And Scalability
+
+When implementing refactors or architecture changes, prefer the cleanest scalable design over preserving an awkward structure for compatibility.
+
+Family Economy currently has no production users, only test users and development data. It is acceptable to rewrite, restructure, rename, relink, or reset backend data shapes when that produces a clearer long-term architecture.
+
+When a change affects stored data, Firestore paths, document shapes, auth/session assumptions, or test fixtures:
+
+- Explain what changed.
+- Explain whether existing test data should be reset, migrated, or relinked.
+- Update docs and tests that describe the affected structure.
+- Keep product boundaries clear: fictional credits, parent authority, and parent-owned child sessions remain non-negotiable.

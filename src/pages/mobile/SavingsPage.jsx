@@ -1,107 +1,53 @@
-import { useEffect, useState } from 'react'
-
-import { useAuth } from '../../context/AuthContext'
+import EmptyState from '../../components/shared/EmptyState'
+import FamilyActorNotice from '../../components/shared/FamilyActorNotice'
+import StatusNote from '../../components/shared/StatusNote'
+import StatusPill from '../../components/shared/StatusPill'
 import { getGoalStatusLabel as displayGoalStatus } from '../../domain/familyEconomyTypes'
-import { getFamilyDashboard } from '../../services/familyEconomyService'
+import useFamilyDashboard from '../../hooks/useFamilyDashboard'
+import {
+  getRemainingGoalCredits,
+  getSavingsGoalSummary,
+  getGoalProgressPercent,
+} from '../../services/dashboardSelectors'
 
 export default function SavingsPage() {
   const {
-    familyId,
-    userId,
-    userRole,
-    activeChildProfile,
-  } = useAuth()
-  const [goals, setGoals] = useState([])
+    goals,
+    loading,
+    error,
+  } = useFamilyDashboard()
 
-  useEffect(() => {
-    let mounted = true
-
-    async function loadGoals() {
-      try {
-        const result = await getFamilyDashboard({
-          familyId,
-          userId,
-          userRole,
-          selectedChildId: activeChildProfile?.id,
-        })
-        if (mounted) {
-          setGoals(result.data.goals)
-        }
-      } catch {
-        if (mounted) {
-          setGoals([])
-        }
-      }
-    }
-
-    loadGoals()
-
-    return () => {
-      mounted = false
-    }
-  }, [familyId, userId, userRole, activeChildProfile?.id])
-
-  const goalCounts = goals.reduce((accumulator, goal) => {
-    const key = goal.status || 'active'
-    accumulator[key] = (accumulator[key] || 0) + 1
-    return accumulator
-  }, {})
-
-  const sortedGoals = goals
-    .slice()
-    .sort((left, right) => {
-      const rank = {
-        ready_to_claim: 0,
-        active: 1,
-        pending_parent_approval: 2,
-        countered: 3,
-        completed: 4,
-      }
-      const leftRank = rank[left.status] ?? 99
-      const rightRank = rank[right.status] ?? 99
-      if (leftRank !== rightRank) {
-        return leftRank - rightRank
-      }
-
-      const leftProgress = (Number(left.saved) || 0) / Math.max(1, Number(left.target) || 1)
-      const rightProgress = (Number(right.saved) || 0) / Math.max(1, Number(right.target) || 1)
-      return rightProgress - leftProgress
-    })
-
-  const spotlightGoal = sortedGoals[0] || null
-  const spotlightGoalPct = spotlightGoal
-    ? Math.min(100, Math.round(((Number(spotlightGoal.saved) || 0) / Math.max(1, Number(spotlightGoal.target) || 1)) * 100))
-    : 0
+  const {
+    goalCounts,
+    sortedGoals,
+    spotlightGoal,
+    spotlightGoalPct,
+  } = getSavingsGoalSummary(goals)
 
   return (
     <>
       <main className="phone-content">
-        {userRole === 'parent' && activeChildProfile ? (
-          <p className="status-note">
-            Kid-friendly view child: {activeChildProfile.avatar} {activeChildProfile.displayName}
-          </p>
-        ) : null}
+        <StatusNote>{loading ? 'Loading savings goals...' : ''}</StatusNote>
+        <StatusNote tone="error">{error}</StatusNote>
 
-        {userRole === 'parent' && !activeChildProfile ? (
-          <p className="status-note">Choose a child in Kids tab before adding savings goals.</p>
-        ) : null}
+        <FamilyActorNotice selectionMessage="Choose a child in Kids tab before adding savings goals." />
 
         <section className="panel">
           <p className="panel-label">Savings Goals</p>
           <div className="limit-chip-row">
-            <span className="limit-chip">Active: {goalCounts.active || 0}</span>
-            <span className="limit-chip">Ready: {goalCounts.ready_to_claim || 0}</span>
-            <span className="limit-chip">Pending: {goalCounts.pending_parent_approval || 0}</span>
-            <span className="limit-chip">Completed: {goalCounts.completed || 0}</span>
+            <StatusPill>Active: {goalCounts.active || 0}</StatusPill>
+            <StatusPill>Ready: {goalCounts.ready_to_claim || 0}</StatusPill>
+            <StatusPill>Pending: {goalCounts.pending_parent_approval || 0}</StatusPill>
+            <StatusPill>Completed: {goalCounts.completed || 0}</StatusPill>
           </div>
           {spotlightGoal ? (
             <div className="money-block" style={{ marginTop: '0.6rem' }}>
               <p className="panel-label money-section-title">Goal Spotlight</p>
               <p className="panel-muted">{spotlightGoal.rewardTitle || spotlightGoal.name}</p>
               <div className="limit-chip-row">
-                <span className="limit-chip">{displayGoalStatus(spotlightGoal.status)}</span>
-                <span className="limit-chip">{spotlightGoal.saved}/{spotlightGoal.target} credits</span>
-                <span className="limit-chip">{Math.max(0, Number(spotlightGoal.target) - Number(spotlightGoal.saved || 0))} to go</span>
+                <StatusPill>{displayGoalStatus(spotlightGoal.status)}</StatusPill>
+                <StatusPill>{spotlightGoal.saved}/{spotlightGoal.target} credits</StatusPill>
+                <StatusPill>{getRemainingGoalCredits(spotlightGoal)} to go</StatusPill>
               </div>
               <div className="xp-track xp-track-light">
                 <span style={{ width: `${spotlightGoalPct}%` }}></span>
@@ -109,11 +55,11 @@ export default function SavingsPage() {
             </div>
           ) : null}
           {goals.length === 0 ? (
-            <p className="panel-muted">No savings goals yet. Add some after onboarding.</p>
+            <EmptyState>No savings goals yet. Add some after onboarding.</EmptyState>
           ) : (
             <ul className="goal-list-simple">
               {sortedGoals.map((goal) => {
-                const pct = Math.round((goal.saved / goal.target) * 100)
+                const pct = getGoalProgressPercent(goal)
                 return (
                   <li key={goal.id || goal.name}>
                     <p>{goal.name}</p>

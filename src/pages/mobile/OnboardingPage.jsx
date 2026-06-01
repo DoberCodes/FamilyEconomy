@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 
 import MarkdownTextArea from '../../components/shared/MarkdownTextArea'
 import { useAuth } from '../../context/AuthContext'
+import useFamilyActor from '../../hooks/useFamilyActor'
 import {
   createChildProfile,
   createHousehold,
@@ -51,6 +52,7 @@ export default function OnboardingPage() {
   const navigate = useNavigate()
   const { familyId, userId, userRole, isAuthenticated, login, userEmail, logout } =
     useAuth()
+  const { effectiveUserId, effectiveRole } = useFamilyActor()
 
   const [loading, setLoading] = useState(true)
   const [savingHousehold, setSavingHousehold] = useState(false)
@@ -116,8 +118,8 @@ export default function OnboardingPage() {
       try {
         const result = await getHouseholdOnboardingData({
           familyId,
-          userId: userId || 'kid-device',
-          userRole: userRole || 'kid',
+          userId: effectiveUserId,
+          userRole: effectiveRole,
         })
 
         if (!active) {
@@ -183,7 +185,7 @@ export default function OnboardingPage() {
     return () => {
       active = false
     }
-  }, [familyId, userId, userRole])
+  }, [familyId, effectiveUserId, effectiveRole])
 
   async function loadOnboarding(options = {}) {
     const { preserveCurrentStep = false } = options
@@ -193,8 +195,8 @@ export default function OnboardingPage() {
     try {
       const result = await getHouseholdOnboardingData({
         familyId,
-        userId: userId || 'kid-device',
-        userRole: userRole || 'kid',
+        userId: effectiveUserId,
+        userRole: effectiveRole,
       })
 
       setFamilyExists(result.data.familyExists)

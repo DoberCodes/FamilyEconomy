@@ -2873,7 +2873,8 @@ body.parent-session-active {
    gap: 0.65rem;
 }
 
-.limit-chip {
+.limit-chip,
+.status-pill {
   display: inline-flex;
   align-items: center;
   min-height: 34px;

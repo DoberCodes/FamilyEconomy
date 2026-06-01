@@ -1,121 +1,48 @@
-import { useEffect, useState } from 'react'
-
-import { useAuth } from '../../context/AuthContext'
-import {
-  getFamilyStoreData,
-  requestReward,
-} from '../../services/familyEconomyService'
-
-const requestStatusText = {
-  pending: 'Pending',
-  approved: 'Approved',
-  fulfilled: 'Fulfilled',
-  countered: 'Countered',
-  denied: 'Denied',
-}
+import EmptyState from '../../components/shared/EmptyState'
+import FamilyActorNotice from '../../components/shared/FamilyActorNotice'
+import StatusNote from '../../components/shared/StatusNote'
+import StatusPill from '../../components/shared/StatusPill'
+import { getRewardRequestStatusLabel } from '../../domain/familyEconomyTypes'
+import useAsyncAction from '../../hooks/useAsyncAction'
+import useFamilyStoreData from '../../hooks/useFamilyStoreData'
+import { requestReward } from '../../services/familyEconomyService'
 
 export default function StorePage() {
   const {
     familyId,
-    userId,
-    userRole,
-    activeChildProfile,
-  } = useAuth()
-  const effectiveRole = userRole || 'kid'
-  const effectiveUserId = userId || 'kid-device'
-
-  const [rewards, setRewards] = useState([])
-  const [requests, setRequests] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [actioningId, setActioningId] = useState('')
-  const [error, setError] = useState('')
-
-  async function refreshStore() {
-    const result = await getFamilyStoreData({
-      familyId,
-      userId: effectiveUserId,
-      userRole: effectiveRole,
-      selectedChildId: activeChildProfile?.id,
-    })
-    setRewards(result.data.rewards)
-    setRequests(result.data.requests)
-  }
-
-  useEffect(() => {
-    let mounted = true
-
-    async function loadStore() {
-      setLoading(true)
-      setError('')
-
-      try {
-        const result = await getFamilyStoreData({
-          familyId,
-          userId: effectiveUserId,
-          userRole: effectiveRole,
-          selectedChildId: activeChildProfile?.id,
-        })
-
-        if (!mounted) {
-          return
-        }
-
-        setRewards(result.data.rewards)
-        setRequests(result.data.requests)
-      } catch (caughtError) {
-        if (!mounted) {
-          return
-        }
-        setError(caughtError.message || 'Could not load store right now.')
-      } finally {
-        if (mounted) {
-          setLoading(false)
-        }
-      }
-    }
-
-    loadStore()
-
-    return () => {
-      mounted = false
-    }
-  }, [familyId, effectiveRole, effectiveUserId, activeChildProfile?.id])
+    effectiveUserId,
+    effectiveRole,
+    selectedChildId,
+    rewards,
+    requests,
+    loading,
+    error,
+    refresh,
+  } = useFamilyStoreData()
+  const requestAction = useAsyncAction({ defaultErrorMessage: 'Could not submit reward request.' })
 
   async function handleRequestReward(reward) {
-    setError('')
-    setActioningId(reward.id)
-    try {
+    await requestAction.run(async () => {
       await requestReward(reward, {
         familyId,
         userId: effectiveUserId,
         userRole: effectiveRole,
-        selectedChildId: activeChildProfile?.id,
+        selectedChildId,
       })
-      await refreshStore()
-    } catch (caughtError) {
-      setError(caughtError.message || 'Could not submit reward request.')
-    } finally {
-      setActioningId('')
-    }
+      await refresh({ silent: true })
+    }, {
+      busyKey: reward.id,
+      errorMessage: 'Could not submit reward request.',
+    })
   }
 
   return (
     <>
       <main className="phone-content">
-        {loading ? <p className="status-note">Loading store...</p> : null}
-        {error ? <p className="status-note status-error">{error}</p> : null}
+        <StatusNote>{loading ? 'Loading store...' : ''}</StatusNote>
+        <StatusNote tone="error">{error || requestAction.error}</StatusNote>
 
-        {effectiveRole === 'parent' && activeChildProfile ? (
-          <p className="status-note">
-            Kid-friendly view child: {activeChildProfile.avatar} {activeChildProfile.displayName}
-          </p>
-        ) : null}
-
-        {effectiveRole === 'parent' && !activeChildProfile ? (
-          <p className="status-note">
-            Choose a child in Kids tab to view child-specific rewards.
-          </p>
-        ) : null}
+        <FamilyActorNotice selectionMessage="Choose a child in Kids tab to view child-specific rewards." />
 
         <section className="panel">
           <p className="panel-label">Rewards Store</p>
@@ -134,9 +61,9 @@ export default function StorePage() {
                     type="button"
                     className="claim-button"
                     onClick={() => handleRequestReward(reward)}
-                    disabled={actioningId === reward.id}
+                    disabled={requestAction.busyKey === reward.id}
                   >
-                    {actioningId === reward.id ? 'Sending...' : 'Request'}
+                    {requestAction.busyKey === reward.id ? 'Sending...' : 'Request'}
                   </button>
                 ) : (
                   <span className="job-status-label">Requests are managed in Parent tab</span>
@@ -150,7 +77,7 @@ export default function StorePage() {
           <section className="panel">
             <p className="panel-label">My Reward Requests</p>
             {requests.length === 0 ? (
-              <p className="panel-muted">No requests yet.</p>
+              <EmptyState>No requests yet.</EmptyState>
             ) : (
               <ul className="mission-list">
                 {requests
@@ -158,9 +85,9 @@ export default function StorePage() {
                   .map((request) => (
                     <li key={request.id}>
                       <span className="mission-main">{request.rewardTitle}</span>
-                      <span className="job-status-label">
-                        {requestStatusText[request.status] || request.status}
-                      </span>
+                      <StatusPill className="job-status-label">
+                        {getRewardRequestStatusLabel(request.status)}
+                      </StatusPill>
                     </li>
                   ))}
               </ul>

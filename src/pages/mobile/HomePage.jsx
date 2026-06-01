@@ -3,18 +3,14 @@ import BalanceCard from '../../components/mobile/cards/BalanceCard'
 import LevelCard from '../../components/mobile/cards/LevelCard'
 import JobsCard from '../../components/mobile/cards/MissionsCard'
 import StreakCard from '../../components/mobile/cards/StreakCard'
-import { useAuth } from '../../context/AuthContext'
+import StatusNote from '../../components/shared/StatusNote'
 import {
   getActivityBadgeMeta,
   getGoalStatusLabel,
   getJobStatusLabel,
 } from '../../domain/familyEconomyTypes'
+import useFamilyHomeData from '../../hooks/useFamilyHomeData'
 import { trackAnalyticsEvent } from '../../services/analytics'
-import {
-  getFamilyDashboard,
-  getHouseholdOnboardingData,
-  getFamilyStoreData,
-} from '../../services/familyEconomyService'
 import {
   formatRelativeActivityTime,
   isWithinDateRange,
@@ -23,95 +19,24 @@ import {
   toDate,
 } from '../../utils/dateUtils'
 
-const emptyDashboard = {
-  profileName: '',
-  level: { current: 1, xp: 0, nextXp: 500 },
-  balance: { credits: 0 },
-  jobs: [],
-  goals: [],
-  streakDays: 0,
-}
-
 export default function HomePage() {
-  const { familyId, userId, userRole, activeChildProfile } = useAuth()
-  const [dashboard, setDashboard] = useState(emptyDashboard)
-  const [store, setStore] = useState({ rewards: [], requests: [] })
-  const [childProfiles, setChildProfiles] = useState([])
-  const [familyDashboardTopCardsEnabled, setFamilyDashboardTopCardsEnabled] = useState(true)
-  const [achievementsEnabled, setAchievementsEnabled] = useState(true)
-  const [familyRecognitionEnabled, setFamilyRecognitionEnabled] = useState(true)
+  const {
+    familyId,
+    userId,
+    userRole,
+    activeChildProfile,
+    isParent,
+    dashboard,
+    store,
+    childProfiles,
+    familyDashboardTopCardsEnabled,
+    achievementsEnabled,
+    familyRecognitionEnabled,
+    loading,
+    error,
+  } = useFamilyHomeData()
   const [trendView, setTrendView] = useState('daily')
   const [nowMs, setNowMs] = useState(() => Date.now())
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  const isParent = userRole === 'parent'
-
-  useEffect(() => {
-    let mounted = true
-
-    async function loadDashboard() {
-      setLoading(true)
-      setError('')
-
-      try {
-        const [dashboardResult, storeResult, onboardingResult] = await Promise.all([
-          getFamilyDashboard({
-            familyId,
-            userId,
-            userRole,
-            selectedChildId: isParent ? null : activeChildProfile?.id,
-          }),
-          getFamilyStoreData({
-            familyId,
-            userId,
-            userRole,
-            selectedChildId: isParent ? null : activeChildProfile?.id,
-          }),
-          getHouseholdOnboardingData({
-            familyId,
-            userId,
-            userRole,
-          }),
-        ])
-
-        if (!mounted) {
-          return
-        }
-
-        setDashboard(dashboardResult.data)
-        setStore(storeResult.data)
-        setChildProfiles(onboardingResult.data.childProfiles || [])
-        setFamilyDashboardTopCardsEnabled(
-          onboardingResult.data.family?.familyDashboardTopCardsEnabled !== false,
-        )
-        setAchievementsEnabled(onboardingResult.data.family?.achievementsEnabled !== false)
-        setFamilyRecognitionEnabled(onboardingResult.data.family?.familyRecognitionEnabled !== false)
-      } catch {
-        if (!mounted) {
-          return
-        }
-
-        setDashboard(emptyDashboard)
-        setStore({ rewards: [], requests: [] })
-        setChildProfiles([])
-        setFamilyDashboardTopCardsEnabled(true)
-        setAchievementsEnabled(true)
-        setFamilyRecognitionEnabled(true)
-        setError('Could not load family data right now.')
-      } finally {
-        if (mounted) {
-          setLoading(false)
-        }
-      }
-    }
-
-    loadDashboard()
-
-    return () => {
-      mounted = false
-    }
-  }, [familyId, userId, userRole, activeChildProfile?.id, isParent])
 
   useEffect(() => {
     if (!isParent) {
@@ -836,8 +761,8 @@ export default function HomePage() {
   return (
     <>
       <main className="phone-content home-grid">
-        {loading ? <p className="status-note">Loading dashboard...</p> : null}
-        {error ? <p className="status-note status-error">{error}</p> : null}
+        <StatusNote>{loading ? 'Loading dashboard...' : ''}</StatusNote>
+        <StatusNote tone="error">{error}</StatusNote>
 
         {isParent ? (
           <>
@@ -1158,9 +1083,7 @@ export default function HomePage() {
             ) : null}
 
             {!loading && !error && dashboard.jobs.length === 0 ? (
-              <p className="status-note">
-                Finish onboarding to start seeing jobs and rewards here.
-              </p>
+              <StatusNote>Finish onboarding to start seeing jobs and rewards here.</StatusNote>
             ) : null}
             <section className="home-col">
               <LevelCard

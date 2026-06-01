@@ -1,79 +1,38 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import { useAuth } from '../../context/AuthContext'
-import {
-  getHouseholdOnboardingData,
-} from '../../services/familyEconomyService'
+import EmptyState from '../../components/shared/EmptyState'
+import StatusNote from '../../components/shared/StatusNote'
+import useChildProfiles from '../../hooks/useChildProfiles'
 
 export default function ChildProfilesPage() {
   const navigate = useNavigate()
   const {
-    familyId,
-    userId,
-    userRole,
+    children,
+    loading,
+    error,
     activeChildProfile,
     setActiveChildProfile,
-  } = useAuth()
-
-  const [children, setChildren] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  const isParent = userRole === 'parent'
-
-  const fetchChildren = useCallback(async () => {
-    const result = await getHouseholdOnboardingData({
-      familyId,
-      userId,
-      userRole,
-    })
-
-    return result.data.childProfiles || []
-  }, [familyId, userId, userRole])
+    isParent,
+  } = useChildProfiles({ defaultErrorMessage: 'Could not load child profiles.' })
+  const activeChildId = activeChildProfile?.id || ''
+  const hasActiveChild = Boolean(activeChildProfile)
 
   useEffect(() => {
-    let cancelled = false
-
-    async function bootstrapChildren() {
-      try {
-        const childProfiles = await fetchChildren()
-
-        if (cancelled) {
-          return
-        }
-
-        setChildren(childProfiles)
-
-        if (childProfiles.length === 0) {
-          setActiveChildProfile(null)
-          return
-        }
-
-        const hasCurrent = childProfiles.some((child) => child.id === activeChildProfile?.id)
-        if (!hasCurrent) {
-          setActiveChildProfile(null)
-        }
-      } catch (caughtError) {
-        if (cancelled) {
-          return
-        }
-
-        setError(caughtError.message || 'Could not load child profiles.')
-        setChildren([])
-      } finally {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      }
+    if (loading) {
+      return
     }
 
-    bootstrapChildren()
-
-    return () => {
-      cancelled = true
+    if (children.length === 0 && hasActiveChild) {
+      setActiveChildProfile(null)
+      return
     }
-  }, [activeChildProfile?.id, fetchChildren, setActiveChildProfile])
+
+    const hasCurrent = children.some((child) => child.id === activeChildId)
+    if (hasActiveChild && !hasCurrent) {
+      setActiveChildProfile(null)
+    }
+  }, [activeChildId, children, hasActiveChild, loading, setActiveChildProfile])
 
   return (
     <>
@@ -84,11 +43,11 @@ export default function ChildProfilesPage() {
             Select a child tile to switch the kid-friendly view across the app.
           </p>
 
-          {loading ? <p className="panel-muted">Loading children...</p> : null}
-          {error ? <p className="status-note status-error">{error}</p> : null}
+          <EmptyState>{loading ? 'Loading children...' : ''}</EmptyState>
+          <StatusNote tone="error">{error}</StatusNote>
 
           {!loading && children.length === 0 ? (
-            <p className="panel-muted">No child profiles yet.</p>
+            <EmptyState>No child profiles yet.</EmptyState>
           ) : null}
 
           {children.length > 0 ? (
@@ -118,9 +77,9 @@ export default function ChildProfilesPage() {
         </section>
 
         {isParent ? (
-          <p className="status-note">
+          <StatusNote>
             Add/edit child profiles from Parent tab command center.
-          </p>
+          </StatusNote>
         ) : null}
       </main>
     </>

@@ -20,6 +20,8 @@
 - `src/services/policyUtils.js` contains claim countdown and policy helper logic.
 - `src/domain/familyEconomyTypes.js` contains shared domain constants, status labels, and lightweight typedefs.
 - `src/utils/dateUtils.js` contains reusable Firestore/date parsing and time-window helpers.
+- `src/hooks/` contains reusable UI/data coordination hooks such as async action state, effective family actor context, and family resource/data loaders.
+- `src/services/dashboardSelectors.js` contains derived dashboard and savings-goal view calculations.
 - `src/context/AuthContext.jsx` manages parent authentication state, parent unlock state, and the active child profile/session context.
 
 ## Data Model
@@ -40,6 +42,7 @@
 - **Approval and pool flows:** The app models both individual reward approvals and shared family pool resolution to support mixed saving/claiming behavior.
 - **Educational economy first:** Business rules should reinforce earning, saving, budgeting, goal setting, delayed gratification, community responsibility, and parent-guided decision making.
 - **Gamification restraint:** Recognition, streaks, XP, dynamic pricing, and scarcity concepts should remain educational and should not become manipulative engagement loops.
+- **Scalable refactors over legacy compatibility:** The project currently has test users and development data, not production users. Refactors may rewrite, restructure, rename, or relink stored data when that produces a clearer architecture, as long as the data impact and any reset/migration/relink steps are documented.
 
 ## Deployment
 - The app builds with Vite and supports GitHub Pages via `build:github-pages`.

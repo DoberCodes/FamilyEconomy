@@ -58,6 +58,14 @@ XP, streaks, achievements, dynamic pricing, and scarcity concepts should remain 
 - Core service logic is currently concentrated in `src/services/familyEconomyService.js`.
 - Shared domain constants live in `src/domain/familyEconomyTypes.js`.
 - Shared date helpers live in `src/utils/dateUtils.js`.
+- Shared hooks live in `src/hooks`, including async action state, family actor/session helpers, and family data/resource loaders.
+
+## Refactoring Direction
+
+- Prefer clean, scalable architecture over preserving current implementation quirks.
+- Rewriting, restructuring, renaming, or relinking data is acceptable when it improves long-term maintainability.
+- There are currently no production users; existing backend data should be treated as development/test data.
+- When changing stored data shapes, Firestore paths, auth/session assumptions, or fixtures, clearly explain the data impact and whether test data should be reset, migrated, or relinked.
 
 ## Current Known Issues
 

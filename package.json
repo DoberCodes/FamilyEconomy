@@ -9,7 +9,7 @@
     "build:github-pages": "cross-env VITE_BASE_PATH=/FamilyEconomy/ VITE_USE_HASH_ROUTER=true vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:logic": "node --test tests/familyEconomyService.logic.test.js",
+    "test:logic": "node --test tests/familyEconomyService.logic.test.js tests/parentCommandCenterSelectors.test.js tests/parentAnalyticsSelectors.test.js",
     "test:rules": "firebase emulators:exec --only firestore --project family-economy-rules-test \"node --test tests/firestore.rules.test.js\"",
     "test": "npm run test:logic && npm run test:rules"
   },

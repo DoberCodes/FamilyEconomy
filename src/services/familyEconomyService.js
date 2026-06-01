@@ -240,6 +240,16 @@ function normalizeConsequenceEvent(event, fallbackId) {
   }
 }
 
+function normalizeFeedbackEntry(entry, fallbackId) {
+  return {
+    id: entry.id || fallbackId,
+    category: entry.category || 'general',
+    message: entry.message || '',
+    createdBy: entry.createdBy || null,
+    createdAt: serializeDateValue(entry.createdAt),
+  }
+}
+
 async function addConsequenceEvent(familyId, eventPayload = {}) {
   if (!familyId || !hasFirebaseConfig || !db) {
     return
@@ -4046,10 +4056,10 @@ export async function getFamilyFeedbackEntries(context = {}) {
 
   const snapshot = await getDocs(collection(db, 'families', activeFamilyId, 'feedbackEntries'))
   const entries = snapshot.docs
-    .map((item) => ({ id: item.id, ...item.data() }))
+    .map((item) => normalizeFeedbackEntry({ id: item.id, ...item.data() }, item.id))
     .sort((left, right) => {
-      const leftTime = left.createdAt?.toDate?.()?.getTime?.() || 0
-      const rightTime = right.createdAt?.toDate?.()?.getTime?.() || 0
+      const leftTime = toDateValue(left.createdAt)?.getTime() || 0
+      const rightTime = toDateValue(right.createdAt)?.getTime() || 0
       return rightTime - leftTime
     })
 

@@ -1,27 +1,47 @@
 import {
   acceptRewardRequestTerms,
   acceptSavingsGoalCounter,
+  approveSavingsGoalCompletion,
   cancelSavingsGoal,
   claimApprovedRewardProposal,
   claimJob,
+  clearChildSessionCode,
   contributeToSavingsGoal,
   createChildProfile,
+  createFeedbackEntry,
   createCustomRewardRequest,
   createGoal,
   createHousehold,
   createJob,
   createReward,
+  deleteChildProfile,
   declineRewardRequestTerms,
   declineSavingsGoalCounter,
+  dismissAllRewardNotifications,
+  dismissRewardNotification,
+  fulfillRewardRequest,
+  markJobAsMissed,
   requestJobCheck,
   requestReward,
+  resolveRewardRequestAsPool,
+  reviewJobCheckRequest,
+  reviewRewardRequest,
+  reviewSavingsGoalRequest,
+  setChildAllowSessionCode,
   setChildSessionCode,
+  setChildSessionSecurity,
+  setFamilyAnnouncement,
+  updateChildProfile,
+  updateJob,
+  updateReward,
 } from '../services/familyEconomyService'
 import { familyMutation } from './familyEconomyApiUtils'
 
-const DASHBOARD_TAGS = ['FamilyDashboard', 'FamilyHome']
-const HOUSEHOLD_TAGS = ['FamilyHome', 'HouseholdOnboarding']
-const STORE_TAGS = ['FamilyDashboard', 'FamilyHome', 'FamilyStore']
+const DASHBOARD_TAGS = ['FamilyDashboard', 'FamilyHome', 'ParentCommandCenter']
+const HOUSEHOLD_TAGS = ['FamilyHome', 'HouseholdOnboarding', 'ParentCommandCenter']
+const JOB_CHECK_TAGS = ['FamilyDashboard', 'FamilyHome', 'FamilyJobChecks', 'FamilyConsequences', 'HouseholdOnboarding', 'ParentCommandCenter']
+const STORE_TAGS = ['FamilyDashboard', 'FamilyHome', 'FamilyStore', 'ParentCommandCenter']
+const FEEDBACK_TAGS = ['FamilyFeedback', 'ParentCommandCenter']
 
 export function buildFamilyMutationEndpoints(builder) {
   return {
@@ -35,7 +55,19 @@ export function buildFamilyMutationEndpoints(builder) {
       builder,
       ({ job, context }) => requestJobCheck(job, context),
       'Could not request a job check.',
-      DASHBOARD_TAGS,
+      ['FamilyDashboard', 'FamilyHome', 'FamilyJobChecks', 'ParentCommandCenter'],
+    ),
+    reviewJobCheckRequest: familyMutation(
+      builder,
+      ({ requestId, decision, context }) => reviewJobCheckRequest(requestId, decision, context),
+      'Could not review job check request.',
+      JOB_CHECK_TAGS,
+    ),
+    markJobAsMissed: familyMutation(
+      builder,
+      ({ jobId, context }) => markJobAsMissed(jobId, context),
+      'Could not mark this job as missed.',
+      JOB_CHECK_TAGS,
     ),
     createHousehold: familyMutation(
       builder,
@@ -49,22 +81,100 @@ export function buildFamilyMutationEndpoints(builder) {
       'Could not add child profile.',
       HOUSEHOLD_TAGS,
     ),
+    updateChildProfile: familyMutation(
+      builder,
+      ({ childId, childProfile, context }) => updateChildProfile(childId, childProfile, context),
+      'Could not update child profile.',
+      HOUSEHOLD_TAGS,
+    ),
+    deleteChildProfile: familyMutation(
+      builder,
+      ({ childId, context }) => deleteChildProfile(childId, context),
+      'Could not remove child profile.',
+      HOUSEHOLD_TAGS,
+    ),
+    setChildSessionSecurity: familyMutation(
+      builder,
+      ({ enabled, context }) => setChildSessionSecurity(enabled, context),
+      'Could not update child session security setting.',
+      HOUSEHOLD_TAGS,
+    ),
+    setChildAllowSessionCode: familyMutation(
+      builder,
+      ({ childId, allowed, context }) => setChildAllowSessionCode(childId, allowed, context),
+      'Could not update child PIN permission.',
+      HOUSEHOLD_TAGS,
+    ),
+    clearChildSessionCode: familyMutation(
+      builder,
+      ({ childId, context }) => clearChildSessionCode(childId, context),
+      'Could not clear child PIN.',
+      HOUSEHOLD_TAGS,
+    ),
+    setFamilyAnnouncement: familyMutation(
+      builder,
+      ({ announcement, context }) => setFamilyAnnouncement(announcement, context),
+      'Could not save family announcement.',
+      HOUSEHOLD_TAGS,
+    ),
     createJob: familyMutation(
       builder,
       ({ jobPayload, context }) => createJob(jobPayload, context),
       'Could not add starter job.',
-      ['FamilyDashboard', 'FamilyHome', 'HouseholdOnboarding'],
+      ['FamilyDashboard', 'FamilyHome', 'HouseholdOnboarding', 'ParentCommandCenter'],
+    ),
+    updateJob: familyMutation(
+      builder,
+      ({ jobId, jobPayload, context }) => updateJob(jobId, jobPayload, context),
+      'Could not update job.',
+      ['FamilyDashboard', 'FamilyHome', 'HouseholdOnboarding', 'ParentCommandCenter'],
     ),
     createReward: familyMutation(
       builder,
       ({ rewardPayload, context }) => createReward(rewardPayload, context),
       'Could not add starter reward.',
-      ['FamilyStore', 'FamilyHome', 'HouseholdOnboarding'],
+      ['FamilyStore', 'FamilyHome', 'HouseholdOnboarding', 'ParentCommandCenter'],
+    ),
+    updateReward: familyMutation(
+      builder,
+      ({ rewardId, rewardPayload, context }) => updateReward(rewardId, rewardPayload, context),
+      'Could not update reward.',
+      ['FamilyStore', 'FamilyHome', 'HouseholdOnboarding', 'ParentCommandCenter'],
     ),
     requestReward: familyMutation(
       builder,
       ({ reward, context }) => requestReward(reward, context),
       'Could not submit reward request.',
+      STORE_TAGS,
+    ),
+    reviewRewardRequest: familyMutation(
+      builder,
+      ({ requestId, decision, context, options }) => reviewRewardRequest(requestId, decision, context, options),
+      'Could not review reward request.',
+      STORE_TAGS,
+    ),
+    resolveRewardRequestAsPool: familyMutation(
+      builder,
+      ({ requestId, rewardPayload, context, options }) => resolveRewardRequestAsPool(requestId, rewardPayload, context, options),
+      'Could not add this request to the family reward pool.',
+      STORE_TAGS,
+    ),
+    fulfillRewardRequest: familyMutation(
+      builder,
+      ({ requestId, context }) => fulfillRewardRequest(requestId, context),
+      'Could not mark reward as fulfilled.',
+      STORE_TAGS,
+    ),
+    dismissRewardNotification: familyMutation(
+      builder,
+      ({ requestId, context }) => dismissRewardNotification(requestId, context),
+      'Could not dismiss reward notification.',
+      STORE_TAGS,
+    ),
+    dismissAllRewardNotifications: familyMutation(
+      builder,
+      ({ context }) => dismissAllRewardNotifications(context),
+      'Could not dismiss all reward notifications.',
       STORE_TAGS,
     ),
     createCustomRewardRequest: familyMutation(
@@ -97,6 +207,18 @@ export function buildFamilyMutationEndpoints(builder) {
       'Could not request savings goal.',
       DASHBOARD_TAGS,
     ),
+    approveSavingsGoalCompletion: familyMutation(
+      builder,
+      ({ goalId, context }) => approveSavingsGoalCompletion(goalId, context),
+      'Could not approve this savings goal yet.',
+      DASHBOARD_TAGS,
+    ),
+    reviewSavingsGoalRequest: familyMutation(
+      builder,
+      ({ goalId, decision, context, options }) => reviewSavingsGoalRequest(goalId, decision, context, options),
+      'Could not review this goal request.',
+      DASHBOARD_TAGS,
+    ),
     contributeToSavingsGoal: familyMutation(
       builder,
       ({ goalId, amount, context }) => contributeToSavingsGoal(goalId, amount, context),
@@ -126,6 +248,12 @@ export function buildFamilyMutationEndpoints(builder) {
       ({ childId, sessionCode, context }) => setChildSessionCode(childId, sessionCode, context),
       'Could not set child session code.',
       HOUSEHOLD_TAGS,
+    ),
+    createFeedbackEntry: familyMutation(
+      builder,
+      ({ feedbackPayload, context }) => createFeedbackEntry(feedbackPayload, context),
+      'Could not submit feedback.',
+      FEEDBACK_TAGS,
     ),
   }
 }

@@ -3,11 +3,12 @@ import { createApi, fakeBaseQuery } from '@reduxjs/toolkit/query/react'
 import {
   getFamilyConsequenceEvents,
   getFamilyDashboard,
+  getFamilyFeedbackEntries,
   getFamilyJobCheckRequests,
   getFamilyStoreData,
   getHouseholdOnboardingData,
 } from '../services/familyEconomyService'
-import { familyQuery, toQueryError, getErrorMessage } from './familyEconomyApiUtils'
+import { familyQuery, getErrorMessage } from './familyEconomyApiUtils'
 import { buildFamilyMutationEndpoints } from './familyEconomyMutationEndpoints'
 
 export const familyEconomyApi = createApi({
@@ -15,9 +16,13 @@ export const familyEconomyApi = createApi({
   baseQuery: fakeBaseQuery(),
   tagTypes: [
     'FamilyDashboard',
+    'FamilyFeedback',
     'FamilyHome',
+    'FamilyJobChecks',
+    'FamilyConsequences',
     'FamilyStore',
     'HouseholdOnboarding',
+    'ParentCommandCenter',
   ],
   endpoints: (builder) => ({
     getFamilyDashboard: familyQuery(
@@ -79,7 +84,42 @@ export const familyEconomyApi = createApi({
         }
       },
       'Could not load child profile data.',
-      ['FamilyDashboard', 'FamilyStore'],
+      ['FamilyDashboard', 'FamilyStore', 'FamilyJobChecks', 'FamilyConsequences'],
+    ),
+    getParentCommandCenterData: familyQuery(
+      builder,
+      async (context) => {
+        const parentContext = {
+          ...context,
+          selectedChildId: null,
+        }
+        const [dashboardResult, storeResult, checkResult, consequenceResult, feedbackResult] = await Promise.all([
+          getFamilyDashboard(parentContext),
+          getFamilyStoreData(parentContext),
+          getFamilyJobCheckRequests(parentContext),
+          getFamilyConsequenceEvents(parentContext),
+          getFamilyFeedbackEntries(parentContext),
+        ])
+
+        return {
+          jobs: dashboardResult.data.jobs || [],
+          goals: dashboardResult.data.goals || [],
+          rewards: storeResult.data.rewards || [],
+          rewardRequests: storeResult.data.requests || [],
+          jobCheckRequests: checkResult.data.requests || [],
+          consequenceEvents: consequenceResult.data.events || [],
+          feedbackEntries: feedbackResult.data.entries || [],
+        }
+      },
+      'Could not load parent command center data.',
+      [
+        'ParentCommandCenter',
+        'FamilyDashboard',
+        'FamilyStore',
+        'FamilyJobChecks',
+        'FamilyConsequences',
+        'FamilyFeedback',
+      ],
     ),
     ...buildFamilyMutationEndpoints(builder),
   }),
@@ -88,27 +128,46 @@ export const familyEconomyApi = createApi({
 export const {
   useAcceptRewardRequestTermsMutation,
   useAcceptSavingsGoalCounterMutation,
+  useApproveSavingsGoalCompletionMutation,
   useCancelSavingsGoalMutation,
+  useClearChildSessionCodeMutation,
   useCreateChildProfileMutation,
   useClaimJobMutation,
   useClaimApprovedRewardProposalMutation,
   useCreateCustomRewardRequestMutation,
+  useCreateFeedbackEntryMutation,
   useCreateGoalMutation,
   useCreateHouseholdMutation,
   useCreateJobMutation,
   useCreateRewardMutation,
+  useDeleteChildProfileMutation,
   useDeclineRewardRequestTermsMutation,
   useDeclineSavingsGoalCounterMutation,
+  useDismissAllRewardNotificationsMutation,
+  useDismissRewardNotificationMutation,
+  useFulfillRewardRequestMutation,
   useContributeToSavingsGoalMutation,
   useGetFamilyDashboardQuery,
   useGetFamilyHomeDataQuery,
   useGetFamilyStoreDataQuery,
   useGetHouseholdOnboardingDataQuery,
+  useGetParentCommandCenterDataQuery,
   useLazyGetHouseholdOnboardingDataQuery,
   useLazyGetKidProfileSessionDataQuery,
+  useMarkJobAsMissedMutation,
   useRequestJobCheckMutation,
   useRequestRewardMutation,
+  useResolveRewardRequestAsPoolMutation,
+  useReviewJobCheckRequestMutation,
+  useReviewRewardRequestMutation,
+  useReviewSavingsGoalRequestMutation,
+  useSetChildAllowSessionCodeMutation,
   useSetChildSessionCodeMutation,
+  useSetChildSessionSecurityMutation,
+  useSetFamilyAnnouncementMutation,
+  useUpdateChildProfileMutation,
+  useUpdateJobMutation,
+  useUpdateRewardMutation,
 } = familyEconomyApi
 
 export { getErrorMessage as getFamilyEconomyQueryErrorMessage }

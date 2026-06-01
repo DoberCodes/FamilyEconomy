@@ -9,25 +9,22 @@ import TopStatusBar from '../../components/mobile/TopStatusBar'
 import { useAuth } from '../../context/AuthContext'
 import { trackAnalyticsEvent } from '../../services/analytics'
 import {
-  acceptSavingsGoalCounter,
-  cancelSavingsGoal,
-  claimJob,
-  createGoal,
-  declineSavingsGoalCounter,
-  contributeToSavingsGoal,
-  getFamilyConsequenceEvents,
-  getFamilyDashboard,
-  getFamilyJobCheckRequests,
-  getFamilyStoreData,
-  getHouseholdOnboardingData,
-  createCustomRewardRequest,
-  acceptRewardRequestTerms,
-  claimApprovedRewardProposal,
-  declineRewardRequestTerms,
-  requestJobCheck,
-  requestReward,
-  setChildSessionCode,
-} from '../../services/familyEconomyService'
+  useAcceptRewardRequestTermsMutation,
+  useAcceptSavingsGoalCounterMutation,
+  useCancelSavingsGoalMutation,
+  useClaimApprovedRewardProposalMutation,
+  useClaimJobMutation,
+  useContributeToSavingsGoalMutation,
+  useCreateCustomRewardRequestMutation,
+  useCreateGoalMutation,
+  useDeclineRewardRequestTermsMutation,
+  useDeclineSavingsGoalCounterMutation,
+  useLazyGetHouseholdOnboardingDataQuery,
+  useLazyGetKidProfileSessionDataQuery,
+  useRequestJobCheckMutation,
+  useRequestRewardMutation,
+  useSetChildSessionCodeMutation,
+} from '../../store/familyEconomyApi'
 import { computeClaimCountdownData } from '../../services/policyUtils.js'
 
 const tabs = [
@@ -58,6 +55,21 @@ export default function KidProfilePage() {
     activeChildProfile,
     setActiveChildProfile,
   } = useAuth()
+  const [acceptRewardRequestTermsMutation] = useAcceptRewardRequestTermsMutation()
+  const [acceptSavingsGoalCounterMutation] = useAcceptSavingsGoalCounterMutation()
+  const [cancelSavingsGoalMutation] = useCancelSavingsGoalMutation()
+  const [claimApprovedRewardProposalMutation] = useClaimApprovedRewardProposalMutation()
+  const [claimJobMutation] = useClaimJobMutation()
+  const [contributeToSavingsGoalMutation] = useContributeToSavingsGoalMutation()
+  const [createCustomRewardRequestMutation] = useCreateCustomRewardRequestMutation()
+  const [createGoalMutation] = useCreateGoalMutation()
+  const [declineRewardRequestTermsMutation] = useDeclineRewardRequestTermsMutation()
+  const [declineSavingsGoalCounterMutation] = useDeclineSavingsGoalCounterMutation()
+  const [getHouseholdOnboardingData] = useLazyGetHouseholdOnboardingDataQuery()
+  const [getKidProfileSessionData] = useLazyGetKidProfileSessionDataQuery()
+  const [requestJobCheckMutation] = useRequestJobCheckMutation()
+  const [requestRewardMutation] = useRequestRewardMutation()
+  const [setChildSessionCodeMutation] = useSetChildSessionCodeMutation()
 
   const [childProfiles, setChildProfiles] = useState([])
   const [dashboard, setDashboard] = useState(emptyDashboard)
@@ -261,6 +273,35 @@ export default function KidProfilePage() {
     localStorage.setItem(storageKey, String(latest.atMs))
   }, [familyId])
 
+  const refreshChildData = useCallback(async (selectedChildId) => {
+    if (!selectedChildId) {
+      return
+    }
+
+    const data = await getKidProfileSessionData({
+      familyId,
+      userId,
+      userRole,
+      selectedChildId,
+    }).unwrap()
+
+    updateCreditsCelebration(selectedChildId, data.dashboard?.balance?.credits)
+    updateGoalMilestoneCelebration(selectedChildId, data.dashboard?.goals)
+    updateRewardCelebration(selectedChildId, data.store?.requests)
+    setDashboard(data.dashboard || emptyDashboard)
+    setStoreData(data.store || { rewards: [], requests: [] })
+    setJobCheckRequests(data.jobCheckRequests || [])
+    setConsequenceEvents(data.consequenceEvents || [])
+  }, [
+    familyId,
+    getKidProfileSessionData,
+    updateCreditsCelebration,
+    updateGoalMilestoneCelebration,
+    updateRewardCelebration,
+    userId,
+    userRole,
+  ])
+
   useEffect(() => {
     let cancelled = false
 
@@ -273,7 +314,9 @@ export default function KidProfilePage() {
       setCelebrationMessage('')
 
       try {
-        const onboarding = await getHouseholdOnboardingData({ familyId, userId, userRole })
+        const onboarding = {
+          data: await getHouseholdOnboardingData({ familyId, userId, userRole }).unwrap(),
+        }
         const children = onboarding.data.childProfiles || []
 
         if (cancelled) {
@@ -357,44 +400,11 @@ export default function KidProfilePage() {
 
         setSessionUnlocked(true)
 
-        const [dashboardResult, storeResult, consequenceResult] = await Promise.all([
-          getFamilyDashboard({
-            familyId,
-            userId,
-            userRole,
-            selectedChildId: selected.id,
-          }),
-          getFamilyStoreData({
-            familyId,
-            userId,
-            userRole,
-            selectedChildId: selected.id,
-          }),
-          getFamilyConsequenceEvents({
-            familyId,
-            userId,
-            userRole,
-            selectedChildId: selected.id,
-          }),
-        ])
-        const checkResult = await getFamilyJobCheckRequests({
-          familyId,
-          userId,
-          userRole,
-          selectedChildId: selected.id,
-        })
-
         if (cancelled) {
           return
         }
 
-        updateCreditsCelebration(selected.id, dashboardResult.data.balance?.credits)
-        updateGoalMilestoneCelebration(selected.id, dashboardResult.data.goals)
-        updateRewardCelebration(selected.id, storeResult.data.requests)
-        setDashboard(dashboardResult.data)
-        setStoreData(storeResult.data)
-        setConsequenceEvents(consequenceResult.data.events || [])
-        setJobCheckRequests(checkResult.data.requests)
+        await refreshChildData(selected.id)
       } catch (caughtError) {
         if (!cancelled) {
           setError(caughtError.message || 'Could not load child profile.')
@@ -417,6 +427,8 @@ export default function KidProfilePage() {
   }, [
     childId,
     familyId,
+    getHouseholdOnboardingData,
+    refreshChildData,
     userId,
     userRole,
     setActiveChildProfile,
@@ -443,40 +455,7 @@ export default function KidProfilePage() {
     setLoading(true)
 
     try {
-      const [dashboardResult, storeResult, consequenceResult] = await Promise.all([
-        getFamilyDashboard({
-          familyId,
-          userId,
-          userRole,
-          selectedChildId: selected.id,
-        }),
-        getFamilyStoreData({
-          familyId,
-          userId,
-          userRole,
-          selectedChildId: selected.id,
-        }),
-        getFamilyConsequenceEvents({
-          familyId,
-          userId,
-          userRole,
-          selectedChildId: selected.id,
-        }),
-      ])
-      const checkResult = await getFamilyJobCheckRequests({
-        familyId,
-        userId,
-        userRole,
-        selectedChildId: selected.id,
-      })
-
-      updateCreditsCelebration(selected.id, dashboardResult.data.balance?.credits)
-      updateGoalMilestoneCelebration(selected.id, dashboardResult.data.goals)
-      updateRewardCelebration(selected.id, storeResult.data.requests)
-      setDashboard(dashboardResult.data)
-      setStoreData(storeResult.data)
-      setConsequenceEvents(consequenceResult.data.events || [])
-      setJobCheckRequests(checkResult.data.requests)
+      await refreshChildData(selected.id)
       setSessionUnlocked(true)
       setSessionCodeInput('')
     } catch (caughtError) {
@@ -509,32 +488,13 @@ export default function KidProfilePage() {
     setLoading(true)
 
     try {
-      await setChildSessionCode(selected.id, sessionCodeInput.trim(), {
-        familyId,
-        userId,
-        userRole,
-      })
+      await setChildSessionCodeMutation({
+        childId: selected.id,
+        sessionCode: sessionCodeInput.trim(),
+        context: { familyId, userId, userRole },
+      }).unwrap()
 
-      const [dashboardResult, storeResult] = await Promise.all([
-        getFamilyDashboard({
-          familyId,
-          userId,
-          userRole,
-          selectedChildId: selected.id,
-        }),
-        getFamilyStoreData({
-          familyId,
-          userId,
-          userRole,
-          selectedChildId: selected.id,
-        }),
-      ])
-
-      updateCreditsCelebration(selected.id, dashboardResult.data.balance?.credits)
-      updateGoalMilestoneCelebration(selected.id, dashboardResult.data.goals)
-      updateRewardCelebration(selected.id, storeResult.data.requests)
-      setDashboard(dashboardResult.data)
-      setStoreData(storeResult.data)
+      await refreshChildData(selected.id)
       setChildHasSessionCode(true)
       setSessionUnlocked(true)
       setSessionCodeInput('')
@@ -554,43 +514,6 @@ export default function KidProfilePage() {
     navigate('/mobile/children')
   }
 
-  async function refreshChildData(selectedChildId) {
-    const [dashboardResult, storeResult, checkResult, consequenceResult] = await Promise.all([
-      getFamilyDashboard({
-        familyId,
-        userId,
-        userRole,
-        selectedChildId,
-      }),
-      getFamilyStoreData({
-        familyId,
-        userId,
-        userRole,
-        selectedChildId,
-      }),
-      getFamilyJobCheckRequests({
-        familyId,
-        userId,
-        userRole,
-        selectedChildId,
-      }),
-      getFamilyConsequenceEvents({
-        familyId,
-        userId,
-        userRole,
-        selectedChildId,
-      }),
-    ])
-
-    updateCreditsCelebration(selectedChildId, dashboardResult.data.balance?.credits)
-    updateGoalMilestoneCelebration(selectedChildId, dashboardResult.data.goals)
-    updateRewardCelebration(selectedChildId, storeResult.data.requests)
-    setDashboard(dashboardResult.data)
-    setStoreData(storeResult.data)
-    setJobCheckRequests(checkResult.data.requests)
-    setConsequenceEvents(consequenceResult.data.events || [])
-  }
-
   async function handleRequestJobCheck(job) {
     if (!resolvedChild?.id || !job?.id) {
       return
@@ -600,11 +523,14 @@ export default function KidProfilePage() {
     setError('')
 
     try {
-      await requestJobCheck(job, {
-        familyId,
-        userId: resolvedChild.id,
-        userRole: 'kid',
-      })
+      await requestJobCheckMutation({
+        job,
+        context: {
+          familyId,
+          userId: resolvedChild.id,
+          userRole: 'kid',
+        },
+      }).unwrap()
       await refreshChildData(resolvedChild.id)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not request a job check.')
@@ -622,11 +548,14 @@ export default function KidProfilePage() {
     setError('')
 
     try {
-      await claimJob(job.id, {
-        familyId,
-        userId: resolvedChild.id,
-        userRole: 'kid',
-      })
+      await claimJobMutation({
+        jobId: job.id,
+        context: {
+          familyId,
+          userId: resolvedChild.id,
+          userRole: 'kid',
+        },
+      }).unwrap()
       await refreshChildData(resolvedChild.id)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not start this job.')
@@ -644,12 +573,15 @@ export default function KidProfilePage() {
     setError('')
 
     try {
-      await requestReward(reward, {
-        familyId,
-        userId: resolvedChild.id,
-        userRole: 'kid',
-        selectedChildId: resolvedChild.id,
-      })
+      await requestRewardMutation({
+        reward,
+        context: {
+          familyId,
+          userId: resolvedChild.id,
+          userRole: 'kid',
+          selectedChildId: resolvedChild.id,
+        },
+      }).unwrap()
       await refreshChildData(resolvedChild.id)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not request reward.')
@@ -668,19 +600,19 @@ export default function KidProfilePage() {
     setError('')
 
     try {
-      await createCustomRewardRequest(
-        {
+      await createCustomRewardRequestMutation({
+        requestPayload: {
           rewardTitle: customRewardTitle,
           cost: Number(customRewardCost) || 0,
           childNote: customRewardNote,
         },
-        {
+        context: {
           familyId,
           userId: resolvedChild.id,
           userRole: 'kid',
           selectedChildId: resolvedChild.id,
         },
-      )
+      }).unwrap()
       setCustomRewardTitle('')
       setCustomRewardCost('100')
       setCustomRewardNote('')
@@ -701,11 +633,14 @@ export default function KidProfilePage() {
     setError('')
 
     try {
-      await acceptRewardRequestTerms(request.id, {
-        familyId,
-        userId: resolvedChild.id,
-        userRole: 'kid',
-      })
+      await acceptRewardRequestTermsMutation({
+        requestId: request.id,
+        context: {
+          familyId,
+          userId: resolvedChild.id,
+          userRole: 'kid',
+        },
+      }).unwrap()
       await refreshChildData(resolvedChild.id)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not accept these reward terms.')
@@ -723,11 +658,14 @@ export default function KidProfilePage() {
     setError('')
 
     try {
-      await declineRewardRequestTerms(request.id, {
-        familyId,
-        userId: resolvedChild.id,
-        userRole: 'kid',
-      })
+      await declineRewardRequestTermsMutation({
+        requestId: request.id,
+        context: {
+          familyId,
+          userId: resolvedChild.id,
+          userRole: 'kid',
+        },
+      }).unwrap()
       await refreshChildData(resolvedChild.id)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not decline these reward terms.')
@@ -745,12 +683,15 @@ export default function KidProfilePage() {
     setError('')
 
     try {
-      await claimApprovedRewardProposal(request.id, {
-        familyId,
-        userId: resolvedChild.id,
-        userRole: 'kid',
-        selectedChildId: resolvedChild.id,
-      })
+      await claimApprovedRewardProposalMutation({
+        requestId: request.id,
+        context: {
+          familyId,
+          userId: resolvedChild.id,
+          userRole: 'kid',
+          selectedChildId: resolvedChild.id,
+        },
+      }).unwrap()
       await refreshChildData(resolvedChild.id)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not claim this approved reward yet.')
@@ -768,8 +709,8 @@ export default function KidProfilePage() {
     setSavingForRewardId(reward.id)
 
     try {
-      await createGoal(
-        {
+      await createGoalMutation({
+        goalPayload: {
           name: reward.title,
           rewardId: reward.id,
           rewardTitle: reward.title,
@@ -777,12 +718,12 @@ export default function KidProfilePage() {
           childId: resolvedChild.id,
           saved: 0,
         },
-        {
+        context: {
           familyId,
           userId,
           userRole,
         },
-      )
+      }).unwrap()
       await refreshChildData(resolvedChild.id)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not request savings goal.')
@@ -801,7 +742,10 @@ export default function KidProfilePage() {
     setError('')
 
     try {
-      await cancelSavingsGoal(goalId, { familyId, userId, userRole })
+      await cancelSavingsGoalMutation({
+        goalId,
+        context: { familyId, userId, userRole },
+      }).unwrap()
       await refreshChildData(resolvedChild.id)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not cancel savings goal.')
@@ -822,18 +766,13 @@ export default function KidProfilePage() {
     const contribution = Number(contributionAmount) || 0
 
     try {
-      await contributeToSavingsGoal(activeChildGoal.id, contribution, { familyId, userId, userRole })
+      await contributeToSavingsGoalMutation({
+        goalId: activeChildGoal.id,
+        amount: contribution,
+        context: { familyId, userId, userRole },
+      }).unwrap()
 
-      const dashboardResult = await getFamilyDashboard({
-        familyId,
-        userId,
-        userRole,
-        selectedChildId: resolvedChild?.id,
-      })
-
-      setDashboard(dashboardResult.data)
-      updateCreditsCelebration(resolvedChild?.id, dashboardResult.data.balance?.credits)
-      updateGoalMilestoneCelebration(resolvedChild?.id, dashboardResult.data.goals)
+      await refreshChildData(resolvedChild?.id)
       setContributionAmount('25')
     } catch (caughtError) {
       setError(caughtError.message || 'Could not move credits into savings.')
@@ -854,23 +793,18 @@ export default function KidProfilePage() {
     const contribution = Number(familyContributionAmount) || 0
 
     try {
-      await contributeToSavingsGoal(familySavingsGoal.id, contribution, {
-        familyId,
-        userId,
-        userRole,
-        selectedChildId: resolvedChild?.id,
-      })
+      await contributeToSavingsGoalMutation({
+        goalId: familySavingsGoal.id,
+        amount: contribution,
+        context: {
+          familyId,
+          userId,
+          userRole,
+          selectedChildId: resolvedChild?.id,
+        },
+      }).unwrap()
 
-      const dashboardResult = await getFamilyDashboard({
-        familyId,
-        userId,
-        userRole,
-        selectedChildId: resolvedChild?.id,
-      })
-
-      setDashboard(dashboardResult.data)
-      updateCreditsCelebration(resolvedChild?.id, dashboardResult.data.balance?.credits)
-      updateGoalMilestoneCelebration(resolvedChild?.id, dashboardResult.data.goals)
+      await refreshChildData(resolvedChild?.id)
       setFamilyContributionAmount('25')
     } catch (caughtError) {
       setError(caughtError.message || 'Could not move credits into the family savings goal.')
@@ -888,7 +822,10 @@ export default function KidProfilePage() {
     setResolvingGoalCounter('accept')
 
     try {
-      await acceptSavingsGoalCounter(childGoal.id, { familyId, userId, userRole })
+      await acceptSavingsGoalCounterMutation({
+        goalId: childGoal.id,
+        context: { familyId, userId, userRole },
+      }).unwrap()
       await refreshChildData(resolvedChild?.id)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not accept this counter offer.')
@@ -906,7 +843,10 @@ export default function KidProfilePage() {
     setResolvingGoalCounter('decline')
 
     try {
-      await declineSavingsGoalCounter(childGoal.id, { familyId, userId, userRole })
+      await declineSavingsGoalCounterMutation({
+        goalId: childGoal.id,
+        context: { familyId, userId, userRole },
+      }).unwrap()
       await refreshChildData(resolvedChild?.id)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not decline this counter offer.')

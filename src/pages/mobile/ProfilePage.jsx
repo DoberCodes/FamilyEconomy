@@ -1,43 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import MarkdownTextArea from '../../components/shared/MarkdownTextArea'
 import { useAuth } from '../../context/AuthContext'
-import {
-  approveSavingsGoalCompletion,
-  createChildProfile,
-  createHousehold,
-  createGoal,
-  createJob,
-  createFeedbackEntry,
-  createReward,
-  deleteChildProfile,
-  clearChildSessionCode,
-  dismissAllRewardNotifications,
-  dismissRewardNotification,
-  getFamilyDashboard,
-  getFamilyConsequenceEvents,
-  getFamilyJobCheckRequests,
-  getFamilyFeedbackEntries,
-  getFamilyStoreData,
-  getHouseholdOnboardingData,
-  fulfillRewardRequest,
-  markJobAsMissed,
-  resolveRewardRequestAsPool,
-  reviewJobCheckRequest,
-  reviewRewardRequest,
-  reviewSavingsGoalRequest,
-  setFamilyAnnouncement,
-  setChildAllowSessionCode,
-  setChildSessionSecurity,
-  updateChildProfile,
-  updateJob,
-  updateReward,
-} from '../../services/familyEconomyService'
 import {
   exportOnboardingCompletionSummary,
   getOnboardingCompletionSummary,
   getWeeklyActiveFamilySummary,
 } from '../../services/analytics'
+import { getParentAnalyticsSummary } from '../../services/parentAnalyticsSelectors'
+import { getParentCommandCenterRequestSummary } from '../../services/parentCommandCenterSelectors'
+import useParentCommandCenterData from '../../hooks/useParentCommandCenterData'
 
 const emptyWeeklySummary = {
   windowDays: 7,
@@ -55,8 +27,100 @@ const emptyOnboardingSummary = {
   completedFamilies: [],
 }
 
+const emptyFamilySummary = {
+  profileName: '',
+  familyRules: '',
+  familyAnnouncement: '',
+  creatorOwnerEmail: '',
+  creatorMetricsEnabled: false,
+  savingsGoalApprovalMode: 'claim_only',
+  rewardRequestApprovalMode: 'required',
+  jobCheckApprovalMode: 'required',
+  missedJobConsequenceEnabled: false,
+  missedJobPenaltyCredits: 0,
+  missedJobTimingEnabled: false,
+  missedJobDefaultHours: 24,
+  failedJobCheckConsequenceEnabled: false,
+  failedJobCheckPenaltyCredits: 0,
+  maxActivePoolClaimsPerChild: 1,
+  allowClaimingWithPendingChecks: false,
+  familyDashboardTopCardsEnabled: true,
+  achievementsEnabled: true,
+  familyRecognitionEnabled: true,
+  customBadges: [],
+  achievementFirstGoalTarget: 1,
+  achievementContributorCreditsTarget: 100,
+  achievementHelperJobsTarget: 3,
+  achievementReadingJobsTarget: 5,
+  recognitionStreakDaysTarget: 3,
+  recognitionHelpingHandJobsTarget: 1,
+  recognitionGoalGetterTarget: 1,
+  dynamicPricingEnabled: false,
+  dynamicPricingWindowPeriod: 'week',
+  dynamicPricingDemandWeight: 10,
+  dynamicPricingScarcityWeight: 20,
+  dynamicPricingMinMultiplierPercent: 100,
+  dynamicPricingMaxMultiplierPercent: 220,
+  dynamicPricingMaxStepPercent: 60,
+  staleJobBonusEnabled: false,
+  staleJobBonusStartHours: 24,
+  staleJobBonusPeriodHours: 24,
+  staleJobBonusRatePercent: 5,
+  staleJobBonusCapPercent: 30,
+}
+
 const CREATOR_OWNER_EMAIL = 'austin.dober@gmail.com'
 const CHILD_AVATAR_OPTIONS = ['🧒', '🧑', '🌟', '🚀', '🦄']
+function buildFamilySummary(family = {}) {
+  return {
+    ...emptyFamilySummary,
+    profileName: family?.profileName || '',
+    familyRules: family?.familyRules || '',
+    familyAnnouncement: family?.familyAnnouncement || '',
+    creatorOwnerEmail: family?.creatorOwnerEmail || '',
+    creatorMetricsEnabled: Boolean(family?.creatorMetricsEnabled),
+    savingsGoalApprovalMode: family?.savingsGoalApprovalMode || 'claim_only',
+    rewardRequestApprovalMode: family?.rewardRequestApprovalMode || 'required',
+    jobCheckApprovalMode: family?.jobCheckApprovalMode || 'required',
+    missedJobConsequenceEnabled: Boolean(family?.missedJobConsequenceEnabled),
+    missedJobPenaltyCredits: Number(family?.missedJobPenaltyCredits) || 0,
+    missedJobTimingEnabled: Boolean(family?.missedJobTimingEnabled),
+    missedJobDefaultHours: Number(family?.missedJobDefaultHours) || 24,
+    failedJobCheckConsequenceEnabled: Boolean(family?.failedJobCheckConsequenceEnabled),
+    failedJobCheckPenaltyCredits: Number(family?.failedJobCheckPenaltyCredits) || 0,
+    maxActivePoolClaimsPerChild: Number(family?.maxActivePoolClaimsPerChild) || 1,
+    allowClaimingWithPendingChecks: Boolean(family?.allowClaimingWithPendingChecks),
+    familyDashboardTopCardsEnabled: family?.familyDashboardTopCardsEnabled !== false,
+    achievementsEnabled: family?.achievementsEnabled !== false,
+    familyRecognitionEnabled: family?.familyRecognitionEnabled !== false,
+    customBadges: Array.isArray(family?.customBadges) ? family.customBadges : [],
+    achievementFirstGoalTarget: Number(family?.achievementFirstGoalTarget) || 1,
+    achievementContributorCreditsTarget: Number(family?.achievementContributorCreditsTarget) || 100,
+    achievementHelperJobsTarget: Number(family?.achievementHelperJobsTarget) || 3,
+    achievementReadingJobsTarget: Number(family?.achievementReadingJobsTarget) || 5,
+    recognitionStreakDaysTarget: Number(family?.recognitionStreakDaysTarget) || 3,
+    recognitionHelpingHandJobsTarget: Number(family?.recognitionHelpingHandJobsTarget) || 1,
+    recognitionGoalGetterTarget: Number(family?.recognitionGoalGetterTarget) || 1,
+    dynamicPricingEnabled: Boolean(family?.dynamicPricingEnabled),
+    dynamicPricingWindowPeriod: family?.dynamicPricingWindowPeriod || 'week',
+    dynamicPricingDemandWeight: Number(family?.dynamicPricingDemandWeight) || 10,
+    dynamicPricingScarcityWeight: Number(family?.dynamicPricingScarcityWeight) || 20,
+    dynamicPricingMinMultiplierPercent: Number(family?.dynamicPricingMinMultiplierPercent) || 100,
+    dynamicPricingMaxMultiplierPercent: Number(family?.dynamicPricingMaxMultiplierPercent) || 220,
+    dynamicPricingMaxStepPercent: Number(family?.dynamicPricingMaxStepPercent) || 60,
+    staleJobBonusEnabled: Boolean(family?.staleJobBonusEnabled),
+    staleJobBonusStartHours: Number(family?.staleJobBonusStartHours) || 24,
+    staleJobBonusPeriodHours: Number(family?.staleJobBonusPeriodHours) || 24,
+    staleJobBonusRatePercent: Number(family?.staleJobBonusRatePercent) || 5,
+    staleJobBonusCapPercent: Number(family?.staleJobBonusCapPercent) || 30,
+  }
+}
+
+function deferStateUpdate(callback) {
+  const timeoutId = window.setTimeout(callback, 0)
+  return () => window.clearTimeout(timeoutId)
+}
+
 function HelpButton({ label, lines = [], onHelpClick }) {
   if (!Array.isArray(lines) || lines.length === 0) {
     return null
@@ -128,47 +192,7 @@ export default function ProfilePage() {
   const [showUnlockPassword, setShowUnlockPassword] = useState(false)
   const [showNewPin, setShowNewPin] = useState(false)
   const [childProfiles, setChildProfiles] = useState([])
-  const [familySummary, setFamilySummary] = useState({
-    profileName: '',
-    familyRules: '',
-    familyAnnouncement: '',
-    creatorOwnerEmail: '',
-    creatorMetricsEnabled: false,
-    savingsGoalApprovalMode: 'claim_only',
-    rewardRequestApprovalMode: 'required',
-    jobCheckApprovalMode: 'required',
-    missedJobConsequenceEnabled: false,
-    missedJobPenaltyCredits: 0,
-    missedJobTimingEnabled: false,
-    missedJobDefaultHours: 24,
-    failedJobCheckConsequenceEnabled: false,
-    failedJobCheckPenaltyCredits: 0,
-    maxActivePoolClaimsPerChild: 1,
-    allowClaimingWithPendingChecks: false,
-    familyDashboardTopCardsEnabled: true,
-    achievementsEnabled: true,
-    familyRecognitionEnabled: true,
-    customBadges: [],
-    achievementFirstGoalTarget: 1,
-    achievementContributorCreditsTarget: 100,
-    achievementHelperJobsTarget: 3,
-    achievementReadingJobsTarget: 5,
-    recognitionStreakDaysTarget: 3,
-    recognitionHelpingHandJobsTarget: 1,
-    recognitionGoalGetterTarget: 1,
-    dynamicPricingEnabled: false,
-    dynamicPricingWindowPeriod: 'week',
-    dynamicPricingDemandWeight: 10,
-    dynamicPricingScarcityWeight: 20,
-    dynamicPricingMinMultiplierPercent: 100,
-    dynamicPricingMaxMultiplierPercent: 220,
-    dynamicPricingMaxStepPercent: 60,
-    staleJobBonusEnabled: false,
-    staleJobBonusStartHours: 24,
-    staleJobBonusPeriodHours: 24,
-    staleJobBonusRatePercent: 5,
-    staleJobBonusCapPercent: 30,
-  })
+  const [familySummary, setFamilySummary] = useState(emptyFamilySummary)
   const [childSessionSecurityEnabled, setChildSessionSecurityEnabled] = useState(false)
   const [activeDialog, setActiveDialog] = useState('')
   const [requestsJumpTarget, setRequestsJumpTarget] = useState('')
@@ -359,19 +383,6 @@ export default function ProfilePage() {
     }
 
     return 'Completed goals'
-  }
-
-  function getWeekStart(value = new Date()) {
-    const start = new Date(value)
-    const day = start.getDay()
-    const daysSinceMonday = (day + 6) % 7
-    start.setHours(0, 0, 0, 0)
-    start.setDate(start.getDate() - daysSinceMonday)
-    return start
-  }
-
-  function inRange(value, start, end) {
-    return Boolean(value && value >= start && value < end)
   }
 
   function formatDateTime(value) {
@@ -663,259 +674,46 @@ export default function ProfilePage() {
     return accumulator
   }, {})
 
-  const consequenceEventsSorted = consequenceEvents
-    .slice()
-    .sort((left, right) => {
-      const leftMs = toDateValue(left.createdAt)?.getTime() || 0
-      const rightMs = toDateValue(right.createdAt)?.getTime() || 0
-      return rightMs - leftMs
-    })
+  const {
+    thisWeekConsequenceEvents,
+    lastWeekConsequenceEvents,
+    thisWeekPenaltyTotal,
+    lastWeekPenaltyTotal,
+    thisWeekDeniedCount,
+    lastWeekDeniedCount,
+    thisWeekMissedCount,
+    lastWeekMissedCount,
+    visibleAuditTrailEvents,
+    reportFilteredEvents,
+    topConsequenceJobs,
+    consequenceByChild,
+    mostMissedJobs,
+    deniedChecksThisWeek,
+    deniedChecksLastWeek,
+    deniedPenaltyThisWeek,
+    deniedPenaltyLastWeek,
+    dynamicPressureRewards,
+    reviewedChecks,
+    avgReviewHours,
+    pendingChecks,
+    stalePendingChecks,
+    pendingRewardRequestsAnalytics,
 
-  const thisWeekStart = getWeekStart()
-  const lastWeekStart = new Date(thisWeekStart)
-  lastWeekStart.setDate(lastWeekStart.getDate() - 7)
-  const now = new Date()
-  const trailWindowStart = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000))
-
-  const thisWeekConsequenceEvents = consequenceEventsSorted.filter((entry) =>
-    inRange(toDateValue(entry.createdAt), thisWeekStart, now),
-  )
-  const lastWeekConsequenceEvents = consequenceEventsSorted.filter((entry) =>
-    inRange(toDateValue(entry.createdAt), lastWeekStart, thisWeekStart),
-  )
-
-  const thisWeekPenaltyTotal = thisWeekConsequenceEvents.reduce(
-    (sum, entry) => sum + (Number(entry.penaltyCredits) || 0),
-    0,
-  )
-  const lastWeekPenaltyTotal = lastWeekConsequenceEvents.reduce(
-    (sum, entry) => sum + (Number(entry.penaltyCredits) || 0),
-    0,
-  )
-  const thisWeekDeniedCount = thisWeekConsequenceEvents.filter(
-    (entry) => entry.type === 'job_check_denied',
-  ).length
-  const lastWeekDeniedCount = lastWeekConsequenceEvents.filter(
-    (entry) => entry.type === 'job_check_denied',
-  ).length
-  const thisWeekMissedCount = thisWeekConsequenceEvents.filter(
-    (entry) => entry.type === 'job_marked_missed',
-  ).length
-  const lastWeekMissedCount = lastWeekConsequenceEvents.filter(
-    (entry) => entry.type === 'job_marked_missed',
-  ).length
-
-  const visibleAuditTrailEvents = consequenceEventsSorted
-    .filter((entry) => {
-      const createdAt = toDateValue(entry.createdAt)
-      return inRange(createdAt, trailWindowStart, now)
-    })
-    .slice(0, 20)
-
-  const reportRangeDays = auditReportRange === 'all'
-    ? null
-    : Math.max(1, Number(auditReportRange) || 30)
-  const reportStart = reportRangeDays
-    ? new Date(now.getTime() - (reportRangeDays * 24 * 60 * 60 * 1000))
-    : null
-
-  const reportFilteredEvents = consequenceEventsSorted.filter((entry) => {
-    const createdAt = toDateValue(entry.createdAt)
-    if (!createdAt) {
-      return false
-    }
-
-    if (reportStart && !inRange(createdAt, reportStart, now)) {
-      return false
-    }
-
-    if (auditReportChildId !== 'all' && entry.childId !== auditReportChildId) {
-      return false
-    }
-
-    if (auditReportType === 'missed' && entry.type !== 'job_marked_missed') {
-      return false
-    }
-
-    if (auditReportType === 'denied' && entry.type !== 'job_check_denied') {
-      return false
-    }
-
-    if (auditReportType === 'penalty' && (Number(entry.penaltyCredits) || 0) <= 0) {
-      return false
-    }
-
-    return true
+    recentCelebrationEvents,
+    thisWeekCelebrationEvents,
+    celebrationCounts,
+  } = getParentAnalyticsSummary({
+    consequenceEvents,
+    rewards,
+    jobCheckRequests,
+    rewardRequests,
+    jobs,
+    goals,
+    childNameById,
+    auditReportRange,
+    auditReportChildId,
+    auditReportType,
   })
-
-  const topConsequenceJobs = Object.entries(
-    thisWeekConsequenceEvents.reduce((accumulator, entry) => {
-      const key = entry.jobTitle || 'Unknown job'
-      accumulator[key] = (accumulator[key] || 0) + 1
-      return accumulator
-    }, {}),
-  )
-    .map(([title, count]) => ({ title, count }))
-    .sort((left, right) => right.count - left.count)
-    .slice(0, 5)
-
-  const consequenceByChild = Object.entries(
-    thisWeekConsequenceEvents.reduce((accumulator, entry) => {
-      const childKey = entry.childId || 'unknown'
-      if (!accumulator[childKey]) {
-        accumulator[childKey] = { count: 0, penaltyCredits: 0 }
-      }
-      accumulator[childKey].count += 1
-      accumulator[childKey].penaltyCredits += Number(entry.penaltyCredits) || 0
-      return accumulator
-    }, {}),
-  )
-    .map(([childId, aggregate]) => ({
-      childId,
-      childLabel: childNameById[childId] || 'Unknown child',
-      count: aggregate.count,
-      penaltyCredits: aggregate.penaltyCredits,
-    }))
-    .sort((left, right) => right.count - left.count)
-
-  const mostMissedJobs = Object.entries(
-    thisWeekConsequenceEvents
-      .filter((entry) => entry.type === 'job_marked_missed' || entry.type === 'job_missed')
-      .reduce((accumulator, entry) => {
-        const key = entry.jobTitle || 'Unknown job'
-        accumulator[key] = (accumulator[key] || 0) + 1
-        return accumulator
-      }, {}),
-  )
-    .map(([title, count]) => ({ title, count }))
-    .sort((left, right) => right.count - left.count)
-    .slice(0, 3)
-
-  const deniedChecksThisWeek = thisWeekConsequenceEvents.filter(
-    (entry) => entry.type === 'job_check_denied',
-  )
-  const deniedChecksLastWeek = lastWeekConsequenceEvents.filter(
-    (entry) => entry.type === 'job_check_denied',
-  )
-  const deniedPenaltyThisWeek = deniedChecksThisWeek.reduce(
-    (sum, entry) => sum + Number(entry.penaltyCredits || 0),
-    0,
-  )
-  const deniedPenaltyLastWeek = deniedChecksLastWeek.reduce(
-    (sum, entry) => sum + Number(entry.penaltyCredits || 0),
-    0,
-  )
-
-  const dynamicPressureRewards = (rewards || [])
-    .filter((reward) => reward?.pricingMeta?.dynamicPricingApplied)
-    .map((reward) => {
-      const baseCost = Number(reward.pricingMeta.baseCost || reward.baseCost || reward.cost || 0)
-      const adjustedCost = Number(reward.cost || 0)
-      const upliftPct = baseCost > 0
-        ? Math.round(((adjustedCost - baseCost) / baseCost) * 100)
-        : 0
-
-      return {
-        id: reward.id,
-        title: reward.title,
-        demandCount: Number(reward.pricingMeta.demandCount || 0),
-        upliftPct,
-      }
-    })
-    .sort((left, right) => {
-      if (right.upliftPct !== left.upliftPct) {
-        return right.upliftPct - left.upliftPct
-      }
-      return right.demandCount - left.demandCount
-    })
-    .slice(0, 3)
-
-  const reviewedChecks = jobCheckRequests.filter((request) => {
-    const reviewedAt = toDateValue(request.reviewedAt)
-    return (request.status === 'approved' || request.status === 'denied')
-      && inRange(reviewedAt, thisWeekStart, now)
-  })
-
-  const reviewDurationsHours = reviewedChecks
-    .map((request) => {
-      const createdAt = toDateValue(request.createdAt)
-      const reviewedAt = toDateValue(request.reviewedAt)
-
-      if (!createdAt || !reviewedAt) {
-        return null
-      }
-
-      const diffMs = reviewedAt.getTime() - createdAt.getTime()
-      if (diffMs < 0) {
-        return null
-      }
-
-      return diffMs / (1000 * 60 * 60)
-    })
-    .filter((value) => Number.isFinite(value))
-
-  const avgReviewHours = reviewDurationsHours.length > 0
-    ? reviewDurationsHours.reduce((sum, value) => sum + value, 0) / reviewDurationsHours.length
-    : null
-
-  const pendingChecks = jobCheckRequests.filter((request) => request.status === 'pending')
-  const stalePendingChecks = pendingChecks.filter((request) => {
-    const createdAt = toDateValue(request.createdAt)
-    if (!createdAt) {
-      return false
-    }
-
-    const ageHours = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60)
-    return ageHours >= 24
-  })
-  const pendingRewardRequestsAnalytics = rewardRequests.filter((request) => request.status === 'pending')
-
-  const celebrationTimelineEvents = [
-    ...jobs
-      .filter((job) => job.status === 'done')
-      .map((job) => ({
-        id: `celebrate-job:${job.id || job.title}`,
-        type: 'job_done',
-        title: `${job.title || 'Job'} completed`,
-        icon: '✅',
-        childId: job.claimedBy || job.childId || '',
-        credits: job.rewardType === 'xp' ? 0 : (Number(job.points) || 0),
-        at: toDateValue(job.completedAt),
-      })),
-    ...rewardRequests
-      .filter((request) => request.status === 'approved' || request.status === 'fulfilled')
-      .map((request) => ({
-        id: `celebrate-reward:${request.id}`,
-        type: request.status === 'fulfilled' ? 'reward_fulfilled' : 'reward_approved',
-        title: `${request.rewardTitle || 'Reward'} ${request.status === 'fulfilled' ? 'fulfilled' : 'approved'}`,
-        icon: request.status === 'fulfilled' ? '📦' : '🎁',
-        childId: request.requestedBy || request.childId || '',
-        credits: Number(request.cost) || 0,
-        at: toDateValue(request.status === 'fulfilled' ? request.fulfilledAt : request.reviewedAt),
-      })),
-    ...goals
-      .filter((goal) => goal.status === 'ready_to_claim' || goal.status === 'completed')
-      .map((goal) => ({
-        id: `celebrate-goal:${goal.id || goal.name}`,
-        type: goal.status === 'completed' ? 'goal_completed' : 'goal_ready',
-        title: `${goal.rewardTitle || goal.name || 'Goal'} ${goal.status === 'completed' ? 'completed' : 'ready for claim'}`,
-        icon: goal.status === 'completed' ? '🏁' : '🎯',
-        childId: goal.childId || '',
-        credits: Number(goal.target) || 0,
-        at: toDateValue(goal.status === 'completed' ? goal.completedAt : goal.updatedAt),
-      })),
-  ]
-    .filter((entry) => entry.at)
-    .sort((left, right) => (right.at?.getTime() || 0) - (left.at?.getTime() || 0))
-
-  const recentCelebrationEvents = celebrationTimelineEvents.slice(0, 12)
-  const thisWeekCelebrationEvents = celebrationTimelineEvents.filter((entry) =>
-    inRange(entry.at, thisWeekStart, now),
-  )
-  const celebrationCounts = thisWeekCelebrationEvents.reduce((accumulator, entry) => {
-    accumulator[entry.type] = (accumulator[entry.type] || 0) + 1
-    return accumulator
-  }, {})
 
   useEffect(() => {
     if (activeDialog !== 'requests' || !requestsJumpTarget) {
@@ -946,6 +744,23 @@ export default function ProfilePage() {
   }, [activeDialog, requestsJumpTarget, dialogBusy])
 
   const isParent = isAuthenticated && userRole === 'parent'
+  const {
+    actions: parentCommandCenterActions,
+    householdData,
+    householdDataError,
+    parentCommandCenterData,
+    parentCommandCenterError,
+    refreshParentCommandCenterData,
+    shouldLoadHouseholdData,
+    shouldLoadParentCommandCenterData,
+  } = useParentCommandCenterData({
+    familyId,
+    userId,
+    userRole,
+    userEmail,
+    isParent,
+    parentControlsUnlocked,
+  })
   const userEmailLower = String(userEmail || '').trim().toLowerCase()
   const familyCreatorOwnerEmail = String(familySummary.creatorOwnerEmail || '').trim().toLowerCase()
   const isCreatorMode = isParent
@@ -955,81 +770,84 @@ export default function ProfilePage() {
       || (Boolean(familySummary.creatorMetricsEnabled) && userEmailLower === familyCreatorOwnerEmail)
     )
 
+  const applyHouseholdData = useCallback((data) => {
+    const family = data?.family || null
+    setChildProfiles(data?.childProfiles || [])
+    setFamilySummary(buildFamilySummary(family))
+    setChildSessionSecurityEnabled(Boolean(family?.childSessionSecurityEnabled))
+    setFamilyAnnouncementDraft(family?.familyAnnouncement || '')
+  }, [])
+
+  const clearParentCommandCenterData = useCallback(() => {
+    setRewards([])
+    setRewardRequests([])
+    setJobCheckRequests([])
+    setGoals([])
+    setJobs([])
+    setConsequenceEvents([])
+    setFeedbackEntries([])
+  }, [])
+
+  const applyParentCommandCenterData = useCallback((data) => {
+    setJobs(data?.jobs || [])
+    setGoals(data?.goals || [])
+    setRewards(data?.rewards || [])
+    setRewardRequests(data?.rewardRequests || [])
+    setJobCheckRequests(data?.jobCheckRequests || [])
+    setConsequenceEvents(data?.consequenceEvents || [])
+    setFeedbackEntries(data?.feedbackEntries || [])
+  }, [])
+
   useEffect(() => {
-    let cancelled = false
-
-    async function loadChildren() {
-      if (!isParent || !familyId) {
-        if (!cancelled) {
-          setChildProfiles([])
-        }
-        return
-      }
-
-      try {
-        const result = await getHouseholdOnboardingData({ familyId, userId, userRole })
-        if (!cancelled) {
-          const profiles = result.data.childProfiles || []
-          setChildProfiles(profiles)
-          setFamilySummary({
-            profileName: result.data.family?.profileName || '',
-            familyRules: result.data.family?.familyRules || '',
-            familyAnnouncement: result.data.family?.familyAnnouncement || '',
-            creatorOwnerEmail: result.data.family?.creatorOwnerEmail || '',
-            creatorMetricsEnabled: Boolean(result.data.family?.creatorMetricsEnabled),
-            savingsGoalApprovalMode: result.data.family?.savingsGoalApprovalMode || 'claim_only',
-            rewardRequestApprovalMode: result.data.family?.rewardRequestApprovalMode || 'required',
-            jobCheckApprovalMode: result.data.family?.jobCheckApprovalMode || 'required',
-            missedJobConsequenceEnabled: Boolean(result.data.family?.missedJobConsequenceEnabled),
-            missedJobPenaltyCredits: Number(result.data.family?.missedJobPenaltyCredits) || 0,
-            missedJobTimingEnabled: Boolean(result.data.family?.missedJobTimingEnabled),
-            missedJobDefaultHours: Number(result.data.family?.missedJobDefaultHours) || 24,
-            failedJobCheckConsequenceEnabled: Boolean(result.data.family?.failedJobCheckConsequenceEnabled),
-            failedJobCheckPenaltyCredits: Number(result.data.family?.failedJobCheckPenaltyCredits) || 0,
-            maxActivePoolClaimsPerChild: Number(result.data.family?.maxActivePoolClaimsPerChild) || 1,
-            allowClaimingWithPendingChecks: Boolean(result.data.family?.allowClaimingWithPendingChecks),
-            familyDashboardTopCardsEnabled: result.data.family?.familyDashboardTopCardsEnabled !== false,
-            achievementsEnabled: result.data.family?.achievementsEnabled !== false,
-            familyRecognitionEnabled: result.data.family?.familyRecognitionEnabled !== false,
-            customBadges: Array.isArray(result.data.family?.customBadges) ? result.data.family.customBadges : [],
-            achievementFirstGoalTarget: Number(result.data.family?.achievementFirstGoalTarget) || 1,
-            achievementContributorCreditsTarget: Number(result.data.family?.achievementContributorCreditsTarget) || 100,
-            achievementHelperJobsTarget: Number(result.data.family?.achievementHelperJobsTarget) || 3,
-            achievementReadingJobsTarget: Number(result.data.family?.achievementReadingJobsTarget) || 5,
-            recognitionStreakDaysTarget: Number(result.data.family?.recognitionStreakDaysTarget) || 3,
-            recognitionHelpingHandJobsTarget: Number(result.data.family?.recognitionHelpingHandJobsTarget) || 1,
-            recognitionGoalGetterTarget: Number(result.data.family?.recognitionGoalGetterTarget) || 1,
-            dynamicPricingEnabled: Boolean(result.data.family?.dynamicPricingEnabled),
-            dynamicPricingWindowPeriod: result.data.family?.dynamicPricingWindowPeriod || 'week',
-            dynamicPricingDemandWeight: Number(result.data.family?.dynamicPricingDemandWeight) || 10,
-            dynamicPricingScarcityWeight: Number(result.data.family?.dynamicPricingScarcityWeight) || 20,
-            dynamicPricingMinMultiplierPercent: Number(result.data.family?.dynamicPricingMinMultiplierPercent) || 100,
-            dynamicPricingMaxMultiplierPercent: Number(result.data.family?.dynamicPricingMaxMultiplierPercent) || 220,
-            dynamicPricingMaxStepPercent: Number(result.data.family?.dynamicPricingMaxStepPercent) || 60,
-            staleJobBonusEnabled: Boolean(result.data.family?.staleJobBonusEnabled),
-            staleJobBonusStartHours: Number(result.data.family?.staleJobBonusStartHours) || 24,
-            staleJobBonusPeriodHours: Number(result.data.family?.staleJobBonusPeriodHours) || 24,
-            staleJobBonusRatePercent: Number(result.data.family?.staleJobBonusRatePercent) || 5,
-            staleJobBonusCapPercent: Number(result.data.family?.staleJobBonusCapPercent) || 30,
-          })
-          setChildSessionSecurityEnabled(
-            Boolean(result.data.family?.childSessionSecurityEnabled),
-          )
-          setFamilyAnnouncementDraft(result.data.family?.familyAnnouncement || '')
-        }
-      } catch {
-        if (!cancelled) {
-          setChildProfiles([])
-        }
-      }
+    if (!shouldLoadHouseholdData) {
+      return deferStateUpdate(() => setChildProfiles([]))
     }
 
-    loadChildren()
-
-    return () => {
-      cancelled = true
+    if (householdData) {
+      return deferStateUpdate(() => applyHouseholdData(householdData))
     }
-  }, [isParent, familyId, userId, userRole])
+
+    return undefined
+  }, [applyHouseholdData, householdData, shouldLoadHouseholdData])
+
+  useEffect(() => {
+    if (shouldLoadHouseholdData && householdDataError) {
+      return deferStateUpdate(() => setChildProfiles([]))
+    }
+
+    return undefined
+  }, [householdDataError, shouldLoadHouseholdData])
+
+  useEffect(() => {
+    if (!isParent || !familyId) {
+      return deferStateUpdate(clearParentCommandCenterData)
+    }
+
+    if (!shouldLoadParentCommandCenterData) {
+      return
+    }
+
+    if (parentCommandCenterData) {
+      return deferStateUpdate(() => applyParentCommandCenterData(parentCommandCenterData))
+    }
+
+    return undefined
+  }, [
+    applyParentCommandCenterData,
+    clearParentCommandCenterData,
+    familyId,
+    isParent,
+    parentCommandCenterData,
+    shouldLoadParentCommandCenterData,
+  ])
+
+  useEffect(() => {
+    if (shouldLoadParentCommandCenterData && parentCommandCenterError) {
+      return deferStateUpdate(clearParentCommandCenterData)
+    }
+
+    return undefined
+  }, [clearParentCommandCenterData, parentCommandCenterError, shouldLoadParentCommandCenterData])
 
   useEffect(() => {
     let cancelled = false
@@ -1083,77 +901,6 @@ export default function ProfilePage() {
       }
     }
   }, [isCreatorMode, activeDialog])
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function loadFeedbackEntries() {
-      if (!isParent || !parentControlsUnlocked || !familyId) {
-        return
-      }
-
-      try {
-        const result = await getFamilyFeedbackEntries({ familyId, userId, userRole })
-
-        if (!cancelled) {
-          setFeedbackEntries(result.data.entries || [])
-        }
-      } catch {
-        if (!cancelled) {
-          setFeedbackEntries([])
-        }
-      }
-    }
-
-    loadFeedbackEntries()
-
-    return () => {
-      cancelled = true
-    }
-  }, [isParent, parentControlsUnlocked, familyId, userId, userRole])
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function refreshPendingCounts() {
-      if (!isParent || !parentControlsUnlocked || !familyId) {
-        return
-      }
-
-      try {
-        const [storeResult, checkResult, dashboardResult, consequenceResult] = await Promise.all([
-          getFamilyStoreData({ familyId, userId, userRole, selectedChildId: null }),
-          getFamilyJobCheckRequests({ familyId, userId, userRole, selectedChildId: null }),
-          getFamilyDashboard({ familyId, userId, userRole, selectedChildId: null }),
-          getFamilyConsequenceEvents({ familyId, userId, userRole }),
-        ])
-
-        if (cancelled) {
-          return
-        }
-
-        setRewardRequests(storeResult.data.requests || [])
-        setRewards(storeResult.data.rewards || [])
-        setJobCheckRequests(checkResult.data.requests || [])
-        setGoals(dashboardResult.data.goals || [])
-        setConsequenceEvents(consequenceResult.data.events || [])
-      } catch {
-        if (!cancelled) {
-          setRewards([])
-          setRewardRequests([])
-          setJobCheckRequests([])
-          setGoals([])
-          setConsequenceEvents([])
-        }
-      }
-    }
-
-    refreshPendingCounts()
-
-    return () => {
-      cancelled = true
-    }
-  }, [isParent, parentControlsUnlocked, familyId, userId, userRole])
 
   async function handleParentLogin(event) {
     event.preventDefault()
@@ -1216,7 +963,7 @@ export default function ProfilePage() {
 
     try {
       const nextValue = !childSessionSecurityEnabled
-      await setChildSessionSecurity(nextValue, { familyId, userId, userRole })
+      await parentCommandCenterActions.setChildSessionSecurity(nextValue)
       setChildSessionSecurityEnabled(nextValue)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not update child session security setting.')
@@ -1225,27 +972,18 @@ export default function ProfilePage() {
     }
   }
 
-  async function refreshChildProfiles() {
-    const result = await getHouseholdOnboardingData({ familyId, userId, userRole })
-    setChildProfiles(result.data.childProfiles || [])
-  }
-
   async function handleAddChildProfile(event) {
     event.preventDefault()
     setSaving(true)
     setError('')
 
     try {
-      await createChildProfile(
-        {
-          displayName: newChildName,
-          avatar: newChildAvatar,
-        },
-        { familyId, userId, userRole },
-      )
+      await parentCommandCenterActions.createChildProfile({
+        displayName: newChildName,
+        avatar: newChildAvatar,
+      })
       setNewChildName('')
       setNewChildAvatar('🧒')
-      await refreshChildProfiles()
       closeDialog()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not add child profile.')
@@ -1271,16 +1009,11 @@ export default function ProfilePage() {
     setError('')
 
     try {
-      await updateChildProfile(
-        childId,
-        {
-          displayName: editingChildName,
-          avatar: editingChildAvatar,
-        },
-        { familyId, userId, userRole },
-      )
+      await parentCommandCenterActions.updateChildProfile(childId, {
+        displayName: editingChildName,
+        avatar: editingChildAvatar,
+      })
       handleCancelEditChild()
-      await refreshChildProfiles()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not update child profile.')
     } finally {
@@ -1312,12 +1045,11 @@ export default function ProfilePage() {
     setError('')
 
     try {
-      await deleteChildProfile(pendingChildRemoval.id, { familyId, userId, userRole })
+      await parentCommandCenterActions.deleteChildProfile(pendingChildRemoval.id)
       if (editingChildId === pendingChildRemoval.id) {
         handleCancelEditChild()
       }
       setPendingChildRemoval(null)
-      await refreshChildProfiles()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not remove child profile.')
     } finally {
@@ -1330,9 +1062,8 @@ export default function ProfilePage() {
     setError('')
 
     try {
-      await setChildAllowSessionCode(childId, allowed, { familyId, userId, userRole })
+      await parentCommandCenterActions.setChildAllowSessionCode(childId, allowed)
 
-      await refreshChildProfiles()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not update child PIN permission.')
     } finally {
@@ -1345,9 +1076,8 @@ export default function ProfilePage() {
     setError('')
 
     try {
-      await clearChildSessionCode(childId, { familyId, userId, userRole })
+      await parentCommandCenterActions.clearChildSessionCode(childId)
 
-      await refreshChildProfiles()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not clear child PIN.')
     } finally {
@@ -1356,19 +1086,8 @@ export default function ProfilePage() {
   }
 
   async function loadDialogData() {
-    const [dashboardResult, storeResult, checkResult, consequenceResult] = await Promise.all([
-      getFamilyDashboard({ familyId, userId, userRole, selectedChildId: null }),
-      getFamilyStoreData({ familyId, userId, userRole, selectedChildId: null }),
-      getFamilyJobCheckRequests({ familyId, userId, userRole, selectedChildId: null }),
-      getFamilyConsequenceEvents({ familyId, userId, userRole }),
-    ])
-
-    setJobs(dashboardResult.data.jobs)
-    setGoals(dashboardResult.data.goals)
-    setRewards(storeResult.data.rewards)
-    setRewardRequests(storeResult.data.requests)
-    setJobCheckRequests(checkResult.data.requests)
-    setConsequenceEvents(consequenceResult.data.events || [])
+    const nextData = await refreshParentCommandCenterData()
+    applyParentCommandCenterData(nextData)
   }
 
   async function openDialog(dialog, options = {}) {
@@ -1498,20 +1217,16 @@ export default function ProfilePage() {
     try {
       const childId = savingsGoalScope === 'family' ? null : savingsGoalScope
 
-      await createGoal(
-        {
-          name: savingsGoalName,
-          childId,
-          target: Number(savingsGoalTarget) || 0,
-          saved: 0,
-        },
-        { familyId, userId, userRole },
-      )
+      await parentCommandCenterActions.createGoal({
+        name: savingsGoalName,
+        childId,
+        target: Number(savingsGoalTarget) || 0,
+        saved: 0,
+      })
 
       setSavingsGoalName('')
       setSavingsGoalTarget('500')
       setSavingsGoalScope('family')
-      await loadDialogData()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not create savings goal.')
     } finally {
@@ -1834,9 +1549,9 @@ export default function ProfilePage() {
       }
 
       if (editingJobId) {
-        await updateJob(editingJobId, payload, { familyId, userId, userRole })
+        await parentCommandCenterActions.updateJob(editingJobId, payload)
       } else {
-        await createJob(payload, { familyId, userId, userRole })
+        await parentCommandCenterActions.createJob(payload)
       }
 
       setEditingJobId('')
@@ -1852,7 +1567,6 @@ export default function ProfilePage() {
       setJobBadgeContribution('none')
       setJobRequiresApproval(null)
       setEditingJobSnapshot('')
-      await loadDialogData()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not create job.')
     } finally {
@@ -1903,9 +1617,9 @@ export default function ProfilePage() {
       }
 
       if (editingRewardId) {
-        await updateReward(editingRewardId, payload, { familyId, userId, userRole })
+        await parentCommandCenterActions.updateReward(editingRewardId, payload)
       } else {
-        await createReward(payload, { familyId, userId, userRole })
+        await parentCommandCenterActions.createReward(payload)
       }
 
       setEditingRewardId('')
@@ -1918,7 +1632,6 @@ export default function ProfilePage() {
       setRewardFamilyLimitPeriod('day')
       setRewardRequiresApproval(null)
       setEditingRewardSnapshot('')
-      await loadDialogData()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not create reward.')
     } finally {
@@ -1932,39 +1645,36 @@ export default function ProfilePage() {
     setError('')
 
     try {
-      await createHousehold(
-        {
-          profileName: householdName,
-          familyRules,
-          familyAnnouncement: familySummary.familyAnnouncement || '',
-          childSessionSecurityEnabled,
-          savingsGoalApprovalMode,
-          rewardRequestApprovalMode,
-          jobCheckApprovalMode,
-          missedJobConsequenceEnabled,
-          missedJobPenaltyCredits: Number(missedJobPenaltyCredits) || 0,
-          missedJobTimingEnabled,
-          missedJobDefaultHours: Number(missedJobDefaultHours) || 24,
-          failedJobCheckConsequenceEnabled,
-          failedJobCheckPenaltyCredits: Number(failedJobCheckPenaltyCredits) || 0,
-          maxActivePoolClaimsPerChild: Number(maxActivePoolClaimsPerChild) || 1,
-          allowClaimingWithPendingChecks,
-          familyDashboardTopCardsEnabled,
-          dynamicPricingEnabled,
-          dynamicPricingWindowPeriod,
-          dynamicPricingDemandWeight: Number(dynamicPricingDemandWeight) || 0,
-          dynamicPricingScarcityWeight: Number(dynamicPricingScarcityWeight) || 0,
-          dynamicPricingMinMultiplierPercent: dynamicMinMultiplierValue,
-          dynamicPricingMaxMultiplierPercent: dynamicMaxMultiplierValue,
-          dynamicPricingMaxStepPercent: dynamicMaxStepValue,
-          staleJobBonusEnabled,
-          staleJobBonusStartHours: staleStartHoursValue,
-          staleJobBonusPeriodHours: stalePeriodHoursValue,
-          staleJobBonusRatePercent: staleRateValue,
-          staleJobBonusCapPercent: staleCapValue,
-        },
-        { familyId, userId, userRole, userEmail },
-      )
+      await parentCommandCenterActions.createHousehold({
+        profileName: householdName,
+        familyRules,
+        familyAnnouncement: familySummary.familyAnnouncement || '',
+        childSessionSecurityEnabled,
+        savingsGoalApprovalMode,
+        rewardRequestApprovalMode,
+        jobCheckApprovalMode,
+        missedJobConsequenceEnabled,
+        missedJobPenaltyCredits: Number(missedJobPenaltyCredits) || 0,
+        missedJobTimingEnabled,
+        missedJobDefaultHours: Number(missedJobDefaultHours) || 24,
+        failedJobCheckConsequenceEnabled,
+        failedJobCheckPenaltyCredits: Number(failedJobCheckPenaltyCredits) || 0,
+        maxActivePoolClaimsPerChild: Number(maxActivePoolClaimsPerChild) || 1,
+        allowClaimingWithPendingChecks,
+        familyDashboardTopCardsEnabled,
+        dynamicPricingEnabled,
+        dynamicPricingWindowPeriod,
+        dynamicPricingDemandWeight: Number(dynamicPricingDemandWeight) || 0,
+        dynamicPricingScarcityWeight: Number(dynamicPricingScarcityWeight) || 0,
+        dynamicPricingMinMultiplierPercent: dynamicMinMultiplierValue,
+        dynamicPricingMaxMultiplierPercent: dynamicMaxMultiplierValue,
+        dynamicPricingMaxStepPercent: dynamicMaxStepValue,
+        staleJobBonusEnabled,
+        staleJobBonusStartHours: staleStartHoursValue,
+        staleJobBonusPeriodHours: stalePeriodHoursValue,
+        staleJobBonusRatePercent: staleRateValue,
+        staleJobBonusCapPercent: staleCapValue,
+      })
       setFamilySummary({
         profileName: householdName,
         familyRules,
@@ -2021,22 +1731,19 @@ export default function ProfilePage() {
     setError('')
 
     try {
-      await createHousehold(
-        {
-          profileName: familySummary.profileName || householdName || 'My Family',
-          achievementsEnabled,
-          familyRecognitionEnabled,
-          customBadges,
-          achievementFirstGoalTarget: firstGoalTargetValue,
-          achievementContributorCreditsTarget: contributorCreditsTargetValue,
-          achievementHelperJobsTarget: helperJobsTargetValue,
-          achievementReadingJobsTarget: readingJobsTargetValue,
-          recognitionStreakDaysTarget: streakDaysTargetValue,
-          recognitionHelpingHandJobsTarget: helpingHandTargetValue,
-          recognitionGoalGetterTarget: goalGetterTargetValue,
-        },
-        { familyId, userId, userRole, userEmail },
-      )
+      await parentCommandCenterActions.createHousehold({
+        profileName: familySummary.profileName || householdName || 'My Family',
+        achievementsEnabled,
+        familyRecognitionEnabled,
+        customBadges,
+        achievementFirstGoalTarget: firstGoalTargetValue,
+        achievementContributorCreditsTarget: contributorCreditsTargetValue,
+        achievementHelperJobsTarget: helperJobsTargetValue,
+        achievementReadingJobsTarget: readingJobsTargetValue,
+        recognitionStreakDaysTarget: streakDaysTargetValue,
+        recognitionHelpingHandJobsTarget: helpingHandTargetValue,
+        recognitionGoalGetterTarget: goalGetterTargetValue,
+      })
 
       setFamilySummary((current) => ({
         ...current,
@@ -2067,7 +1774,7 @@ export default function ProfilePage() {
 
     try {
       const nextAnnouncement = String(familyAnnouncementDraft || '').trim()
-      await setFamilyAnnouncement(nextAnnouncement, { familyId, userId, userRole })
+      await parentCommandCenterActions.setFamilyAnnouncement(nextAnnouncement)
       setFamilyAnnouncementDraft(nextAnnouncement)
       setFamilySummary((current) => ({
         ...current,
@@ -2086,11 +1793,7 @@ export default function ProfilePage() {
     setError('')
 
     try {
-      await reviewJobCheckRequest(requestId, decision, { familyId, userId, userRole })
-      await loadDialogData()
-
-      const childrenResult = await getHouseholdOnboardingData({ familyId, userId, userRole })
-      setChildProfiles(childrenResult.data.childProfiles || [])
+      await parentCommandCenterActions.reviewJobCheckRequest(requestId, decision)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not review job check request.')
     } finally {
@@ -2105,11 +1808,10 @@ export default function ProfilePage() {
     setError('')
 
     try {
-      await reviewRewardRequest(requestId, decision, { familyId, userId, userRole }, options)
+      await parentCommandCenterActions.reviewRewardRequest(requestId, decision, options)
       setCounterRewardRequestId('')
       setCounterRewardTitle('')
       setCounterRewardCost('')
-      await loadDialogData()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not review reward request.')
     } finally {
@@ -2211,7 +1913,7 @@ export default function ProfilePage() {
     setError('')
 
     try {
-      await resolveRewardRequestAsPool(
+      await parentCommandCenterActions.resolveRewardRequestAsPool(
         request.id,
         {
           title,
@@ -2223,11 +1925,9 @@ export default function ProfilePage() {
           familyClaimLimitPeriod: poolRewardFamilyLimitPeriod,
           requiresApproval: poolRewardRequiresApproval,
         },
-        { familyId, userId, userRole },
         { parentNote: rewardReviewNotes[request.id] || '' },
       )
       resetPoolRewardResolution()
-      await loadDialogData()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not add this request to the family reward pool.')
     } finally {
@@ -2242,8 +1942,7 @@ export default function ProfilePage() {
     setError('')
 
     try {
-      await fulfillRewardRequest(requestId, { familyId, userId, userRole })
-      await loadDialogData()
+      await parentCommandCenterActions.fulfillRewardRequest(requestId)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not mark reward as fulfilled.')
     } finally {
@@ -2258,8 +1957,7 @@ export default function ProfilePage() {
     setError('')
 
     try {
-      await dismissRewardNotification(requestId, { familyId, userId, userRole })
-      await loadDialogData()
+      await parentCommandCenterActions.dismissRewardNotification(requestId)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not dismiss reward notification.')
     } finally {
@@ -2274,8 +1972,7 @@ export default function ProfilePage() {
     setError('')
 
     try {
-      await dismissAllRewardNotifications({ familyId, userId, userRole })
-      await loadDialogData()
+      await parentCommandCenterActions.dismissAllRewardNotifications()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not dismiss all reward notifications.')
     } finally {
@@ -2290,8 +1987,7 @@ export default function ProfilePage() {
     setError('')
 
     try {
-      await approveSavingsGoalCompletion(goalId, { familyId, userId, userRole })
-      await loadDialogData()
+      await parentCommandCenterActions.approveSavingsGoalCompletion(goalId)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not approve this savings goal yet.')
     } finally {
@@ -2306,11 +2002,10 @@ export default function ProfilePage() {
     setError('')
 
     try {
-      await reviewSavingsGoalRequest(goalId, decision, { familyId, userId, userRole })
+      await parentCommandCenterActions.reviewSavingsGoalRequest(goalId, decision)
       setCounterGoalId('')
       setCounterGoalTarget('')
       setCounterGoalNote('')
-      await loadDialogData()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not review this goal request.')
     } finally {
@@ -2332,16 +2027,14 @@ export default function ProfilePage() {
     setError('')
 
     try {
-      await reviewSavingsGoalRequest(
+      await parentCommandCenterActions.reviewSavingsGoalRequest(
         goal.id,
         'countered',
-        { familyId, userId, userRole },
         { counterTarget, counterNote: counterGoalNote },
       )
       setCounterGoalId('')
       setCounterGoalTarget('')
       setCounterGoalNote('')
-      await loadDialogData()
     } catch (caughtError) {
       setError(caughtError.message || 'Could not send counter offer.')
     } finally {
@@ -2356,8 +2049,7 @@ export default function ProfilePage() {
     setError('')
 
     try {
-      await markJobAsMissed(jobId, { familyId, userId, userRole })
-      await loadDialogData()
+      await parentCommandCenterActions.markJobAsMissed(jobId)
     } catch (caughtError) {
       setError(caughtError.message || 'Could not mark this job as missed.')
     } finally {
@@ -2464,17 +2156,12 @@ export default function ProfilePage() {
     setError('')
 
     try {
-      await createFeedbackEntry(
-        {
-          category: feedbackCategory,
-          message: feedbackMessage,
-        },
-        { familyId, userId, userRole },
-      )
+      await parentCommandCenterActions.createFeedbackEntry({
+        category: feedbackCategory,
+        message: feedbackMessage,
+      })
 
       setFeedbackMessage('')
-      const result = await getFamilyFeedbackEntries({ familyId, userId, userRole })
-      setFeedbackEntries(result.data.entries || [])
     } catch (caughtError) {
       setError(caughtError.message || 'Could not submit feedback.')
     } finally {
@@ -2607,61 +2294,22 @@ export default function ProfilePage() {
     setEditingRewardSnapshot('')
   }
 
-  const pendingJobCheckRequests = jobCheckRequests.filter((request) => request.status === 'pending')
-  const pendingRewardRequests = rewardRequests.filter((request) => request.status === 'pending')
-  const counteredRewardRequests = rewardRequests.filter((request) => request.status === 'countered')
-  const rewardNotifications = rewardRequests.filter(
-    (request) =>
-      request.status === 'approved'
-      && request.requestKind === 'purchase'
-      && request.autoApproved
-      && !request.notificationDismissedAt,
-  )
-  const approvedRewardRequests = rewardRequests.filter(
-    (request) => request.status === 'approved' && request.requestKind === 'purchase',
-  )
-  const rewardDemandRows = Object.entries(
-    approvedRewardRequests.reduce((accumulator, request) => {
-      const title = request.rewardTitle || 'Unknown reward'
-      const claimantId = request.requestedBy || request.childId || 'unknown'
-
-      if (!accumulator[title]) {
-        accumulator[title] = {
-          count: 0,
-          claimantCounts: {},
-        }
-      }
-
-      accumulator[title].count += 1
-      accumulator[title].claimantCounts[claimantId] = (accumulator[title].claimantCounts[claimantId] || 0) + 1
-      return accumulator
-    }, {}),
-  )
-    .map(([title, aggregate]) => {
-      const topClaimant = Object.entries(aggregate.claimantCounts)
-        .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))[0] || []
-
-      return {
-        title,
-        count: aggregate.count,
-        claimantId: topClaimant[0] || '',
-        claimantCount: topClaimant[1] || 0,
-        claimantLabel: childNameById[topClaimant[0]] || 'Family',
-        claimantTotal: Object.keys(aggregate.claimantCounts).length,
-      }
-    })
-    .sort((left, right) => right.count - left.count || left.title.localeCompare(right.title))
-    .slice(0, 5)
-  const pendingGoalRequests = goals.filter((goal) => goal.status === 'pending_parent_approval')
-  const pendingGoalApprovals = goals.filter((goal) => goal.status === 'ready_to_claim')
-  const pendingRequestsCount =
-    pendingJobCheckRequests.length
-    + pendingRewardRequests.length
-    + counteredRewardRequests.length
-    + rewardNotifications.length
-    + approvedRewardRequests.length
-    + pendingGoalRequests.length
-    + pendingGoalApprovals.length
+  const {
+    pendingJobCheckRequests,
+    pendingRewardRequests,
+    counteredRewardRequests,
+    rewardNotifications,
+    approvedRewardRequests,
+    rewardDemandRows,
+    pendingGoalRequests,
+    pendingGoalApprovals,
+    pendingRequestsCount,
+  } = getParentCommandCenterRequestSummary({
+    jobCheckRequests,
+    rewardRequests,
+    goals,
+    childNameById,
+  })
 
   useEffect(() => {
     if (!activeHelpDialog) {

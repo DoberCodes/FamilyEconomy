@@ -4,8 +4,8 @@ export default function StreakCard({ days = 0 }) {
   return (
     <section className="streak-card">
       <div>
-        <p>🔥 {weeklyDays} Day Streak!</p>
-        <small>Complete jobs on 5 days this week for bonus XP.</small>
+        <p>{weeklyDays} active day{weeklyDays === 1 ? '' : 's'} this week</p>
+        <small>Every helpful day counts toward weekly practice.</small>
       </div>
       <div className="streak-dots" aria-hidden="true">
         {Array.from({ length: 7 }).map((_, index) => (
@@ -16,7 +16,7 @@ export default function StreakCard({ days = 0 }) {
         ))}
       </div>
       <div className="treasure" aria-hidden="true">
-        🧰
+        XP
       </div>
     </section>
   )

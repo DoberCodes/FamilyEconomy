@@ -16,6 +16,11 @@ import {
 } from 'firebase/firestore'
 
 import { db, hasFirebaseConfig } from '../lib/firebase.js'
+import {
+  getWindowStart as startOfCurrentWindow,
+  startOfWeek as startOfWeekForDate,
+  toDateValue,
+} from '../utils/dateUtils.js'
 import { trackAnalyticsEvent } from './analytics.js'
 import {
   computeBlockingPoolClaimCount,
@@ -24,8 +29,8 @@ import {
 } from './policyUtils.js'
 
 const DEFAULT_FAMILY_ID = 'family-main'
-const DEFAULT_USER_ID = 'kid-alex'
-const DEFAULT_ROLE = 'kid'
+const DEFAULT_USER_ID = 'parent-demo'
+const DEFAULT_ROLE = 'parent'
 const CREATOR_OWNER_EMAIL = 'austin.dober@gmail.com'
 const SAVINGS_GOAL_COMPLETION_XP = 140
 const WEEKLY_STREAK_MIN_DAYS = 5
@@ -62,6 +67,22 @@ function normalizeSavingsGoalApprovalMode(value) {
   return 'claim_only'
 }
 
+function normalizeJobCheckApprovalMode(value) {
+  if (value === 'required' || value === 'auto_approve') {
+    return value
+  }
+
+  return 'required'
+}
+
+function normalizeRewardRequestApprovalMode(value) {
+  if (value === 'required' || value === 'auto_approve') {
+    return value
+  }
+
+  return 'required'
+}
+
 function normalizePricingWindow(period) {
   return period === 'day' || period === 'week' ? period : 'week'
 }
@@ -91,6 +112,17 @@ function normalizeFamilySavingsSettings(familyData = {}) {
   return {
     savingsGoalApprovalMode: normalizeSavingsGoalApprovalMode(
       familyData.savingsGoalApprovalMode,
+    ),
+    jobCheckApprovalMode: normalizeJobCheckApprovalMode(
+      familyData.jobCheckApprovalMode,
+    ),
+  }
+}
+
+function normalizeFamilyRewardSettings(familyData = {}) {
+  return {
+    rewardRequestApprovalMode: normalizeRewardRequestApprovalMode(
+      familyData.rewardRequestApprovalMode,
     ),
   }
 }
@@ -336,6 +368,42 @@ export function getActiveFamilyContext(override = {}) {
   }
 }
 
+function getChildSessionActor(context = {}, actionLabel = 'This action') {
+  const { userId, userRole } = getActiveFamilyContext(context)
+  const selectedChildId = context.selectedChildId || context.childId || null
+
+  if (userRole === 'kid') {
+    return {
+      childId: userId,
+      performedBy: userId,
+      userRole,
+      isParentMediated: false,
+    }
+  }
+
+  if (userRole === 'parent' && selectedChildId) {
+    return {
+      childId: selectedChildId,
+      performedBy: userId,
+      userRole,
+      isParentMediated: true,
+    }
+  }
+
+  throw new Error(`${actionLabel} requires an active child session.`)
+}
+
+function getChildSessionWriteMeta(actor) {
+  return actor.isParentMediated
+    ? {
+      sessionActor: 'parent_child_session',
+      performedByParentId: actor.performedBy,
+    }
+    : {
+      sessionActor: 'kid_auth',
+    }
+}
+
 function normalizeJob(job) {
   const missedAfterHoursRaw = Number(job.missedAfterHours)
   const rewardType = job.rewardType === 'xp' ? 'xp' : 'credits'
@@ -373,6 +441,10 @@ function normalizeJob(job) {
     completedAt: job.completedAt || null,
     createdAt: job.createdAt || null,
     createdBy: job.createdBy || null,
+    requiresApproval:
+      job.requiresApproval === true ? true
+      : job.requiresApproval === false ? false
+      : null,
   }
 }
 
@@ -460,9 +532,9 @@ function normalizeReward(reward, fallbackId) {
         ? reward.familyClaimLimitPeriod
         : null,
     requiresApproval:
-      typeof reward.requiresApproval === 'boolean'
-        ? reward.requiresApproval
-        : true,
+      reward.requiresApproval === true ? true
+      : reward.requiresApproval === false ? false
+      : null,
   }
 }
 
@@ -601,51 +673,6 @@ function calculateJobAdjustedPoints(job, staleBonusSettings, nowMs = Date.now())
   }
 }
 
-function startOfCurrentWindow(period) {
-  const now = new Date()
-
-  if (period === 'day') {
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  }
-
-  if (period === 'week') {
-    const start = new Date(now)
-    const day = start.getDay()
-    const daysSinceMonday = (day + 6) % 7
-    start.setHours(0, 0, 0, 0)
-    start.setDate(start.getDate() - daysSinceMonday)
-    return start
-  }
-
-  return null
-}
-
-function startOfWeekForDate(value = new Date()) {
-  const start = new Date(value)
-  const day = start.getDay()
-  const daysSinceMonday = (day + 6) % 7
-  start.setHours(0, 0, 0, 0)
-  start.setDate(start.getDate() - daysSinceMonday)
-  return start
-}
-
-function toDateValue(value) {
-  if (!value) {
-    return null
-  }
-
-  if (value instanceof Date) {
-    return value
-  }
-
-  if (typeof value?.toDate === 'function') {
-    return value.toDate()
-  }
-
-  const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? null : parsed
-}
-
 function toDayKey(value) {
   const date = toDateValue(value)
   if (!date) {
@@ -772,8 +799,15 @@ function normalizeRewardRequest(request, fallbackId) {
     fulfilledAt: request.fulfilledAt || null,
     fulfilledBy: request.fulfilledBy || null,
     reviewedBy: request.reviewedBy || null,
+    autoApproved: Boolean(request.autoApproved),
+    notificationDismissedAt: request.notificationDismissedAt || null,
+    notificationDismissedBy: request.notificationDismissedBy || null,
+    linkedRewardId: request.linkedRewardId || null,
+    linkedRewardTitle: request.linkedRewardTitle || '',
+    linkedRewardCost: Number(request.linkedRewardCost) || 0,
     createdAt: request.createdAt || null,
     reviewedAt: request.reviewedAt || null,
+    updatedAt: request.updatedAt || null,
   }
 }
 
@@ -998,6 +1032,10 @@ export async function createJob(jobPayload, context = {}) {
     autoRecreate,
     badgeContribution,
     missedAfterHours,
+    requiresApproval:
+      jobPayload.requiresApproval === true ? true
+      : jobPayload.requiresApproval === false ? false
+      : null,
     status: 'open',
     order: Number(jobPayload.order) || Date.now(),
     claimedBy: null,
@@ -1088,6 +1126,10 @@ export async function updateJob(jobId, jobPayload, context = {}) {
     autoRecreate,
     badgeContribution,
     missedAfterHours,
+    requiresApproval:
+      jobPayload.requiresApproval === true ? true
+      : jobPayload.requiresApproval === false ? false
+      : null,
     updatedAt: serverTimestamp(),
   })
   trackAnalyticsEvent(
@@ -1107,10 +1149,7 @@ export async function claimJob(jobId, context = {}) {
   const { familyId: activeFamilyId, userId, userRole } = getActiveFamilyContext(
     context,
   )
-
-  if (userRole !== 'kid') {
-    throw new Error('Only kids can claim jobs.')
-  }
+  const actor = getChildSessionActor(context, 'Claiming jobs')
 
   if (!hasFirebaseConfig || !db) {
     throw new Error('Firebase is not configured.')
@@ -1129,7 +1168,7 @@ export async function claimJob(jobId, context = {}) {
     throw new Error('Only open jobs can be claimed.')
   }
 
-  if (jobData.childId && jobData.childId !== userId) {
+  if (jobData.childId && jobData.childId !== actor.childId) {
     throw new Error('This job is assigned to a different child.')
   }
 
@@ -1150,7 +1189,7 @@ export async function claimJob(jobId, context = {}) {
     const myJobsSnapshot = await getDocs(
       query(
         collection(db, 'families', targetFamilyId, 'jobs'),
-        where('claimedBy', '==', userId),
+        where('claimedBy', '==', actor.childId),
       ),
     )
 
@@ -1202,7 +1241,7 @@ export async function claimJob(jobId, context = {}) {
   if (!jobData.childId) {
     const activePoolClaimQuery = query(
       collection(db, 'families', targetFamilyId, 'jobs'),
-      where('claimedBy', '==', userId),
+      where('claimedBy', '==', actor.childId),
       where('status', '==', 'claimed'),
       where('childId', '==', null),
     )
@@ -1213,7 +1252,7 @@ export async function claimJob(jobId, context = {}) {
     if (flowSettings.allowClaimingWithPendingChecks && activePoolClaimIds.length > 0) {
       const pendingChecksQuery = query(
         collection(db, 'families', targetFamilyId, 'jobCheckRequests'),
-        where('requestedBy', '==', userId),
+        where('requestedBy', '==', actor.childId),
         where('status', '==', 'pending'),
       )
       const pendingChecksSnap = await getDocs(pendingChecksQuery)
@@ -1238,8 +1277,9 @@ export async function claimJob(jobId, context = {}) {
   await updateDoc(jobRef, {
     status: 'claimed',
     points: adjustedJobPoints.adjustedPoints,
-    claimedBy: userId,
+    claimedBy: actor.childId,
     claimedAt: serverTimestamp(),
+    ...getChildSessionWriteMeta(actor),
   })
   trackAnalyticsEvent(
     'job_claimed',
@@ -1251,7 +1291,7 @@ export async function claimJob(jobId, context = {}) {
       source: 'claimJob',
       screen: 'kid',
     },
-    { familyId: targetFamilyId, userId, userRole },
+    { familyId: targetFamilyId, userId, userRole, childId: actor.childId },
   )
 }
 
@@ -1259,10 +1299,7 @@ export async function requestJobCheck(job, context = {}) {
   const { familyId: activeFamilyId, userId, userRole } = getActiveFamilyContext(
     context,
   )
-
-  if (userRole !== 'kid') {
-    throw new Error('Only kids can request a job check.')
-  }
+  const actor = getChildSessionActor(context, 'Requesting a job check')
 
   if (!hasFirebaseConfig || !db) {
     throw new Error('Firebase is not configured.')
@@ -1284,8 +1321,73 @@ export async function requestJobCheck(job, context = {}) {
     throw new Error('Only claimed jobs can be submitted for check.')
   }
 
-  if (jobData.claimedBy !== userId) {
+  if (jobData.claimedBy !== actor.childId) {
     throw new Error('You can only request checks for your claimed jobs.')
+  }
+
+  // Check whether this job should be auto-approved.
+  const familySnap = await getDoc(doc(db, 'families', activeFamilyId))
+  const familyJobMode = normalizeJobCheckApprovalMode(
+    familySnap.exists() ? familySnap.data()?.jobCheckApprovalMode : undefined,
+  )
+  const effectiveAutoApprove =
+    jobData.requiresApproval === false
+      ? true
+      : jobData.requiresApproval === true
+        ? false
+        : familyJobMode === 'auto_approve'
+
+  if (effectiveAutoApprove) {
+    await updateDoc(jobRef, { status: 'done', completedAt: serverTimestamp() })
+
+    if (jobData.rewardType !== 'xp') {
+      const childRef = doc(db, 'families', activeFamilyId, 'children', actor.childId)
+      await updateDoc(childRef, {
+        credits: increment(Number(jobData.points) || 0),
+        updatedAt: serverTimestamp(),
+      })
+    }
+
+    await awardFamilyXp(activeFamilyId, Number(jobData.points) || 0)
+    await maybeAwardWeeklyStreakBonus(activeFamilyId, actor.childId, {
+      familyId: activeFamilyId,
+      userId,
+      userRole,
+      childId: actor.childId,
+    })
+
+    if (jobData.autoRecreate) {
+      const nextBasePoints = Number(jobData.basePoints ?? jobData.points) || 0
+      await addDoc(collection(db, 'families', activeFamilyId, 'jobs'), {
+        title: jobData.title,
+        rewardType: jobData.rewardType === 'xp' ? 'xp' : 'credits',
+        basePoints: nextBasePoints,
+        points: nextBasePoints,
+        icon: jobData.icon || '✅',
+        childId: jobData.childId || null,
+        claimLimitCount: Number(jobData.claimLimitCount) || 0,
+        claimLimitPeriod: jobData.claimLimitPeriod || null,
+        familyClaimLimitCount: Number(jobData.familyClaimLimitCount) || 0,
+        familyClaimLimitPeriod: jobData.familyClaimLimitPeriod || null,
+        claimLimitKey: jobData.claimLimitKey || normalizeJobLimitKey(jobData.title),
+        autoRecreate: true,
+        badgeContribution: jobData.badgeContribution,
+        missedAfterHours: jobData.missedAfterHours,
+        requiresApproval: jobData.requiresApproval,
+        status: 'open',
+        order: Date.now(),
+        claimedBy: null,
+        createdBy: jobData.createdBy || userId,
+        createdAt: serverTimestamp(),
+      })
+    }
+
+    trackAnalyticsEvent(
+      'job_check_auto_approved',
+      { itemId: job.id, itemType: 'job', title: jobData.title, source: 'requestJobCheck', screen: 'kid' },
+      { familyId: activeFamilyId, userId, userRole, childId: actor.childId },
+    )
+    return
   }
 
   try {
@@ -1312,12 +1414,13 @@ export async function requestJobCheck(job, context = {}) {
   try {
     await addDoc(collection(db, 'families', activeFamilyId, 'jobCheckRequests'), {
       jobId: job.id,
-      childId: userId,
+      childId: actor.childId,
       jobTitle: jobData.title,
       rewardType: jobData.rewardType,
       points: Number(jobData.points) || 0,
-      requestedBy: userId,
+      requestedBy: actor.childId,
       status: 'pending',
+      ...getChildSessionWriteMeta(actor),
       createdAt: serverTimestamp(),
     })
   } catch (error) {
@@ -1545,6 +1648,9 @@ export async function reviewJobCheckRequest(requestId, decision, context = {}) {
         familyClaimLimitPeriod: approvedJob.familyClaimLimitPeriod || null,
         claimLimitKey: approvedJob.claimLimitKey || normalizeJobLimitKey(approvedJob.title),
         autoRecreate: true,
+        badgeContribution: approvedJob.badgeContribution,
+        missedAfterHours: approvedJob.missedAfterHours,
+        requiresApproval: approvedJob.requiresApproval,
         status: 'open',
         order: Date.now(),
         claimedBy: null,
@@ -1806,7 +1912,8 @@ export async function getFamilyStoreData(context = {}) {
     })
 
   const familySnap = await getDoc(doc(db, 'families', activeFamilyId))
-  const pricingSettings = normalizeFamilyPricingSettings(familySnap.data() || {})
+  const familyData = familySnap.data() || {}
+  const pricingSettings = normalizeFamilyPricingSettings(familyData)
 
   const rewards = rewardsSnapshot.docs
     .map((item) => normalizeReward({ id: item.id, ...item.data() }, item.id))
@@ -1836,10 +1943,7 @@ export async function requestReward(reward, context = {}) {
   const { familyId: activeFamilyId, userId, userRole } = getActiveFamilyContext(
     context,
   )
-
-  if (userRole !== 'kid') {
-    throw new Error('Only kids can request rewards.')
-  }
+  const actor = getChildSessionActor(context, 'Requesting rewards')
 
   if (!hasFirebaseConfig || !db) {
     throw new Error('Firebase is not configured.')
@@ -1858,8 +1962,14 @@ export async function requestReward(reward, context = {}) {
 
   const rewardData = normalizeReward({ id: rewardSnap.id, ...rewardSnap.data() }, rewardSnap.id)
 
+  if (rewardData.childId && rewardData.childId !== actor.childId) {
+    throw new Error('This reward is assigned to a different child.')
+  }
+
   const familySnap = await getDoc(doc(db, 'families', activeFamilyId))
-  const pricingSettings = normalizeFamilyPricingSettings(familySnap.data() || {})
+  const familyData = familySnap.data() || {}
+  const pricingSettings = normalizeFamilyPricingSettings(familyData)
+  const rewardApprovalSettings = normalizeFamilyRewardSettings(familyData)
 
   const limitCount = Number(rewardData.claimLimitCount) || 0
   const limitPeriod = rewardData.claimLimitPeriod
@@ -1873,7 +1983,7 @@ export async function requestReward(reward, context = {}) {
 
   const hasOpenRewardRequest = allRewardRequests.some(
     (item) =>
-      item.requestedBy === userId
+      item.requestedBy === actor.childId
       && (item.status === 'pending' || item.status === 'countered'),
   )
 
@@ -1884,7 +1994,7 @@ export async function requestReward(reward, context = {}) {
   const pricing = calculateRewardAdjustedCost(rewardData, allRewardRequests, pricingSettings)
   const effectiveCost = pricing.adjustedCost
 
-  const targetChildId = context.selectedChildId || userId
+  const targetChildId = actor.childId
   if (targetChildId) {
     const childRef = doc(db, 'families', activeFamilyId, 'children', targetChildId)
     const childSnap = await getDoc(childRef)
@@ -1907,7 +2017,7 @@ export async function requestReward(reward, context = {}) {
           item.requestKind === 'purchase'
           &&
           item.rewardId === rewardData.id
-          && item.requestedBy === userId
+          && item.requestedBy === actor.childId
             && (item.status === 'pending' || item.status === 'approved' || item.status === 'fulfilled'),
       )
 
@@ -1945,7 +2055,7 @@ export async function requestReward(reward, context = {}) {
     const usedClaims = allRewardRequests
       .filter((item) => item.requestKind === 'purchase')
       .filter((item) => item.rewardId === rewardData.id)
-      .filter((item) => item.requestedBy === userId)
+      .filter((item) => item.requestedBy === actor.childId)
       .filter((item) => item.status === 'pending' || item.status === 'approved' || item.status === 'fulfilled')
       .filter((item) => {
         const createdAt = item.createdAt?.toDate?.() || null
@@ -1963,16 +2073,61 @@ export async function requestReward(reward, context = {}) {
     }
   }
 
+  const effectiveAutoApprove =
+    rewardData.requiresApproval === false
+      ? true
+      : rewardData.requiresApproval === true
+        ? false
+        : rewardApprovalSettings.rewardRequestApprovalMode === 'auto_approve'
+
+  const nextStatus = effectiveAutoApprove ? 'approved' : 'pending'
+
   await addDoc(collection(db, 'families', activeFamilyId, 'rewardRequests'), {
     requestKind: 'purchase',
     rewardId: rewardData.id,
-    childId: rewardData.childId || context.selectedChildId || null,
+    childId: rewardData.childId || actor.childId,
     rewardTitle: rewardData.title,
     cost: Number(effectiveCost) || 0,
-    requestedBy: userId,
-    status: 'pending',
+    requestedBy: actor.childId,
+    status: nextStatus,
+    autoApproved: effectiveAutoApprove,
+    notificationDismissedAt: null,
+    notificationDismissedBy: null,
+    ...getChildSessionWriteMeta(actor),
     createdAt: serverTimestamp(),
+    reviewedAt: effectiveAutoApprove ? serverTimestamp() : null,
+    updatedAt: serverTimestamp(),
   })
+
+  if (effectiveAutoApprove) {
+    const spendAmount = Number(effectiveCost) || 0
+
+    if (targetChildId) {
+      const childRef = doc(db, 'families', activeFamilyId, 'children', targetChildId)
+
+      await runTransaction(db, async (transaction) => {
+        const childSnap = await transaction.get(childRef)
+        if (!childSnap.exists()) {
+          throw new Error('Child profile not found for this reward request.')
+        }
+
+        const currentCredits = Number(childSnap.data()?.credits) || 0
+        if (currentCredits < spendAmount) {
+          throw new Error('This child no longer has enough credits for this reward.')
+        }
+
+        transaction.update(childRef, {
+          credits: currentCredits - spendAmount,
+          updatedAt: serverTimestamp(),
+        })
+      })
+    } else {
+      const familyBalanceRef = doc(db, 'families', activeFamilyId)
+      await updateDoc(familyBalanceRef, {
+        'balance.credits': increment(-spendAmount),
+      })
+    }
+  }
 
   trackAnalyticsEvent(
     'reward_request_submitted',
@@ -1981,6 +2136,7 @@ export async function requestReward(reward, context = {}) {
       itemType: 'reward',
       title: rewardData.title,
       cost: Number(effectiveCost) || 0,
+      autoApproved: effectiveAutoApprove,
       source: 'requestReward',
       screen: 'kid',
     },
@@ -1990,10 +2146,7 @@ export async function requestReward(reward, context = {}) {
 
 export async function createCustomRewardRequest(requestPayload, context = {}) {
   const { familyId: activeFamilyId, userId, userRole } = getActiveFamilyContext(context)
-
-  if (userRole !== 'kid') {
-    throw new Error('Only kids can request custom rewards.')
-  }
+  const actor = getChildSessionActor(context, 'Requesting custom rewards')
 
   if (!hasFirebaseConfig || !db) {
     throw new Error('Firebase is not configured.')
@@ -2002,7 +2155,7 @@ export async function createCustomRewardRequest(requestPayload, context = {}) {
   const rewardTitle = (requestPayload.rewardTitle || '').trim()
   const cost = Number(requestPayload.cost) || 0
   const childNote = (requestPayload.childNote || '').trim()
-  const childId = context.selectedChildId || userId
+  const childId = actor.childId
 
   if (!rewardTitle) {
     throw new Error('Reward title is required.')
@@ -2020,7 +2173,7 @@ export async function createCustomRewardRequest(requestPayload, context = {}) {
 
   const hasOpenRewardRequest = allRewardRequests.some(
     (item) =>
-      item.requestedBy === userId
+      item.requestedBy === actor.childId
       && (item.status === 'pending' || item.status === 'countered'),
   )
 
@@ -2034,12 +2187,13 @@ export async function createCustomRewardRequest(requestPayload, context = {}) {
     childId,
     rewardTitle,
     cost,
-    requestedBy: userId,
+    requestedBy: childId,
     status: 'pending',
     childNote,
     parentNote: '',
     counterRewardTitle: '',
     counterCost: 0,
+    ...getChildSessionWriteMeta(actor),
     createdAt: serverTimestamp(),
   })
 
@@ -2124,32 +2278,16 @@ export async function reviewRewardRequest(requestId, decision, context = {}, opt
     const approvedCost = Number(requestData.counterCost) > 0
       ? Number(requestData.counterCost)
       : Number(requestData.cost) || 0
-    const approvedChildId = requestData.childId || requestData.requestedBy || null
-
-    const rewardRef = await addDoc(collection(db, 'families', activeFamilyId, 'rewards'), {
-      title: approvedTitle,
-      cost: approvedCost,
-      baseCost: approvedCost,
-      childId: approvedChildId,
-      repeatMode: 'once',
-      claimLimitCount: 0,
-      claimLimitPeriod: null,
-      familyClaimLimitCount: 0,
-      familyClaimLimitPeriod: null,
-      requiresApproval: true,
-      createdBy: userId,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    })
 
     await updateDoc(requestRef, {
       status: 'approved',
       parentNote,
-      rewardId: rewardRef.id,
+      rewardId: null,
       rewardTitle: approvedTitle,
       cost: approvedCost,
       reviewedBy: userId,
       reviewedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     })
 
     return
@@ -2192,6 +2330,105 @@ export async function reviewRewardRequest(requestId, decision, context = {}, opt
       })
     }
   }
+}
+
+export async function resolveRewardRequestAsPool(requestId, rewardPayload, context = {}, options = {}) {
+  const { familyId: activeFamilyId, userId, userRole } = getActiveFamilyContext(
+    context,
+  )
+
+  if (userRole !== 'parent') {
+    throw new Error('Only parents can resolve reward requests into pool rewards.')
+  }
+
+  if (!hasFirebaseConfig || !db) {
+    throw new Error('Firebase is not configured.')
+  }
+
+  const requestRef = doc(db, 'families', activeFamilyId, 'rewardRequests', requestId)
+  const requestSnap = await getDoc(requestRef)
+
+  if (!requestSnap.exists()) {
+    throw new Error('Reward request not found.')
+  }
+
+  const requestData = normalizeRewardRequest({ id: requestSnap.id, ...requestSnap.data() }, requestSnap.id)
+
+  if (requestData.requestKind !== 'proposal' || requestData.status !== 'pending') {
+    throw new Error('Only pending custom reward proposals can be moved to the family pool.')
+  }
+
+  const title = (rewardPayload.title || requestData.counterRewardTitle || requestData.rewardTitle || '').trim()
+  const cost = Number(rewardPayload.cost)
+
+  if (!title) {
+    throw new Error('Reward title is required.')
+  }
+
+  if (!Number.isFinite(cost) || cost <= 0) {
+    throw new Error('Reward cost must be greater than zero.')
+  }
+
+  const claimLimitCount = Math.max(0, Number(rewardPayload.claimLimitCount) || 0)
+  const claimLimitPeriod =
+    rewardPayload.claimLimitPeriod === 'day' || rewardPayload.claimLimitPeriod === 'week'
+      ? rewardPayload.claimLimitPeriod
+      : null
+  const familyClaimLimitCount = Math.max(0, Number(rewardPayload.familyClaimLimitCount) || 0)
+  const familyClaimLimitPeriod =
+    rewardPayload.familyClaimLimitPeriod === 'day' || rewardPayload.familyClaimLimitPeriod === 'week'
+      ? rewardPayload.familyClaimLimitPeriod
+      : null
+  const repeatMode = rewardPayload.repeatMode === 'once' ? 'once' : 'recur'
+  const requiresApproval =
+    rewardPayload.requiresApproval === true ? true
+    : rewardPayload.requiresApproval === false ? false
+    : null
+  const parentNote = (options.parentNote || '').trim()
+
+  const rewardRef = await addDoc(collection(db, 'families', activeFamilyId, 'rewards'), {
+    title,
+    cost,
+    baseCost: cost,
+    childId: null,
+    repeatMode,
+    claimLimitCount,
+    claimLimitPeriod: claimLimitCount > 0 ? claimLimitPeriod || 'day' : null,
+    familyClaimLimitCount,
+    familyClaimLimitPeriod:
+      familyClaimLimitCount > 0 ? familyClaimLimitPeriod || 'day' : null,
+    requiresApproval,
+    createdBy: userId,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+
+  await updateDoc(requestRef, {
+    status: 'redirected_to_pool',
+    parentNote,
+    linkedRewardId: rewardRef.id,
+    linkedRewardTitle: title,
+    linkedRewardCost: cost,
+    reviewedBy: userId,
+    reviewedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+
+  trackAnalyticsEvent(
+    'reward_request_redirected_to_pool',
+    {
+      itemId: requestId,
+      itemType: 'reward_proposal',
+      linkedRewardId: rewardRef.id,
+      title,
+      cost,
+      source: 'resolveRewardRequestAsPool',
+      screen: 'parent',
+    },
+    { familyId: activeFamilyId, userId, userRole, childId: requestData.childId || requestData.requestedBy || null },
+  )
+
+  return rewardRef.id
 }
 
 export async function fulfillRewardRequest(requestId, context = {}) {
@@ -2244,12 +2481,79 @@ export async function fulfillRewardRequest(requestId, context = {}) {
   )
 }
 
-export async function acceptRewardRequestTerms(requestId, context = {}) {
+export async function claimApprovedRewardProposal(requestId, context = {}) {
   const { familyId: activeFamilyId, userId, userRole } = getActiveFamilyContext(context)
+  const actor = getChildSessionActor(context, 'Claiming approved reward ideas')
 
-  if (userRole !== 'kid') {
-    throw new Error('Only kids can accept reward terms.')
+  if (!hasFirebaseConfig || !db) {
+    throw new Error('Firebase is not configured.')
   }
+
+  const requestRef = doc(db, 'families', activeFamilyId, 'rewardRequests', requestId)
+
+  await runTransaction(db, async (transaction) => {
+    const requestSnap = await transaction.get(requestRef)
+
+    if (!requestSnap.exists()) {
+      throw new Error('Reward request not found.')
+    }
+
+    const requestData = normalizeRewardRequest(
+      { id: requestSnap.id, ...requestSnap.data() },
+      requestSnap.id,
+    )
+
+    if (requestData.requestedBy !== actor.childId) {
+      throw new Error('You can only claim your own approved reward idea.')
+    }
+
+    if (requestData.requestKind !== 'proposal' || requestData.status !== 'approved') {
+      throw new Error('This reward idea is not ready to claim.')
+    }
+
+    const spendAmount = Number(requestData.cost) || 0
+    const targetChildId = requestData.childId || requestData.requestedBy || actor.childId
+    const childRef = doc(db, 'families', activeFamilyId, 'children', targetChildId)
+    const childSnap = await transaction.get(childRef)
+
+    if (!childSnap.exists()) {
+      throw new Error('Child profile not found for this reward request.')
+    }
+
+    const currentCredits = Number(childSnap.data()?.credits) || 0
+    if (currentCredits < spendAmount) {
+      throw new Error('You do not have enough credits for this reward yet.')
+    }
+
+    transaction.update(childRef, {
+      credits: currentCredits - spendAmount,
+      updatedAt: serverTimestamp(),
+    })
+
+    transaction.update(requestRef, {
+      requestKind: 'purchase',
+      status: 'approved',
+      childRespondedAt: serverTimestamp(),
+      ...getChildSessionWriteMeta(actor),
+      updatedAt: serverTimestamp(),
+    })
+  })
+
+  trackAnalyticsEvent(
+    'reward_proposal_claimed',
+    {
+      itemId: requestId,
+      itemType: 'reward_proposal',
+      source: 'claimApprovedRewardProposal',
+      screen: 'kid',
+    },
+    { familyId: activeFamilyId, userId, userRole, childId: actor.childId },
+  )
+}
+
+export async function acceptRewardRequestTerms(requestId, context = {}) {
+  const { familyId: activeFamilyId } = getActiveFamilyContext(context)
+  const actor = getChildSessionActor(context, 'Accepting reward terms')
 
   if (!hasFirebaseConfig || !db) {
     throw new Error('Firebase is not configured.')
@@ -2264,7 +2568,7 @@ export async function acceptRewardRequestTerms(requestId, context = {}) {
 
   const requestData = normalizeRewardRequest({ id: requestSnap.id, ...requestSnap.data() }, requestSnap.id)
 
-  if (requestData.requestedBy !== userId) {
+  if (requestData.requestedBy !== actor.childId) {
     throw new Error('You can only respond to your own reward request.')
   }
 
@@ -2277,16 +2581,14 @@ export async function acceptRewardRequestTerms(requestId, context = {}) {
     rewardTitle: requestData.counterRewardTitle || requestData.rewardTitle,
     cost: Number(requestData.counterCost) > 0 ? Number(requestData.counterCost) : requestData.cost,
     childRespondedAt: serverTimestamp(),
+    ...getChildSessionWriteMeta(actor),
     updatedAt: serverTimestamp(),
   })
 }
 
 export async function declineRewardRequestTerms(requestId, context = {}) {
-  const { familyId: activeFamilyId, userId, userRole } = getActiveFamilyContext(context)
-
-  if (userRole !== 'kid') {
-    throw new Error('Only kids can decline reward terms.')
-  }
+  const { familyId: activeFamilyId } = getActiveFamilyContext(context)
+  const actor = getChildSessionActor(context, 'Declining reward terms')
 
   if (!hasFirebaseConfig || !db) {
     throw new Error('Firebase is not configured.')
@@ -2301,7 +2603,7 @@ export async function declineRewardRequestTerms(requestId, context = {}) {
 
   const requestData = normalizeRewardRequest({ id: requestSnap.id, ...requestSnap.data() }, requestSnap.id)
 
-  if (requestData.requestedBy !== userId) {
+  if (requestData.requestedBy !== actor.childId) {
     throw new Error('You can only respond to your own reward request.')
   }
 
@@ -2312,6 +2614,7 @@ export async function declineRewardRequestTerms(requestId, context = {}) {
   await updateDoc(requestRef, {
     status: 'denied',
     childRespondedAt: serverTimestamp(),
+    ...getChildSessionWriteMeta(actor),
     updatedAt: serverTimestamp(),
   })
 }
@@ -2376,6 +2679,7 @@ export async function getHouseholdOnboardingData(context = {}) {
         creatorMetricsEnabled: Boolean(familyData.creatorMetricsEnabled),
         ...normalizeFamilyPricingSettings(familyData),
         ...normalizeFamilySavingsSettings(familyData),
+        ...normalizeFamilyRewardSettings(familyData),
         ...normalizeFamilyJobConsequenceSettings(familyData),
         ...normalizeFamilyJobFlowSettings(familyData),
         ...normalizeFamilyJobStaleBonusSettings(familyData),
@@ -2455,6 +2759,12 @@ export async function createHousehold(household, context = {}) {
       dynamicPricingMaxStepPercent: Math.max(0, Number(household.dynamicPricingMaxStepPercent) || 60),
       savingsGoalApprovalMode: normalizeSavingsGoalApprovalMode(
         household.savingsGoalApprovalMode,
+      ),
+      rewardRequestApprovalMode: normalizeRewardRequestApprovalMode(
+        household.rewardRequestApprovalMode,
+      ),
+      jobCheckApprovalMode: normalizeJobCheckApprovalMode(
+        household.jobCheckApprovalMode,
       ),
       missedJobConsequenceEnabled: Boolean(household.missedJobConsequenceEnabled),
       missedJobPenaltyCredits: Math.max(0, Number(household.missedJobPenaltyCredits) || 0),
@@ -2755,7 +3065,10 @@ export async function createReward(rewardPayload, context = {}) {
     familyClaimLimitCount,
     familyClaimLimitPeriod:
       familyClaimLimitCount > 0 ? familyClaimLimitPeriod || 'day' : null,
-    requiresApproval: true,
+    requiresApproval:
+      rewardPayload.requiresApproval === true ? true
+      : rewardPayload.requiresApproval === false ? false
+      : null,
     createdBy: userId,
     createdAt: serverTimestamp(),
   })
@@ -2829,6 +3142,10 @@ export async function updateReward(rewardId, rewardPayload, context = {}) {
     familyClaimLimitCount,
     familyClaimLimitPeriod:
       familyClaimLimitCount > 0 ? familyClaimLimitPeriod || 'day' : null,
+    requiresApproval:
+      rewardPayload.requiresApproval === true ? true
+      : rewardPayload.requiresApproval === false ? false
+      : null,
     updatedAt: serverTimestamp(),
   })
 
@@ -2850,6 +3167,9 @@ export async function createGoal(goalPayload, context = {}) {
   const { familyId: activeFamilyId, userId, userRole } = getActiveFamilyContext(
     context,
   )
+  const childSessionActor = (userRole === 'kid' || context.selectedChildId)
+    ? getChildSessionActor(context, 'Creating child savings goals')
+    : null
 
   if (userRole !== 'parent' && userRole !== 'kid') {
     throw new Error('Only parents and kids can create savings goals.')
@@ -2858,7 +3178,6 @@ export async function createGoal(goalPayload, context = {}) {
   if (!hasFirebaseConfig || !db) {
     throw new Error('Firebase is not configured.')
   }
-
   const name = (goalPayload.name || '').trim()
   if (!name) {
     throw new Error('Goal name is required.')
@@ -2871,12 +3190,12 @@ export async function createGoal(goalPayload, context = {}) {
 
   const childId = goalPayload.childId || null
 
-  if (userRole === 'kid' && !childId) {
+  if (childSessionActor && !childId) {
     throw new Error('Child savings goal requests must be tied to a child profile.')
   }
 
-  if (userRole === 'kid' && childId !== userId) {
-    throw new Error('Kids can only request savings goals for themselves.')
+  if (childSessionActor && childId !== childSessionActor.childId) {
+    throw new Error('Child sessions can only request savings goals for the active child.')
   }
 
   if (childId) {
@@ -2897,7 +3216,7 @@ export async function createGoal(goalPayload, context = {}) {
   const familySnap = await getDoc(doc(db, 'families', activeFamilyId))
   const savingsSettings = normalizeFamilySavingsSettings(familySnap.data() || {})
   const requiresCreateApproval =
-    userRole === 'kid' && savingsSettings.savingsGoalApprovalMode === 'create_and_claim'
+    Boolean(childSessionActor) && savingsSettings.savingsGoalApprovalMode === 'create_and_claim'
 
   const saved = Number(goalPayload.saved) || 0
   const status = requiresCreateApproval
@@ -2910,7 +3229,7 @@ export async function createGoal(goalPayload, context = {}) {
     target,
     saved,
     status,
-    requestedBy: requiresCreateApproval ? userId : null,
+    requestedBy: requiresCreateApproval ? childSessionActor.childId : null,
     requestedAt: requiresCreateApproval ? serverTimestamp() : null,
     parentReviewedBy: null,
     parentReviewedAt: null,
@@ -2921,7 +3240,7 @@ export async function createGoal(goalPayload, context = {}) {
           {
             type: 'requested',
             target,
-            by: userId,
+            by: childSessionActor.childId,
             note: '',
             at: serverTimestamp(),
           },
@@ -2929,6 +3248,7 @@ export async function createGoal(goalPayload, context = {}) {
         : [],
       contributionHistory: [],
     createdBy: userId,
+    ...(childSessionActor ? getChildSessionWriteMeta(childSessionActor) : {}),
     createdAt: serverTimestamp(),
   })
 
@@ -2940,12 +3260,74 @@ export async function createGoal(goalPayload, context = {}) {
       target,
       childId,
       source: 'createGoal',
-      screen: 'parent',
+      screen: childSessionActor ? 'kid' : 'parent',
     },
-    { familyId: activeFamilyId, userId, userRole },
+    { familyId: activeFamilyId, userId, userRole, childId },
   )
 
   await maybeTrackOnboardingCompleted({ familyId: activeFamilyId, userId, userRole })
+}
+
+export async function dismissRewardNotification(requestId, context = {}) {
+  const { familyId: activeFamilyId, userId, userRole } = getActiveFamilyContext(context)
+
+  if (userRole !== 'parent') {
+    throw new Error('Only parents can dismiss reward notifications.')
+  }
+
+  if (!hasFirebaseConfig || !db) {
+    throw new Error('Firebase is not configured.')
+  }
+
+  const requestRef = doc(db, 'families', activeFamilyId, 'rewardRequests', requestId)
+  const requestSnap = await getDoc(requestRef)
+
+  if (!requestSnap.exists()) {
+    throw new Error('Reward request not found.')
+  }
+
+  const requestData = normalizeRewardRequest({ id: requestSnap.id, ...requestSnap.data() }, requestSnap.id)
+
+  if (!requestData.autoApproved || requestData.requestKind !== 'purchase' || requestData.status !== 'approved') {
+    throw new Error('Only auto-approved reward notifications can be dismissed.')
+  }
+
+  await updateDoc(requestRef, {
+    notificationDismissedAt: serverTimestamp(),
+    notificationDismissedBy: userId,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function dismissAllRewardNotifications(context = {}) {
+  const { familyId: activeFamilyId, userId, userRole } = getActiveFamilyContext(context)
+
+  if (userRole !== 'parent') {
+    throw new Error('Only parents can dismiss reward notifications.')
+  }
+
+  if (!hasFirebaseConfig || !db) {
+    throw new Error('Firebase is not configured.')
+  }
+
+  const snapshot = await getDocs(collection(db, 'families', activeFamilyId, 'rewardRequests'))
+  const activeNotifications = snapshot.docs
+    .map((item) => normalizeRewardRequest({ id: item.id, ...item.data() }, item.id))
+    .filter((request) =>
+      request.autoApproved
+      && request.requestKind === 'purchase'
+      && request.status === 'approved'
+      && !request.notificationDismissedAt,
+    )
+
+  await Promise.all(
+    activeNotifications.map((request) =>
+      updateDoc(doc(db, 'families', activeFamilyId, 'rewardRequests', request.id), {
+        notificationDismissedAt: serverTimestamp(),
+        notificationDismissedBy: userId,
+        updatedAt: serverTimestamp(),
+      })),
+  )
 }
 
 export async function updateGoal(goalId, goalPayload, context = {}) {
@@ -3032,6 +3414,9 @@ export async function updateGoal(goalId, goalPayload, context = {}) {
 
 export async function contributeToSavingsGoal(goalId, amountValue, context = {}) {
   const { familyId: activeFamilyId, userId, userRole } = getActiveFamilyContext(context)
+  const childSessionActor = (userRole === 'kid' || context.selectedChildId)
+    ? getChildSessionActor(context, 'Contributing to savings goals')
+    : null
 
   if (userRole !== 'parent' && userRole !== 'kid') {
     throw new Error('Only family members can contribute to savings goals.')
@@ -3057,7 +3442,7 @@ export async function contributeToSavingsGoal(goalId, amountValue, context = {})
 
     const goalData = normalizeGoal({ id: goalSnap.id, ...goalSnap.data() }, goalSnap.id)
 
-    const contributorChildId = goalData.childId || context.selectedChildId || (userRole === 'kid' ? userId : null)
+    const contributorChildId = goalData.childId || childSessionActor?.childId || null
 
     if (!contributorChildId) {
       throw new Error('This savings goal is not tied to a child profile.')
@@ -3075,7 +3460,7 @@ export async function contributeToSavingsGoal(goalId, amountValue, context = {})
       throw new Error('This savings goal request was denied. Create a new goal request first.')
     }
 
-    if (userRole === 'kid' && goalData.childId && goalData.childId !== contributorChildId) {
+    if (childSessionActor && goalData.childId && goalData.childId !== childSessionActor.childId) {
       throw new Error('You can only contribute to your own savings goal.')
     }
 
@@ -3236,6 +3621,9 @@ export async function approveSavingsGoalCompletion(goalId, context = {}) {
 
 export async function cancelSavingsGoal(goalId, context = {}) {
   const { familyId: activeFamilyId, userId, userRole } = getActiveFamilyContext(context)
+  const childSessionActor = (userRole === 'kid' || context.selectedChildId)
+    ? getChildSessionActor(context, 'Cancelling savings goals')
+    : null
 
   if (userRole !== 'parent' && userRole !== 'kid') {
     throw new Error('Only family members can cancel a savings goal.')
@@ -3260,7 +3648,7 @@ export async function cancelSavingsGoal(goalId, context = {}) {
       throw new Error('A completed savings goal cannot be cancelled.')
     }
 
-    if (userRole === 'kid' && goalData.childId !== userId) {
+    if (childSessionActor && goalData.childId !== childSessionActor.childId) {
       throw new Error('You can only cancel your own savings goal.')
     }
 
@@ -3294,9 +3682,9 @@ export async function cancelSavingsGoal(goalId, context = {}) {
       itemType: 'goal',
       refundedCredits: refundedAmount,
       source: 'cancelSavingsGoal',
-      screen: userRole === 'parent' ? 'parent' : 'kid',
+      screen: childSessionActor ? 'kid' : 'parent',
     },
-    { familyId: activeFamilyId, userId, userRole },
+    { familyId: activeFamilyId, userId, userRole, childId: childSessionActor?.childId || null },
   )
 
   return { refundedCredits: refundedAmount }
@@ -3444,10 +3832,7 @@ export async function reviewSavingsGoalRequest(goalId, decision, context = {}, o
 
 export async function acceptSavingsGoalCounter(goalId, context = {}) {
   const { familyId: activeFamilyId, userId, userRole } = getActiveFamilyContext(context)
-
-  if (userRole !== 'kid') {
-    throw new Error('Only kids can accept savings counter offers.')
-  }
+  const actor = getChildSessionActor(context, 'Accepting savings counter offers')
 
   if (!hasFirebaseConfig || !db) {
     throw new Error('Firebase is not configured.')
@@ -3464,7 +3849,7 @@ export async function acceptSavingsGoalCounter(goalId, context = {}) {
 
     const goalData = normalizeGoal({ id: goalSnap.id, ...goalSnap.data() }, goalSnap.id)
 
-    if (goalData.childId !== userId) {
+    if (goalData.childId !== actor.childId) {
       throw new Error('You can only accept a counter offer for your own goal.')
     }
 
@@ -3491,11 +3876,12 @@ export async function acceptSavingsGoalCounter(goalId, context = {}) {
         {
           type: 'counter_accepted',
           target: nextTarget,
-          by: userId,
+          by: actor.childId,
           note: '',
           at: serverTimestamp(),
         },
       ],
+      ...getChildSessionWriteMeta(actor),
       readyToClaimAt: nextStatus === 'ready_to_claim' ? serverTimestamp() : null,
       updatedAt: serverTimestamp(),
     })
@@ -3520,7 +3906,7 @@ export async function acceptSavingsGoalCounter(goalId, context = {}) {
       source: 'acceptSavingsGoalCounter',
       screen: 'kid',
     },
-    { familyId: activeFamilyId, userId, userRole },
+    { familyId: activeFamilyId, userId, userRole, childId: actor.childId },
   )
 
   return result
@@ -3528,10 +3914,7 @@ export async function acceptSavingsGoalCounter(goalId, context = {}) {
 
 export async function declineSavingsGoalCounter(goalId, context = {}) {
   const { familyId: activeFamilyId, userId, userRole } = getActiveFamilyContext(context)
-
-  if (userRole !== 'kid') {
-    throw new Error('Only kids can decline savings counter offers.')
-  }
+  const actor = getChildSessionActor(context, 'Declining savings counter offers')
 
   if (!hasFirebaseConfig || !db) {
     throw new Error('Firebase is not configured.')
@@ -3548,7 +3931,7 @@ export async function declineSavingsGoalCounter(goalId, context = {}) {
 
     const goalData = normalizeGoal({ id: goalSnap.id, ...goalSnap.data() }, goalSnap.id)
 
-    if (goalData.childId !== userId) {
+    if (goalData.childId !== actor.childId) {
       throw new Error('You can only decline a counter offer for your own goal.')
     }
 
@@ -3567,11 +3950,12 @@ export async function declineSavingsGoalCounter(goalId, context = {}) {
         {
           type: 'counter_declined',
           target: Number(goalData.counterTarget) || Number(goalData.target) || 0,
-          by: userId,
+          by: actor.childId,
           note: '',
           at: serverTimestamp(),
         },
       ],
+      ...getChildSessionWriteMeta(actor),
       parentReviewedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     })
@@ -3593,7 +3977,7 @@ export async function declineSavingsGoalCounter(goalId, context = {}) {
       source: 'declineSavingsGoalCounter',
       screen: 'kid',
     },
-    { familyId: activeFamilyId, userId, userRole },
+    { familyId: activeFamilyId, userId, userRole, childId: actor.childId },
   )
 
   return result

@@ -998,11 +998,11 @@ export default function OnboardingPage() {
           </section>
 
           <section className="onboarding-mini-dialog">
-            <p className="onboarding-mini-title">Reward pricing</p>
-            <p className="onboarding-mini-subtitle">Keep prices fixed or turn on dynamic demand-based pricing.</p>
+            <p className="onboarding-mini-title">Reward cost lessons</p>
+            <p className="onboarding-mini-subtitle">Keep reward costs fixed or model simple demand and supply tradeoffs with parent-set guardrails.</p>
 
           <label className="form-field">
-            <span className="form-label">Should reward prices adapt to demand?</span>
+            <span className="form-label">Use educational reward cost changes?</span>
             <select
               className="job-input"
               value={dynamicPricingEnabled ? 'on' : 'off'}
@@ -1027,7 +1027,7 @@ export default function OnboardingPage() {
                 </select>
               </label>
               <label className="form-field">
-                <span className="form-label">Demand weight %</span>
+                <span className="form-label">Popular-choice lesson %</span>
                 <input
                   className="job-input"
                   type="number"
@@ -1037,7 +1037,7 @@ export default function OnboardingPage() {
                 />
               </label>
               <label className="form-field">
-                <span className="form-label">Scarcity weight %</span>
+                <span className="form-label">Limited-supply lesson %</span>
                 <input
                   className="job-input"
                   type="number"
@@ -1195,7 +1195,7 @@ export default function OnboardingPage() {
                 <span className="job-status-label">{Math.max(1, Number(maxActivePoolClaimsPerChild) || 1)}</span>
               </li>
               <li className="profile-list-item">
-                <span>Dynamic pricing</span>
+                <span>Educational pricing</span>
                 <span className="job-status-label">{dynamicPricingEnabled ? 'On' : 'Off'}</span>
               </li>
               <li className="profile-list-item">

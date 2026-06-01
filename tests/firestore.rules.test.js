@@ -60,6 +60,7 @@ async function seedBaseData() {
 
     await setDoc(doc(db, 'families', FAMILY_ID, 'jobs', 'job-open'), {
       title: 'Clean kitchen',
+      rewardType: 'credits',
       points: 100,
       icon: '🧽',
       status: 'open',
@@ -70,6 +71,7 @@ async function seedBaseData() {
 
     await setDoc(doc(db, 'families', FAMILY_ID, 'jobs', 'job-locked'), {
       title: 'Read 20 minutes',
+      rewardType: 'credits',
       points: 50,
       icon: '📚',
       status: 'claimed',
@@ -281,6 +283,42 @@ describe('Firestore Rules', () => {
       updateDoc(doc(db, 'families', FAMILY_ID, 'rewardRequests', 'req-1'), {
         status: 'approved',
         reviewedBy: 'parent-1',
+      }),
+    )
+  })
+
+  it('allows parent-mediated child sessions to create auto-approved reward purchases', async () => {
+    const db = userDb('parent-1')
+
+    await assertSucceeds(
+      setDoc(doc(db, 'families', FAMILY_ID, 'rewardRequests', 'req-auto-approved'), {
+        requestKind: 'purchase',
+        rewardId: 'reward-1',
+        rewardTitle: 'Movie Night',
+        cost: 300,
+        childId: 'child-1',
+        requestedBy: 'child-1',
+        status: 'approved',
+        autoApproved: true,
+        sessionActor: 'parent_child_session',
+        performedByParentId: 'parent-1',
+      }),
+    )
+  })
+
+  it('denies parent-created approved reward requests without auto-approval metadata', async () => {
+    const db = userDb('parent-1')
+
+    await assertFails(
+      setDoc(doc(db, 'families', FAMILY_ID, 'rewardRequests', 'req-approved-without-auto'), {
+        requestKind: 'purchase',
+        rewardId: 'reward-1',
+        rewardTitle: 'Movie Night',
+        cost: 300,
+        childId: 'child-1',
+        requestedBy: 'child-1',
+        status: 'approved',
+        autoApproved: false,
       }),
     )
   })

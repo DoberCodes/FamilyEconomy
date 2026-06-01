@@ -1,19 +1,4 @@
-function toDateValue(value) {
-  if (!value) {
-    return null
-  }
-
-  if (value instanceof Date) {
-    return value
-  }
-
-  if (typeof value?.toDate === 'function') {
-    return value.toDate()
-  }
-
-  const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? null : parsed
-}
+import { toDateValue } from '../utils/dateUtils.js'
 
 export function computeCappedPenalty(currentCredits, configuredPenalty) {
   return Math.min(

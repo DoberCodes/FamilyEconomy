@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { useAuth } from '../../context/AuthContext'
+import { getGoalStatusLabel as displayGoalStatus } from '../../domain/familyEconomyTypes'
 import { getFamilyDashboard } from '../../services/familyEconomyService'
 
 export default function SavingsPage() {
@@ -39,25 +40,6 @@ export default function SavingsPage() {
       mounted = false
     }
   }, [familyId, userId, userRole, activeChildProfile?.id])
-
-  function displayGoalStatus(status) {
-    if (status === 'completed') {
-      return 'Completed'
-    }
-    if (status === 'pending_parent_approval') {
-      return 'Pending Parent'
-    }
-    if (status === 'ready_to_claim') {
-      return 'Ready for Parent'
-    }
-    if (status === 'countered') {
-      return 'Countered'
-    }
-    if (status === 'denied') {
-      return 'Denied'
-    }
-    return 'Saving'
-  }
 
   const goalCounts = goals.reduce((accumulator, goal) => {
     const key = goal.status || 'active'

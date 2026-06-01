@@ -1,14 +1,23 @@
-# FamilyEconomy
+# Family Economy
 
-Minimal React app scaffolded with Vite.
+Family Economy is a mobile-first educational household economy for teaching children earning, saving, budgeting, goals, delayed gratification, taxes, community responsibility, and financial decision making with fictional credits.
 
 ## Documentation
 
 ### Active Docs
 
+- Vision: [docs/VISION.md](docs/VISION.md)
+- AI context: [docs/AI_CONTEXT.md](docs/AI_CONTEXT.md)
+- Agent instructions: [docs/AGENTS.md](docs/AGENTS.md)
+- Features: [docs/FEATURES.md](docs/FEATURES.md)
+- Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- Domain model: [docs/DOMAIN_MODEL.md](docs/DOMAIN_MODEL.md)
+- Economy rules: [docs/ECONOMY_RULES.md](docs/ECONOMY_RULES.md)
+- Roadmap: [docs/ROADMAP.md](docs/ROADMAP.md)
 - Roadmap phase status: [docs/roadmap-status.md](docs/roadmap-status.md)
 - Product brief (Phase 0): [docs/product-brief.md](docs/product-brief.md)
 - Firestore security guide: [docs/security-rules.md](docs/security-rules.md)
+- Reusability status: [docs/reusability-status.md](docs/reusability-status.md)
 
 ### Archived Docs
 
@@ -60,31 +69,34 @@ GitHub Actions must also receive your Firebase web app values at build time. Add
 
 If Firebase env values are missing, the app automatically uses seeded local data.
 
-## Auth + User Profiles
+## Auth + Child Sessions
 
-After registration, each user gets a profile document:
+Family Economy is an educational household economy. Credits, balances, rewards, and statements are fictional learning tools only; the app is not a bank, payment processor, payroll tool, or real-money account system.
+
+After registration, each parent gets a profile document:
 
 Path: `users/{uid}`
 
 ```json
 {
-	"displayName": "Alex",
-	"email": "alex@example.com",
+	"displayName": "Parent",
+	"email": "parent@example.com",
 	"familyId": "family-main",
-	"role": "kid"
+	"role": "parent"
 }
 ```
 
-The app uses this profile for `familyId` and role-based permissions.
+The app uses this profile for `familyId`, parent permissions, and household ownership.
 
-- `parent`: can create jobs
-- `kid`: can claim open jobs
+- `parent`: authenticated Firebase account and trusted household boundary
+- child session/mock kid login: selected child profile inside the parent household
 
-## Kid-First Mode
+## Parent-Owned Kid Mode
 
-- The app opens in kid-friendly mode by default (no login wall).
+- Parents sign in first; kids use child profile selection/session codes inside that parent-owned household.
+- The kid experience should feel like a lightweight kid login, but child sessions are local/mock sessions rather than independent Firebase accounts by default.
 - Parent-only actions are protected and require parent unlock from Profile.
-- Parents can lock back to kid mode from Profile.
+- Parents can lock parent controls and hand the app back to the kid-facing mode from Profile.
 
 ## Firestore Structure
 

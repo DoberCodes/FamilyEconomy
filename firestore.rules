@@ -95,9 +95,16 @@ service cloud.firestore {
           && request.resource.data.requestedBy == request.auth.uid
           && request.resource.data.status == 'pending';
 
-        // Parents can create pending requests on behalf of child sessions.
+        // Parents can create requests on behalf of child sessions, including auto-approved purchases.
         allow create: if isParent(targetFamilyId)
-          && request.resource.data.status == 'pending';
+          && (
+            request.resource.data.status == 'pending'
+            || (
+              request.resource.data.status == 'approved'
+              && request.resource.data.requestKind == 'purchase'
+              && request.resource.data.autoApproved == true
+            )
+          );
 
         // Parents can approve/deny requests and set reviewer metadata.
         allow update, delete: if isParent(targetFamilyId);

@@ -4,12 +4,24 @@ import LevelCard from '../../components/mobile/cards/LevelCard'
 import JobsCard from '../../components/mobile/cards/MissionsCard'
 import StreakCard from '../../components/mobile/cards/StreakCard'
 import { useAuth } from '../../context/AuthContext'
+import {
+  getActivityBadgeMeta,
+  getGoalStatusLabel,
+  getJobStatusLabel,
+} from '../../domain/familyEconomyTypes'
 import { trackAnalyticsEvent } from '../../services/analytics'
 import {
   getFamilyDashboard,
   getHouseholdOnboardingData,
   getFamilyStoreData,
 } from '../../services/familyEconomyService'
+import {
+  formatRelativeActivityTime,
+  isWithinDateRange,
+  startOfToday,
+  startOfWeek,
+  toDate,
+} from '../../utils/dateUtils'
 
 const emptyDashboard = {
   profileName: '',
@@ -191,23 +203,6 @@ export default function HomePage() {
     return null
   }
 
-  function toDate(value) {
-    if (!value) {
-      return null
-    }
-
-    if (value instanceof Date) {
-      return value
-    }
-
-    if (typeof value?.toDate === 'function') {
-      return value.toDate()
-    }
-
-    const parsed = new Date(value)
-    return Number.isNaN(parsed.getTime()) ? null : parsed
-  }
-
   function getJobCreditAmount(job) {
     if (job.rewardType === 'xp') {
       return 0
@@ -218,24 +213,6 @@ export default function HomePage() {
   function formatJobReward(job) {
     const amount = Number(job.points || 0)
     return job.rewardType === 'xp' ? `+ ${amount} XP` : `+ ${amount} credits`
-  }
-
-  function startOfToday() {
-    const now = new Date()
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  }
-
-  function startOfWeek(value = new Date()) {
-    const start = new Date(value)
-    const day = start.getDay()
-    const daysSinceMonday = (day + 6) % 7
-    start.setHours(0, 0, 0, 0)
-    start.setDate(start.getDate() - daysSinceMonday)
-    return start
-  }
-
-  function isWithinRange(value, start, end) {
-    return Boolean(value && value >= start && value < end)
   }
 
   const todayStart = startOfToday()
@@ -332,24 +309,24 @@ export default function HomePage() {
 
   const currentDayJobCompletions = dashboard.jobs.filter((job) => {
     const completedAt = toDate(job.completedAt)
-    return job.status === 'done' && isWithinRange(completedAt, todayStart, new Date())
+    return job.status === 'done' && isWithinDateRange(completedAt, todayStart, new Date())
   })
 
   const previousDayJobCompletions = dashboard.jobs.filter((job) => {
     const completedAt = toDate(job.completedAt)
-    return job.status === 'done' && isWithinRange(completedAt, yesterdayStart, todayStart)
+    return job.status === 'done' && isWithinDateRange(completedAt, yesterdayStart, todayStart)
   })
 
   const currentDayRewardApprovals = store.requests.filter((request) => {
     const reviewedAt = toDate(request.reviewedAt || request.createdAt)
     return (request.status === 'approved' || request.status === 'fulfilled')
-      && isWithinRange(reviewedAt, todayStart, new Date())
+      && isWithinDateRange(reviewedAt, todayStart, new Date())
   })
 
   const previousDayRewardApprovals = store.requests.filter((request) => {
     const reviewedAt = toDate(request.reviewedAt || request.createdAt)
     return (request.status === 'approved' || request.status === 'fulfilled')
-      && isWithinRange(reviewedAt, yesterdayStart, todayStart)
+      && isWithinDateRange(reviewedAt, yesterdayStart, todayStart)
   })
 
   const currentDayEarnedCredits = currentDayJobCompletions.reduce(
@@ -402,24 +379,24 @@ export default function HomePage() {
 
   const currentWeekJobCompletions = dashboard.jobs.filter((job) => {
     const completedAt = toDate(job.completedAt)
-    return job.status === 'done' && isWithinRange(completedAt, thisWeekStart, new Date())
+    return job.status === 'done' && isWithinDateRange(completedAt, thisWeekStart, new Date())
   })
 
   const previousWeekJobCompletions = dashboard.jobs.filter((job) => {
     const completedAt = toDate(job.completedAt)
-    return job.status === 'done' && isWithinRange(completedAt, lastWeekStart, thisWeekStart)
+    return job.status === 'done' && isWithinDateRange(completedAt, lastWeekStart, thisWeekStart)
   })
 
   const currentWeekRewardApprovals = store.requests.filter((request) => {
     const reviewedAt = toDate(request.reviewedAt || request.createdAt)
     return (request.status === 'approved' || request.status === 'fulfilled')
-      && isWithinRange(reviewedAt, thisWeekStart, new Date())
+      && isWithinDateRange(reviewedAt, thisWeekStart, new Date())
   })
 
   const previousWeekRewardApprovals = store.requests.filter((request) => {
     const reviewedAt = toDate(request.reviewedAt || request.createdAt)
     return (request.status === 'approved' || request.status === 'fulfilled')
-      && isWithinRange(reviewedAt, lastWeekStart, thisWeekStart)
+      && isWithinDateRange(reviewedAt, lastWeekStart, thisWeekStart)
   })
 
   const currentWeekEarnedCredits = currentWeekJobCompletions.reduce(
@@ -679,19 +656,6 @@ export default function HomePage() {
     )
   }
 
-  function formatJobStatus(status) {
-    if (status === 'claimed') {
-      return 'In Progress'
-    }
-    if (status === 'open') {
-      return 'Open'
-    }
-    if (status === 'done') {
-      return 'Done'
-    }
-    return 'Unknown'
-  }
-
   const activeTrendCards = trendView === 'daily' ? dailyTrendCards : weeklyTrendCards
   const trendHeading = trendView === 'daily' ? 'Today at a Glance' : 'This Week at a Glance'
   const trendDescription = trendView === 'daily'
@@ -701,33 +665,6 @@ export default function HomePage() {
   const topWindowLabel = trendView === 'daily' ? 'today' : 'this week'
   const activeTopEarner = trendView === 'daily' ? topDailyEarner : topWeeklyEarner
   const activeTopSpender = trendView === 'daily' ? topDailySpender : topWeeklySpender
-
-  function formatActivityTime(value) {
-    const date = toDate(value)
-    if (!date) {
-      return 'Unknown time'
-    }
-
-    const diffMinutes = Math.max(0, Math.round((nowMs - date.getTime()) / (1000 * 60)))
-    if (diffMinutes < 1) {
-      return 'just now'
-    }
-    if (diffMinutes < 60) {
-      return `${diffMinutes}m ago`
-    }
-
-    const diffHours = Math.round(diffMinutes / 60)
-    if (diffHours < 24) {
-      return `${diffHours}h ago`
-    }
-
-    const diffDays = Math.round(diffHours / 24)
-    if (diffDays <= 7) {
-      return `${diffDays}d ago`
-    }
-
-    return date.toLocaleDateString()
-  }
 
   const activityFeedItems = (() => {
     const items = []
@@ -896,41 +833,6 @@ export default function HomePage() {
     ? Math.min(100, Math.round(((Number(kidGoalSpotlight.saved) || 0) / Math.max(1, Number(kidGoalSpotlight.target) || 1)) * 100))
     : 0
 
-  function displayGoalStatus(status) {
-    if (status === 'ready_to_claim') {
-      return 'Ready for Parent'
-    }
-    if (status === 'pending_parent_approval') {
-      return 'Pending Parent'
-    }
-    if (status === 'countered') {
-      return 'Countered'
-    }
-    if (status === 'completed') {
-      return 'Completed'
-    }
-    return 'Saving'
-  }
-
-  function getActivityBadge(item) {
-    if (item.kind === 'goal-complete') {
-      return { label: 'Milestone', tone: 'milestone' }
-    }
-    if (item.kind === 'reward-fulfilled') {
-      return { label: 'Delivered', tone: 'delivered' }
-    }
-    if (item.kind === 'reward-approved') {
-      return { label: 'Approved', tone: 'approved' }
-    }
-    if (item.kind === 'goal-progress') {
-      return { label: 'Progress', tone: 'progress' }
-    }
-    if (item.kind === 'job') {
-      return { label: 'Win', tone: 'win' }
-    }
-    return { label: 'Update', tone: 'default' }
-  }
-
   return (
     <>
       <main className="phone-content home-grid">
@@ -951,7 +853,7 @@ export default function HomePage() {
                 </div>
                 <p className="panel-label">Family Celebration</p>
                 <p className="panel-muted">{latestCelebrationItem.icon} {latestCelebrationItem.text}</p>
-                <p className="panel-muted">{formatActivityTime(latestCelebrationItem.at)}</p>
+                <p className="panel-muted">{formatRelativeActivityTime(latestCelebrationItem.at, nowMs)}</p>
               </section>
             ) : null}
 
@@ -1086,7 +988,7 @@ export default function HomePage() {
                     <p className="family-goal-kicker">🎯 FAMILY GOAL</p>
                     <p className="family-goal-name">{(familySavingsGoal.rewardTitle || familySavingsGoal.name || 'Family Goal').toUpperCase()}</p>
                     <div className="limit-chip-row">
-                      <span className="limit-chip">{displayGoalStatus(familySavingsGoal.status)}</span>
+                      <span className="limit-chip">{getGoalStatusLabel(familySavingsGoal.status)}</span>
                       <span className="limit-chip">{childProfiles.length} kids can contribute</span>
                     </div>
                     <p className="family-goal-math">{familySavingsGoal.saved} / {familySavingsGoal.target} Credits</p>
@@ -1154,7 +1056,7 @@ export default function HomePage() {
                               <>
                                 <strong>{childMomentum.goal.rewardTitle || childMomentum.goal.name}</strong>
                                 <span className="family-insight-note">
-                                  {displayGoalStatus(childMomentum.goal.status)} • {childMomentum.goal.saved}/{childMomentum.goal.target} credits
+                                  {getGoalStatusLabel(childMomentum.goal.status)} • {childMomentum.goal.saved}/{childMomentum.goal.target} credits
                                 </span>
                                 <div className="xp-track xp-track-light">
                                   <span style={{ width: `${childMomentum.pct}%` }}></span>
@@ -1200,7 +1102,7 @@ export default function HomePage() {
                               : <span className="family-badge">Unclaimed</span>}
                           </span>
                           <span className={`family-status-pill family-status-${job.status}`}>
-                            {formatJobStatus(job.status)}
+                            {getJobStatusLabel(job.status)}
                           </span>
                         </div>
                       </li>
@@ -1229,7 +1131,7 @@ export default function HomePage() {
                           <span className="job-status-label">
                             {item.childId ? childBadge(item.childId) : <span className="family-badge">Family</span>}
                           </span>
-                          <span className="job-status-label">{formatActivityTime(item.at)}</span>
+                          <span className="job-status-label">{formatRelativeActivityTime(item.at, nowMs)}</span>
                         </div>
                       </li>
                     )
@@ -1281,7 +1183,7 @@ export default function HomePage() {
                     {kidGoalSpotlight.rewardTitle || kidGoalSpotlight.name}
                   </p>
                   <div className="limit-chip-row">
-                    <span className="limit-chip">{displayGoalStatus(kidGoalSpotlight.status)}</span>
+                    <span className="limit-chip">{getGoalStatusLabel(kidGoalSpotlight.status)}</span>
                     <span className="limit-chip">{kidGoalSpotlight.saved}/{kidGoalSpotlight.target} credits</span>
                     <span className="limit-chip">{Math.max(0, Number(kidGoalSpotlight.target) - Number(kidGoalSpotlight.saved || 0))} to go</span>
                   </div>
@@ -1298,12 +1200,12 @@ export default function HomePage() {
               ) : (
                 <ul className="mission-list">
                   {activityFeedItems.map((item) => {
-                    const badge = getActivityBadge(item)
+                    const badge = getActivityBadgeMeta(item.kind)
                     return (
                       <li key={item.id}>
                         <span className="mission-main">{item.icon} {item.text}</span>
                         <span className={`activity-pill activity-pill-${badge.tone}`}>{badge.label}</span>
-                        <span className="job-status-label">{formatActivityTime(item.at)}</span>
+                        <span className="job-status-label">{formatRelativeActivityTime(item.at, nowMs)}</span>
                       </li>
                     )
                   })}

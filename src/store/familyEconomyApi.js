@@ -126,10 +126,14 @@ export const {
   useAcceptRewardRequestTermsMutation,
   useAcceptSavingsGoalCounterMutation,
   useCancelSavingsGoalMutation,
+  useCreateChildProfileMutation,
   useClaimJobMutation,
   useClaimApprovedRewardProposalMutation,
   useCreateCustomRewardRequestMutation,
   useCreateGoalMutation,
+  useCreateHouseholdMutation,
+  useCreateJobMutation,
+  useCreateRewardMutation,
   useDeclineRewardRequestTermsMutation,
   useDeclineSavingsGoalCounterMutation,
   useContributeToSavingsGoalMutation,
@@ -141,6 +145,7 @@ export const {
   useLazyGetKidProfileSessionDataQuery,
   useRequestJobCheckMutation,
   useRequestRewardMutation,
+  useSetChildSessionCodeMutation,
 } = familyEconomyApi
 
 export { getErrorMessage as getFamilyEconomyQueryErrorMessage }

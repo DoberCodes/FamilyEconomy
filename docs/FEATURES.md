@@ -7,6 +7,7 @@
 - Mobile-first child sessions with preconfigured dashboard, goals, rewards, jobs, and statements.
 - Parent-owned authentication with child profile selection/mock login inside the household.
 - Parent control center with family settings, reward approvals, job review, and onboarding.
+- Onboarding starter templates for jobs and rewards, with bulk add and per-item editing before parents create them.
 - Firestore-backed family data store with parent user profiles, child profiles, and household relationships.
 - Fictional educational credits only; no real-money balances, transfers, banking, or payment processing.
 

@@ -5,16 +5,22 @@ import {
   claimApprovedRewardProposal,
   claimJob,
   contributeToSavingsGoal,
+  createChildProfile,
   createCustomRewardRequest,
   createGoal,
+  createHousehold,
+  createJob,
+  createReward,
   declineRewardRequestTerms,
   declineSavingsGoalCounter,
   requestJobCheck,
   requestReward,
+  setChildSessionCode,
 } from '../services/familyEconomyService'
 import { familyMutation } from './familyEconomyApiUtils'
 
 const DASHBOARD_TAGS = ['FamilyDashboard', 'FamilyHome']
+const HOUSEHOLD_TAGS = ['FamilyHome', 'HouseholdOnboarding']
 const STORE_TAGS = ['FamilyDashboard', 'FamilyHome', 'FamilyStore']
 
 export function buildFamilyMutationEndpoints(builder) {
@@ -30,6 +36,30 @@ export function buildFamilyMutationEndpoints(builder) {
       ({ job, context }) => requestJobCheck(job, context),
       'Could not request a job check.',
       DASHBOARD_TAGS,
+    ),
+    createHousehold: familyMutation(
+      builder,
+      ({ household, context }) => createHousehold(household, context),
+      'Could not save household details.',
+      HOUSEHOLD_TAGS,
+    ),
+    createChildProfile: familyMutation(
+      builder,
+      ({ childProfile, context }) => createChildProfile(childProfile, context),
+      'Could not add child profile.',
+      HOUSEHOLD_TAGS,
+    ),
+    createJob: familyMutation(
+      builder,
+      ({ jobPayload, context }) => createJob(jobPayload, context),
+      'Could not add starter job.',
+      ['FamilyDashboard', 'FamilyHome', 'HouseholdOnboarding'],
+    ),
+    createReward: familyMutation(
+      builder,
+      ({ rewardPayload, context }) => createReward(rewardPayload, context),
+      'Could not add starter reward.',
+      ['FamilyStore', 'FamilyHome', 'HouseholdOnboarding'],
     ),
     requestReward: familyMutation(
       builder,
@@ -90,6 +120,12 @@ export function buildFamilyMutationEndpoints(builder) {
       ({ goalId, context }) => declineSavingsGoalCounter(goalId, context),
       'Could not decline this counter offer.',
       DASHBOARD_TAGS,
+    ),
+    setChildSessionCode: familyMutation(
+      builder,
+      ({ childId, sessionCode, context }) => setChildSessionCode(childId, sessionCode, context),
+      'Could not set child session code.',
+      HOUSEHOLD_TAGS,
     ),
   }
 }

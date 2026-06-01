@@ -30,6 +30,10 @@ This tracks reusable component, hook, service, and shared type opportunities tha
 - Redux Toolkit and RTK Query foundation added in `src/store`, with `useFamilyHomeData`, `useFamilyDashboard`, `useFamilyStoreData`, and `useHouseholdOnboardingData` migrated to the shared query cache.
 - First RTK Query mutations added for job claiming and reward requests, replacing manual page refresh calls with cache invalidation.
 - Kid-facing job, reward, and savings write actions in `KidProfilePage` now route through shared RTK Query mutations instead of importing write services directly.
+- `KidProfilePage` child dashboard/store/job-check/consequence-event reads now use a shared `getKidProfileSessionData` RTK Query endpoint.
+- Child session PIN setup now uses an RTK Query mutation, leaving `KidProfilePage` without direct `familyEconomyService` imports.
+- Onboarding setup reads/writes now use RTK Query, and repeated onboarding data-to-state hydration is centralized in `OnboardingPage`.
+- Onboarding starter job/reward templates now live in `src/data/onboardingTemplates.js` and can be bulk-added with per-item edits.
 
 ## Latest Reusability Review - 2026-06-01
 
@@ -140,7 +144,7 @@ Good first use cases:
 |---:|---|---|---|---|---|
 | 1 | Extract parent admin dialog/form primitives | Components/hooks | Very high | Medium | Start in `ProfilePage.jsx`. Create shared `DialogShell`, `DialogSection`, `DialogSubsection`, `FormField`, `HelpedLabel`, `SelectField`, `NumberField`, `ToggleSelect`, `PresetSelector`, `StickyDialogActions`, and warning/note primitives. |
 | 2 | Apply `useAsyncAction` to large action flows | Hooks | Very high | Low-medium | Replace repeated `setSaving`, `setDialogBusy`, `setFeedbackBusy`, `setAccountBusy`, and kid action busy flows in `ProfilePage`, `KidProfilePage`, and `OnboardingPage`. Keep action return shape `{ ok, result, error }`. |
-| 3 | Migrate shared server-state reads and writes to RTK Query | Store/API/hooks | Very high | Medium | Core family data hooks plus kid-facing job/reward/savings mutations are migrated. Continue with child-profile writes, consequence events, feedback entries, parent approval mutations, and eventually KidProfile read state. |
+| 3 | Migrate shared server-state reads and writes to RTK Query | Store/API/hooks | Very high | Medium | Core family data hooks plus kid-facing and onboarding reads/writes are migrated. Continue with feedback entries, parent approval mutations, and deeper ProfilePage data reads. |
 | 4 | Formalize full child session context | Hook/service/types | Very high | Medium | Build from `useFamilyActor` into a complete parent-auth-backed child session contract: selected child, session lock/unlock, child session code state, actor write metadata, and parent-viewing-child semantics. |
 | 5 | Extract dashboard and analytics selectors | Services/selectors | High | Medium | Expand `dashboardSelectors.js` beyond savings goals. Move activity feed, family trend cards, child summaries, recognition winners, family savings contributors, celebration counts, and parent insight calculations out of pages. |
 | 6 | Expand family data hooks for larger pages | Hooks/services | High | Medium | Add focused wrappers such as `useRewardRequests`, `useFamilyJobs`, `useSavingsGoals`, `useConsequenceEvents`, `useJobCheckRequests`, and `useFeedbackEntries` where they simplify `ProfilePage` and `KidProfilePage`. Prefer RTK Query-backed hooks for shared server state. |
@@ -195,7 +199,10 @@ Good first use cases:
 - Add query endpoints and tags before migrating each hook so future mutations can invalidate cached family data.
 - `useFamilyDashboard`, `useFamilyStoreData`, and `useHouseholdOnboardingData` now use RTK Query.
 - Kid-facing job, reward, and savings mutations now use RTK Query.
-- Add domain-specific endpoints for consequence events, feedback, child profile writes, and parent approval actions next.
+- Kid profile session reads now use RTK Query for dashboard, store, job checks, and consequence events.
+- Child session PIN setup now uses RTK Query.
+- Onboarding setup reads/writes now use RTK Query.
+- Add domain-specific endpoints for feedback, parent approval actions, and deeper ProfilePage read bundles next.
 - Use Redux slices only for cross-route app state; keep local UI state local.
 - Data impact: none expected while Firestore paths and document shapes stay unchanged.
 
@@ -240,6 +247,10 @@ Good first use cases:
 - `npm.cmd run lint`, `npm.cmd run test:logic`, and `npm.cmd run build` passed after the Redux Toolkit and RTK Query foundation. Build still reports the known large chunk warning.
 - `npm.cmd run lint`, `npm.cmd run test:logic`, and `npm.cmd run build` passed after migrating dashboard/store/onboarding hooks and first job/reward mutations to RTK Query. Build still reports the known large chunk warning.
 - `npm.cmd run lint`, `npm.cmd run test:logic`, and `npm.cmd run build` passed after routing `KidProfilePage` job, reward, and savings writes through RTK Query mutations. Build still reports the known large chunk warning.
+- `npm.cmd run lint`, `npm.cmd run test:logic`, and `npm.cmd run build` passed after routing `KidProfilePage` session reads through RTK Query. Build still reports the known large chunk warning.
+- `npm.cmd run lint`, `npm.cmd run test:logic`, and `npm.cmd run build` passed after routing child session PIN setup through RTK Query. Build still reports the known large chunk warning.
+- `npm.cmd run lint`, `npm.cmd run test:logic`, and `npm.cmd run build` passed after routing onboarding setup reads/writes through RTK Query. Build still reports the known large chunk warning.
+- `npm.cmd run lint`, `npm.cmd run test:logic`, and `npm.cmd run build` passed after adding editable onboarding starter job/reward templates. Build still reports the known large chunk warning.
 
 ## Data Impact Notes
 

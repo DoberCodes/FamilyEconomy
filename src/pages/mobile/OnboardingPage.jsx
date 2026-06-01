@@ -1,16 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import MarkdownTextArea from '../../components/shared/MarkdownTextArea'
 import { useAuth } from '../../context/AuthContext'
+import {
+  onboardingJobTemplates,
+  onboardingRewardTemplates,
+} from '../../data/onboardingTemplates'
 import useFamilyActor from '../../hooks/useFamilyActor'
 import {
-  createChildProfile,
-  createHousehold,
-  createJob,
-  createReward,
-  getHouseholdOnboardingData,
-} from '../../services/familyEconomyService'
+  useCreateChildProfileMutation,
+  useCreateHouseholdMutation,
+  useCreateJobMutation,
+  useCreateRewardMutation,
+  useLazyGetHouseholdOnboardingDataQuery,
+} from '../../store/familyEconomyApi'
 
 const childAvatarOptions = [
   { value: '🧒', label: 'Explorer' },
@@ -48,11 +52,32 @@ function getRecommendedStepIndex({ familyExists, childProfiles, jobs, rewards })
   return 4
 }
 
+function buildJobTemplateRows() {
+  return onboardingJobTemplates.map((template) => ({
+    ...template,
+    selected: true,
+    points: String(template.points),
+  }))
+}
+
+function buildRewardTemplateRows() {
+  return onboardingRewardTemplates.map((template) => ({
+    ...template,
+    selected: true,
+    cost: String(template.cost),
+  }))
+}
+
 export default function OnboardingPage() {
   const navigate = useNavigate()
   const { familyId, userId, userRole, isAuthenticated, login, userEmail, logout } =
     useAuth()
   const { effectiveUserId, effectiveRole } = useFamilyActor()
+  const [createChildProfileMutation] = useCreateChildProfileMutation()
+  const [createHouseholdMutation] = useCreateHouseholdMutation()
+  const [createJobMutation] = useCreateJobMutation()
+  const [createRewardMutation] = useCreateRewardMutation()
+  const [loadHouseholdOnboarding] = useLazyGetHouseholdOnboardingDataQuery()
 
   const [loading, setLoading] = useState(true)
   const [savingHousehold, setSavingHousehold] = useState(false)
@@ -71,8 +96,10 @@ export default function OnboardingPage() {
   const [jobTitle, setJobTitle] = useState('')
   const [jobPoints, setJobPoints] = useState('50')
   const [jobBadgeContribution, setJobBadgeContribution] = useState('none')
+  const [jobTemplateRows, setJobTemplateRows] = useState(() => buildJobTemplateRows())
   const [rewardTitle, setRewardTitle] = useState('')
   const [rewardCost, setRewardCost] = useState('150')
+  const [rewardTemplateRows, setRewardTemplateRows] = useState(() => buildRewardTemplateRows())
   const [familyAnnouncement, setFamilyAnnouncement] = useState('')
   const [childSessionSecurityEnabled, setChildSessionSecurityEnabled] = useState(false)
   const [savingsGoalApprovalMode, setSavingsGoalApprovalMode] = useState('claim_only')
@@ -110,64 +137,75 @@ export default function OnboardingPage() {
   const activeStep = Math.min(currentStep, maxReachableStep)
   const parentFirstName = (userEmail || '').split('@')[0] || 'Parent'
   const householdLabel = (householdName || '').trim() || 'your family'
+  const selectedJobTemplateCount = jobTemplateRows.filter((template) => template.selected).length
+  const selectedRewardTemplateCount = rewardTemplateRows.filter((template) => template.selected).length
+
+  const applyOnboardingData = useCallback((data, options = {}) => {
+    const { preserveCurrentStep = false } = options
+
+    setFamilyExists(data.familyExists)
+    setChildProfiles(data.childProfiles)
+    setJobs(data.jobs)
+    setRewards(data.rewards)
+
+    if (data.family?.profileName) {
+      setHouseholdName(data.family.profileName)
+    }
+
+    if (typeof data.family?.familyRules === 'string') {
+      setFamilyRules(data.family.familyRules)
+    }
+
+    if (typeof data.family?.familyAnnouncement === 'string') {
+      setFamilyAnnouncement(data.family.familyAnnouncement)
+    }
+
+    setChildSessionSecurityEnabled(Boolean(data.family?.childSessionSecurityEnabled))
+    setSavingsGoalApprovalMode(data.family?.savingsGoalApprovalMode || 'claim_only')
+    setMissedJobConsequenceEnabled(Boolean(data.family?.missedJobConsequenceEnabled))
+    setMissedJobPenaltyCredits(String(data.family?.missedJobPenaltyCredits || 0))
+    setMissedJobTimingEnabled(Boolean(data.family?.missedJobTimingEnabled))
+    setMissedJobDefaultHours(String(data.family?.missedJobDefaultHours || 24))
+    setFailedJobCheckConsequenceEnabled(Boolean(data.family?.failedJobCheckConsequenceEnabled))
+    setFailedJobCheckPenaltyCredits(String(data.family?.failedJobCheckPenaltyCredits || 0))
+    setMaxActivePoolClaimsPerChild(String(data.family?.maxActivePoolClaimsPerChild || 1))
+    setAllowClaimingWithPendingChecks(Boolean(data.family?.allowClaimingWithPendingChecks))
+    setDynamicPricingEnabled(Boolean(data.family?.dynamicPricingEnabled))
+    setDynamicPricingWindowPeriod(data.family?.dynamicPricingWindowPeriod || 'week')
+    setDynamicPricingDemandWeight(String(data.family?.dynamicPricingDemandWeight || 10))
+    setDynamicPricingScarcityWeight(String(data.family?.dynamicPricingScarcityWeight || 20))
+    setAchievementsEnabled(data.family?.achievementsEnabled !== false)
+    setFamilyRecognitionEnabled(data.family?.familyRecognitionEnabled !== false)
+    setAchievementFirstGoalTarget(String(data.family?.achievementFirstGoalTarget || 1))
+    setAchievementContributorCreditsTarget(String(data.family?.achievementContributorCreditsTarget || 100))
+    setAchievementHelperJobsTarget(String(data.family?.achievementHelperJobsTarget || 3))
+    setAchievementReadingJobsTarget(String(data.family?.achievementReadingJobsTarget || 5))
+    setRecognitionStreakDaysTarget(String(data.family?.recognitionStreakDaysTarget || 3))
+    setRecognitionHelpingHandJobsTarget(String(data.family?.recognitionHelpingHandJobsTarget || 1))
+    setRecognitionGoalGetterTarget(String(data.family?.recognitionGoalGetterTarget || 1))
+
+    const recommendedStep = getRecommendedStepIndex(data)
+    setCurrentStep((previousStep) => (
+      preserveCurrentStep ? Math.max(previousStep, recommendedStep) : recommendedStep
+    ))
+  }, [])
 
   useEffect(() => {
     let active = true
 
     async function run() {
       try {
-        const result = await getHouseholdOnboardingData({
+        const data = await loadHouseholdOnboarding({
           familyId,
           userId: effectiveUserId,
           userRole: effectiveRole,
-        })
+        }).unwrap()
 
         if (!active) {
           return
         }
 
-        setFamilyExists(result.data.familyExists)
-        setChildProfiles(result.data.childProfiles)
-        setJobs(result.data.jobs)
-        setRewards(result.data.rewards)
-
-        if (result.data.family?.profileName) {
-          setHouseholdName(result.data.family.profileName)
-        }
-
-        if (typeof result.data.family?.familyRules === 'string') {
-          setFamilyRules(result.data.family.familyRules)
-        }
-
-        if (typeof result.data.family?.familyAnnouncement === 'string') {
-          setFamilyAnnouncement(result.data.family.familyAnnouncement)
-        }
-
-        setChildSessionSecurityEnabled(Boolean(result.data.family?.childSessionSecurityEnabled))
-        setSavingsGoalApprovalMode(result.data.family?.savingsGoalApprovalMode || 'claim_only')
-        setMissedJobConsequenceEnabled(Boolean(result.data.family?.missedJobConsequenceEnabled))
-        setMissedJobPenaltyCredits(String(result.data.family?.missedJobPenaltyCredits || 0))
-        setMissedJobTimingEnabled(Boolean(result.data.family?.missedJobTimingEnabled))
-        setMissedJobDefaultHours(String(result.data.family?.missedJobDefaultHours || 24))
-        setFailedJobCheckConsequenceEnabled(Boolean(result.data.family?.failedJobCheckConsequenceEnabled))
-        setFailedJobCheckPenaltyCredits(String(result.data.family?.failedJobCheckPenaltyCredits || 0))
-        setMaxActivePoolClaimsPerChild(String(result.data.family?.maxActivePoolClaimsPerChild || 1))
-        setAllowClaimingWithPendingChecks(Boolean(result.data.family?.allowClaimingWithPendingChecks))
-        setDynamicPricingEnabled(Boolean(result.data.family?.dynamicPricingEnabled))
-        setDynamicPricingWindowPeriod(result.data.family?.dynamicPricingWindowPeriod || 'week')
-        setDynamicPricingDemandWeight(String(result.data.family?.dynamicPricingDemandWeight || 10))
-        setDynamicPricingScarcityWeight(String(result.data.family?.dynamicPricingScarcityWeight || 20))
-        setAchievementsEnabled(result.data.family?.achievementsEnabled !== false)
-        setFamilyRecognitionEnabled(result.data.family?.familyRecognitionEnabled !== false)
-        setAchievementFirstGoalTarget(String(result.data.family?.achievementFirstGoalTarget || 1))
-        setAchievementContributorCreditsTarget(String(result.data.family?.achievementContributorCreditsTarget || 100))
-        setAchievementHelperJobsTarget(String(result.data.family?.achievementHelperJobsTarget || 3))
-        setAchievementReadingJobsTarget(String(result.data.family?.achievementReadingJobsTarget || 5))
-        setRecognitionStreakDaysTarget(String(result.data.family?.recognitionStreakDaysTarget || 3))
-        setRecognitionHelpingHandJobsTarget(String(result.data.family?.recognitionHelpingHandJobsTarget || 1))
-        setRecognitionGoalGetterTarget(String(result.data.family?.recognitionGoalGetterTarget || 1))
-
-        setCurrentStep(getRecommendedStepIndex(result.data))
+        applyOnboardingData(data)
       } catch (caughtError) {
         if (!active) {
           return
@@ -185,7 +223,7 @@ export default function OnboardingPage() {
     return () => {
       active = false
     }
-  }, [familyId, effectiveUserId, effectiveRole])
+  }, [familyId, effectiveUserId, effectiveRole, loadHouseholdOnboarding, applyOnboardingData])
 
   async function loadOnboarding(options = {}) {
     const { preserveCurrentStep = false } = options
@@ -193,57 +231,13 @@ export default function OnboardingPage() {
     setError('')
 
     try {
-      const result = await getHouseholdOnboardingData({
+      const data = await loadHouseholdOnboarding({
         familyId,
         userId: effectiveUserId,
         userRole: effectiveRole,
-      })
+      }).unwrap()
 
-      setFamilyExists(result.data.familyExists)
-      setChildProfiles(result.data.childProfiles)
-      setJobs(result.data.jobs)
-      setRewards(result.data.rewards)
-
-      if (result.data.family?.profileName) {
-        setHouseholdName(result.data.family.profileName)
-      }
-
-      if (typeof result.data.family?.familyRules === 'string') {
-        setFamilyRules(result.data.family.familyRules)
-      }
-
-      if (typeof result.data.family?.familyAnnouncement === 'string') {
-        setFamilyAnnouncement(result.data.family.familyAnnouncement)
-      }
-
-      setChildSessionSecurityEnabled(Boolean(result.data.family?.childSessionSecurityEnabled))
-      setSavingsGoalApprovalMode(result.data.family?.savingsGoalApprovalMode || 'claim_only')
-      setMissedJobConsequenceEnabled(Boolean(result.data.family?.missedJobConsequenceEnabled))
-      setMissedJobPenaltyCredits(String(result.data.family?.missedJobPenaltyCredits || 0))
-      setMissedJobTimingEnabled(Boolean(result.data.family?.missedJobTimingEnabled))
-      setMissedJobDefaultHours(String(result.data.family?.missedJobDefaultHours || 24))
-      setFailedJobCheckConsequenceEnabled(Boolean(result.data.family?.failedJobCheckConsequenceEnabled))
-      setFailedJobCheckPenaltyCredits(String(result.data.family?.failedJobCheckPenaltyCredits || 0))
-      setMaxActivePoolClaimsPerChild(String(result.data.family?.maxActivePoolClaimsPerChild || 1))
-      setAllowClaimingWithPendingChecks(Boolean(result.data.family?.allowClaimingWithPendingChecks))
-      setDynamicPricingEnabled(Boolean(result.data.family?.dynamicPricingEnabled))
-      setDynamicPricingWindowPeriod(result.data.family?.dynamicPricingWindowPeriod || 'week')
-      setDynamicPricingDemandWeight(String(result.data.family?.dynamicPricingDemandWeight || 10))
-      setDynamicPricingScarcityWeight(String(result.data.family?.dynamicPricingScarcityWeight || 20))
-      setAchievementsEnabled(result.data.family?.achievementsEnabled !== false)
-      setFamilyRecognitionEnabled(result.data.family?.familyRecognitionEnabled !== false)
-      setAchievementFirstGoalTarget(String(result.data.family?.achievementFirstGoalTarget || 1))
-      setAchievementContributorCreditsTarget(String(result.data.family?.achievementContributorCreditsTarget || 100))
-      setAchievementHelperJobsTarget(String(result.data.family?.achievementHelperJobsTarget || 3))
-      setAchievementReadingJobsTarget(String(result.data.family?.achievementReadingJobsTarget || 5))
-      setRecognitionStreakDaysTarget(String(result.data.family?.recognitionStreakDaysTarget || 3))
-      setRecognitionHelpingHandJobsTarget(String(result.data.family?.recognitionHelpingHandJobsTarget || 1))
-      setRecognitionGoalGetterTarget(String(result.data.family?.recognitionGoalGetterTarget || 1))
-
-      const recommendedStep = getRecommendedStepIndex(result.data)
-      setCurrentStep((previousStep) => (
-        preserveCurrentStep ? Math.max(previousStep, recommendedStep) : recommendedStep
-      ))
+      applyOnboardingData(data, { preserveCurrentStep })
     } catch (caughtError) {
       setError(caughtError.message || 'Could not load onboarding data.')
     } finally {
@@ -258,10 +252,10 @@ export default function OnboardingPage() {
     setStatus('')
 
     try {
-      await createHousehold(
-        { profileName: householdName, familyRules },
-        { familyId, userId, userRole },
-      )
+      await createHouseholdMutation({
+        household: { profileName: householdName, familyRules },
+        context: { familyId, userId, userRole },
+      }).unwrap()
       setStatus('Household details saved.')
       await loadOnboarding({ preserveCurrentStep: true })
       setCurrentStep(1)
@@ -279,14 +273,14 @@ export default function OnboardingPage() {
     setStatus('')
 
     try {
-      await createChildProfile(
-        {
+      await createChildProfileMutation({
+        childProfile: {
           displayName: childName,
           avatar: childAvatar,
           weeklyGoalCredits,
         },
-        { familyId, userId, userRole },
-      )
+        context: { familyId, userId, userRole },
+      }).unwrap()
       setChildName('')
       setWeeklyGoalCredits('300')
       setStatus('Child profile added.')
@@ -306,14 +300,14 @@ export default function OnboardingPage() {
     setStatus('')
 
     try {
-      await createJob(
-        {
+      await createJobMutation({
+        jobPayload: {
           title: jobTitle,
           points: Number(jobPoints) || 0,
           badgeContribution: jobBadgeContribution,
         },
-        { familyId, userId, userRole },
-      )
+        context: { familyId, userId, userRole },
+      }).unwrap()
       setJobTitle('')
       setJobPoints('50')
       setJobBadgeContribution('none')
@@ -327,6 +321,45 @@ export default function OnboardingPage() {
     }
   }
 
+  async function handleAddSelectedJobTemplates() {
+    const selectedTemplates = jobTemplateRows.filter((template) => template.selected)
+    if (selectedTemplates.length === 0) {
+      setError('Choose at least one starter job template.')
+      return
+    }
+
+    const missingTitle = selectedTemplates.some((template) => !template.title.trim())
+    if (missingTitle) {
+      setError('Each selected starter job needs a title.')
+      return
+    }
+
+    setAddingJob(true)
+    setError('')
+    setStatus('')
+
+    try {
+      await Promise.all(selectedTemplates.map((template) => (
+        createJobMutation({
+          jobPayload: {
+            title: template.title,
+            points: Number(template.points) || 0,
+            badgeContribution: template.badgeContribution,
+          },
+          context: { familyId, userId, userRole },
+        }).unwrap()
+      )))
+      setStatus(`${selectedTemplates.length} starter jobs added.`)
+      setJobTemplateRows(buildJobTemplateRows())
+      await loadOnboarding({ preserveCurrentStep: true })
+      setCurrentStep(3)
+    } catch (caughtError) {
+      setError(caughtError.message || 'Could not add starter jobs.')
+    } finally {
+      setAddingJob(false)
+    }
+  }
+
   async function handleAddReward(event) {
     event.preventDefault()
     setAddingReward(true)
@@ -334,10 +367,10 @@ export default function OnboardingPage() {
     setStatus('')
 
     try {
-      await createReward(
-        { title: rewardTitle, cost: Number(rewardCost) || 0 },
-        { familyId, userId, userRole },
-      )
+      await createRewardMutation({
+        rewardPayload: { title: rewardTitle, cost: Number(rewardCost) || 0 },
+        context: { familyId, userId, userRole },
+      }).unwrap()
       setRewardTitle('')
       setRewardCost('150')
       setStatus('Starter reward added.')
@@ -350,6 +383,44 @@ export default function OnboardingPage() {
     }
   }
 
+  async function handleAddSelectedRewardTemplates() {
+    const selectedTemplates = rewardTemplateRows.filter((template) => template.selected)
+    if (selectedTemplates.length === 0) {
+      setError('Choose at least one starter reward template.')
+      return
+    }
+
+    const missingTitle = selectedTemplates.some((template) => !template.title.trim())
+    if (missingTitle) {
+      setError('Each selected starter reward needs a title.')
+      return
+    }
+
+    setAddingReward(true)
+    setError('')
+    setStatus('')
+
+    try {
+      await Promise.all(selectedTemplates.map((template) => (
+        createRewardMutation({
+          rewardPayload: {
+            title: template.title,
+            cost: Number(template.cost) || 0,
+          },
+          context: { familyId, userId, userRole },
+        }).unwrap()
+      )))
+      setStatus(`${selectedTemplates.length} starter rewards added.`)
+      setRewardTemplateRows(buildRewardTemplateRows())
+      await loadOnboarding({ preserveCurrentStep: true })
+      setCurrentStep(4)
+    } catch (caughtError) {
+      setError(caughtError.message || 'Could not add starter rewards.')
+    } finally {
+      setAddingReward(false)
+    }
+  }
+
   async function handleSaveParentFeatures(event) {
     event.preventDefault()
     setSavingParentFeatures(true)
@@ -357,8 +428,8 @@ export default function OnboardingPage() {
     setStatus('')
 
     try {
-      await createHousehold(
-        {
+      await createHouseholdMutation({
+        household: {
           profileName: householdName,
           familyRules,
           familyAnnouncement,
@@ -386,8 +457,8 @@ export default function OnboardingPage() {
           recognitionHelpingHandJobsTarget: Math.max(1, Number(recognitionHelpingHandJobsTarget) || 1),
           recognitionGoalGetterTarget: Math.max(1, Number(recognitionGoalGetterTarget) || 1),
         },
-        { familyId, userId, userRole, userEmail },
-      )
+        context: { familyId, userId, userRole, userEmail },
+      }).unwrap()
 
       setStatus('Parent feature settings saved.')
       await loadOnboarding({ preserveCurrentStep: true })
@@ -465,6 +536,22 @@ export default function OnboardingPage() {
       setFailedJobCheckConsequenceEnabled(true)
       setFailedJobCheckPenaltyCredits('15')
     }
+  }
+
+  function updateJobTemplateRow(templateId, updates) {
+    setJobTemplateRows((currentRows) => (
+      currentRows.map((template) => (
+        template.id === templateId ? { ...template, ...updates } : template
+      ))
+    ))
+  }
+
+  function updateRewardTemplateRow(templateId, updates) {
+    setRewardTemplateRows((currentRows) => (
+      currentRows.map((template) => (
+        template.id === templateId ? { ...template, ...updates } : template
+      ))
+    ))
   }
 
   async function handleParentSignIn(event) {
@@ -661,6 +748,82 @@ export default function OnboardingPage() {
             </div>
             <span className="job-status-label">{jobs.length} added</span>
           </div>
+          <section className="onboarding-mini-dialog">
+            <p className="onboarding-mini-title">Starter job group</p>
+            <p className="onboarding-mini-subtitle">Select the jobs that fit your family, adjust the credits, then add them together.</p>
+            <div className="button-row">
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => setJobTemplateRows((rows) => rows.map((template) => ({ ...template, selected: true })))}
+              >
+                Select all
+              </button>
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => setJobTemplateRows((rows) => rows.map((template) => ({ ...template, selected: false })))}
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                className="claim-button"
+                onClick={handleAddSelectedJobTemplates}
+                disabled={addingJob || loading || childProfiles.length === 0 || selectedJobTemplateCount === 0}
+              >
+                {addingJob ? 'Adding...' : `Add ${selectedJobTemplateCount} selected`}
+              </button>
+            </div>
+            <ul className="profile-list onboarding-template-list onboarding-template-list-jobs">
+              {jobTemplateRows.map((template) => (
+                <li key={template.id} className="profile-list-item">
+                  <label className="form-field">
+                    <span className="form-label">
+                      <input
+                        type="checkbox"
+                        checked={template.selected}
+                        onChange={(event) => updateJobTemplateRow(template.id, { selected: event.target.checked })}
+                      />{' '}
+                      Include
+                    </span>
+                    <input
+                      className="job-input"
+                      value={template.title}
+                      onChange={(event) => updateJobTemplateRow(template.id, { title: event.target.value })}
+                      disabled={!template.selected}
+                    />
+                  </label>
+                  <label className="form-field">
+                    <span className="form-label">Credits</span>
+                    <input
+                      className="job-input"
+                      type="number"
+                      min="1"
+                      step="1"
+                      inputMode="numeric"
+                      value={template.points}
+                      onChange={(event) => updateJobTemplateRow(template.id, { points: event.target.value })}
+                      disabled={!template.selected}
+                    />
+                  </label>
+                  <label className="form-field">
+                    <span className="form-label">Badge</span>
+                    <select
+                      className="job-input"
+                      value={template.badgeContribution}
+                      onChange={(event) => updateJobTemplateRow(template.id, { badgeContribution: event.target.value })}
+                      disabled={!template.selected}
+                    >
+                      <option value="none">None</option>
+                      <option value="helper">Helper</option>
+                      <option value="reading">Reading</option>
+                    </select>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </section>
           <form className="auth-form" onSubmit={handleAddJob}>
             <section className="onboarding-mini-dialog">
               <p className="onboarding-mini-title">Job details</p>
@@ -762,6 +925,69 @@ export default function OnboardingPage() {
           </div>
           <span className="job-status-label">{rewards.length} added</span>
         </div>
+        <section className="onboarding-mini-dialog">
+          <p className="onboarding-mini-title">Starter reward group</p>
+          <p className="onboarding-mini-subtitle">Pick motivating fictional-credit rewards, adjust costs, then add them together.</p>
+          <div className="button-row">
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => setRewardTemplateRows((rows) => rows.map((template) => ({ ...template, selected: true })))}
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => setRewardTemplateRows((rows) => rows.map((template) => ({ ...template, selected: false })))}
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              className="claim-button"
+              onClick={handleAddSelectedRewardTemplates}
+              disabled={addingReward || loading || jobs.length === 0 || selectedRewardTemplateCount === 0}
+            >
+              {addingReward ? 'Adding...' : `Add ${selectedRewardTemplateCount} selected`}
+            </button>
+          </div>
+          <ul className="profile-list onboarding-template-list onboarding-template-list-rewards">
+            {rewardTemplateRows.map((template) => (
+              <li key={template.id} className="profile-list-item">
+                <label className="form-field">
+                  <span className="form-label">
+                    <input
+                      type="checkbox"
+                      checked={template.selected}
+                      onChange={(event) => updateRewardTemplateRow(template.id, { selected: event.target.checked })}
+                    />{' '}
+                    Include
+                  </span>
+                  <input
+                    className="job-input"
+                    value={template.title}
+                    onChange={(event) => updateRewardTemplateRow(template.id, { title: event.target.value })}
+                    disabled={!template.selected}
+                  />
+                </label>
+                <label className="form-field">
+                  <span className="form-label">Cost</span>
+                  <input
+                    className="job-input"
+                    type="number"
+                    min="1"
+                    step="1"
+                    inputMode="numeric"
+                    value={template.cost}
+                    onChange={(event) => updateRewardTemplateRow(template.id, { cost: event.target.value })}
+                    disabled={!template.selected}
+                  />
+                </label>
+              </li>
+            ))}
+          </ul>
+        </section>
         <form className="auth-form" onSubmit={handleAddReward}>
           <section className="onboarding-mini-dialog">
             <p className="onboarding-mini-title">Reward details</p>

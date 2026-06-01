@@ -2684,7 +2684,6 @@ body.parent-session-active {
 .kid-savings-overview-panel .xp-track-light {
   background: #dce8fa;
    margin-top: 0.45rem;
-}
 .kid-savings-overview-panel .xp-track-light span {
   background: linear-gradient(90deg, #72c0ff, #4f7dff);
 }
@@ -2845,7 +2844,6 @@ body.parent-session-active {
    justify-content: space-between;
    gap: 0.75rem;
    margin-bottom: 0.55rem;
-}
 .panel-title-row .panel-label {
   margin: 0;
 }
@@ -2873,8 +2871,7 @@ body.parent-session-active {
    gap: 0.65rem;
 }
 
-.limit-chip,
-.status-pill {
+.limit-chip {
   display: inline-flex;
   align-items: center;
   min-height: 34px;

@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 
-import HelpButton from '../../components/shared/InlineHelpButton'
-import InlineHelpDetailLine from '../../components/shared/InlineHelpDetailLine'
 import MarkdownTextArea from '../../components/shared/MarkdownTextArea'
 import { useAuth } from '../../context/AuthContext'
 import {
@@ -40,13 +38,6 @@ import {
   getOnboardingCompletionSummary,
   getWeeklyActiveFamilySummary,
 } from '../../services/analytics'
-import {
-  formatDateTime,
-  formatHours,
-  isWithinDateRange as inRange,
-  startOfWeek as getWeekStart,
-  toDateValue,
-} from '../../utils/dateUtils'
 
 const emptyWeeklySummary = {
   windowDays: 7,
@@ -66,6 +57,49 @@ const emptyOnboardingSummary = {
 
 const CREATOR_OWNER_EMAIL = 'austin.dober@gmail.com'
 const CHILD_AVATAR_OPTIONS = ['🧒', '🧑', '🌟', '🚀', '🦄']
+function HelpButton({ label, lines = [], onHelpClick }) {
+  if (!Array.isArray(lines) || lines.length === 0) {
+    return null
+  }
+
+  return (
+    <button
+      type="button"
+      className="inline-help-trigger"
+      aria-haspopup="dialog"
+      aria-label={`Help for ${label}`}
+      title={`Help for ${label}`}
+      onClick={() => onHelpClick?.({ label, lines })}
+    >
+      ?
+    </button>
+  )
+}
+
+function renderHelpDetailLine(line, index) {
+  const text = String(line || '').trim()
+  const separatorIndex = text.indexOf(':')
+
+  if (separatorIndex > 0 && separatorIndex < 42) {
+    const heading = text.slice(0, separatorIndex + 1)
+    const detail = text.slice(separatorIndex + 1).trim()
+    const isLongHeading = heading.length > 18
+    const headingLengthClass = isLongHeading ? 'help-popover-item-title-long' : ''
+
+    return (
+      <li key={`help-line:${index}`} className="help-popover-item">
+        <span className={`help-popover-item-title ${headingLengthClass}`.trim()}>{heading}</span>
+        {detail ? <span className="help-popover-item-detail">{detail}</span> : null}
+      </li>
+    )
+  }
+
+  return (
+    <li key={`help-line:${index}`} className="help-popover-item">
+      <span className="help-popover-item-detail">{text}</span>
+    </li>
+  )
+}
 
 export default function ProfilePage() {
   const {
@@ -278,6 +312,23 @@ export default function ProfilePage() {
   const [editingJobSnapshot, setEditingJobSnapshot] = useState('')
   const [editingRewardSnapshot, setEditingRewardSnapshot] = useState('')
 
+  function toDateValue(value) {
+    if (!value) {
+      return null
+    }
+
+    if (value instanceof Date) {
+      return value
+    }
+
+    if (typeof value?.toDate === 'function') {
+      return value.toDate()
+    }
+
+    const parsed = new Date(value)
+    return Number.isNaN(parsed.getTime()) ? null : parsed
+  }
+
   function formatJobReward(job) {
     const amount = Number(job.points) || 0
     const baseLabel = job.rewardType === 'xp' ? `+ ${amount} XP` : `+ ${amount} credits`
@@ -304,10 +355,48 @@ export default function ProfilePage() {
     }
 
     if (metric === 'streak_days') {
-      return 'Active days'
+      return 'Streak days'
     }
 
     return 'Completed goals'
+  }
+
+  function getWeekStart(value = new Date()) {
+    const start = new Date(value)
+    const day = start.getDay()
+    const daysSinceMonday = (day + 6) % 7
+    start.setHours(0, 0, 0, 0)
+    start.setDate(start.getDate() - daysSinceMonday)
+    return start
+  }
+
+  function inRange(value, start, end) {
+    return Boolean(value && value >= start && value < end)
+  }
+
+  function formatDateTime(value) {
+    const date = toDateValue(value)
+    if (!date) {
+      return 'Unknown time'
+    }
+
+    return date.toLocaleString()
+  }
+
+  function formatHours(value) {
+    if (!Number.isFinite(value)) {
+      return 'n/a'
+    }
+
+    if (value >= 24) {
+      return `${(value / 24).toFixed(1)}d`
+    }
+
+    if (value >= 1) {
+      return `${value.toFixed(1)}h`
+    }
+
+    return `${Math.round(value * 60)}m`
   }
 
   const missedPenaltyValue = Math.max(0, Number(missedJobPenaltyCredits) || 0)
@@ -3014,11 +3103,11 @@ export default function ProfilePage() {
                   <p className="panel-muted">Family News: {familySummary.familyAnnouncement || 'No family news posted'}</p>
                   <p className="panel-muted">Family Rules: {familySummary.familyRules || 'No family rules yet'}</p>
                   <p className="panel-muted">
-                    Educational pricing: {familySummary.dynamicPricingEnabled ? 'On' : 'Off'}
+                    Dynamic pricing: {familySummary.dynamicPricingEnabled ? 'On' : 'Off'}
                   </p>
                   {familySummary.dynamicPricingEnabled ? (
                     <p className="panel-muted">
-                      Cost-change guardrails: {Number(familySummary.dynamicPricingMinMultiplierPercent) || 100}% to {Number(familySummary.dynamicPricingMaxMultiplierPercent) || 220}% of base, max +{Number(familySummary.dynamicPricingMaxStepPercent) || 60}% per window
+                      Dynamic guardrails: {Number(familySummary.dynamicPricingMinMultiplierPercent) || 100}% to {Number(familySummary.dynamicPricingMaxMultiplierPercent) || 220}% of base, max +{Number(familySummary.dynamicPricingMaxStepPercent) || 60}% per window
                     </p>
                   ) : null}
                   <p className="panel-muted">
@@ -3148,7 +3237,7 @@ export default function ProfilePage() {
                       <div className="form-label-row">
                         <span className="form-label">Savings goal parent approvals</span>
                         <HelpButton
-                          onOpen={setActiveHelpDialog}
+                          onHelpClick={setActiveHelpDialog}
                           label="Savings goal parent approvals"
                           lines={[
                             'Controls when you must approve savings goals.',
@@ -3177,7 +3266,7 @@ export default function ProfilePage() {
                       <div className="form-label-row">
                         <span className="form-label">Job check approval mode</span>
                         <HelpButton
-                          onOpen={setActiveHelpDialog}
+                          onHelpClick={setActiveHelpDialog}
                           label="Job check approval mode"
                           lines={[
                             'Controls how chore completions are confirmed by default.',
@@ -3205,7 +3294,7 @@ export default function ProfilePage() {
                       <div className="form-label-row">
                         <span className="form-label">Reward request approval mode</span>
                         <HelpButton
-                          onOpen={setActiveHelpDialog}
+                          onHelpClick={setActiveHelpDialog}
                           label="Reward request approval mode"
                           lines={[
                             'Controls how reward claims are handled by default.',
@@ -3233,7 +3322,7 @@ export default function ProfilePage() {
                       <div className="form-label-row">
                         <span className="form-label">Show Top Earner/Spender cards</span>
                         <HelpButton
-                          onOpen={setActiveHelpDialog}
+                          onHelpClick={setActiveHelpDialog}
                           label="Show Top Earner/Spender cards"
                           lines={[
                             'Shows leaderboard-style cards on Home.',
@@ -3255,12 +3344,12 @@ export default function ProfilePage() {
 
                   <section className="dialog-section">
                     <p className="dialog-section-title">Family Settings Preset</p>
-                    <p className="dialog-section-subtitle">Choose one starting style for consequences, stale bonus, and educational pricing.</p>
+                    <p className="dialog-section-subtitle">Choose one starting style for consequences, stale bonus, and dynamic pricing.</p>
                     <label className="form-field">
                       <div className="form-label-row">
                         <span className="form-label">Quick family preset</span>
                         <HelpButton
-                          onOpen={setActiveHelpDialog}
+                          onHelpClick={setActiveHelpDialog}
                           label="Quick family preset"
                           lines={[
                             'Applies a starter bundle for consequences, stale bonus, and pricing.',
@@ -3324,7 +3413,7 @@ export default function ProfilePage() {
                               <div className="form-label-row">
                                 <span className="form-label">Apply missed rule only after time window</span>
                                 <HelpButton
-                                  onOpen={setActiveHelpDialog}
+                                  onHelpClick={setActiveHelpDialog}
                                   label="Apply missed rule only after time window"
                                   lines={[
                                     'Decides how a claimed chore becomes "missed."',
@@ -3405,7 +3494,7 @@ export default function ProfilePage() {
                           <div className="form-label-row">
                             <span className="form-label">Max active shared chores per child</span>
                             <HelpButton
-                              onOpen={setActiveHelpDialog}
+                              onHelpClick={setActiveHelpDialog}
                               label="Max active shared chores per child"
                               lines={[
                                 'Sets how many shared chores one child can hold at once.',
@@ -3429,7 +3518,7 @@ export default function ProfilePage() {
                           <div className="form-label-row">
                             <span className="form-label">If waiting for parent review, open another slot</span>
                             <HelpButton
-                              onOpen={setActiveHelpDialog}
+                              onHelpClick={setActiveHelpDialog}
                               label="If waiting for parent review, open another slot"
                               lines={[
                                 'Controls whether "pending review" chores still use a slot.',
@@ -3457,7 +3546,7 @@ export default function ProfilePage() {
                           <div className="form-label-row">
                             <span className="form-label">Increase points for unclaimed chores over time</span>
                             <HelpButton
-                              onOpen={setActiveHelpDialog}
+                              onHelpClick={setActiveHelpDialog}
                               label="Increase points for unclaimed chores over time"
                               lines={[
                                 'Automatically increases points on chores no one claims.',
@@ -3482,7 +3571,7 @@ export default function ProfilePage() {
                               <div className="form-label-row">
                                 <span className="form-label">Start bonus after hours unclaimed</span>
                                 <HelpButton
-                                  onOpen={setActiveHelpDialog}
+                                  onHelpClick={setActiveHelpDialog}
                                   label="Start bonus after hours unclaimed"
                                   lines={[
                                     'Wait time before stale bonus starts.',
@@ -3503,7 +3592,7 @@ export default function ProfilePage() {
                               <div className="form-label-row">
                                 <span className="form-label">Bonus interval (hours)</span>
                                 <HelpButton
-                                  onOpen={setActiveHelpDialog}
+                                  onHelpClick={setActiveHelpDialog}
                                   label="Bonus interval (hours)"
                                   lines={[
                                     'How often the stale bonus is added after it starts.',
@@ -3524,7 +3613,7 @@ export default function ProfilePage() {
                               <div className="form-label-row">
                                 <span className="form-label">Bonus % per interval</span>
                                 <HelpButton
-                                  onOpen={setActiveHelpDialog}
+                                  onHelpClick={setActiveHelpDialog}
                                   label="Bonus % per interval"
                                   lines={[
                                     'Percent increase added each bonus interval.',
@@ -3545,7 +3634,7 @@ export default function ProfilePage() {
                               <div className="form-label-row">
                                 <span className="form-label">Maximum total stale bonus %</span>
                                 <HelpButton
-                                  onOpen={setActiveHelpDialog}
+                                  onHelpClick={setActiveHelpDialog}
                                   label="Maximum total stale bonus %"
                                   lines={[
                                     'Hard cap on total stale bonus for a chore.',
@@ -3574,21 +3663,21 @@ export default function ProfilePage() {
                   </section>
 
                   <section className="dialog-advanced-group">
-                    <p className="dialog-section-title">Educational Reward Pricing (Optional)</p>
-                    <p className="dialog-section-subtitle">Optional: model simple demand and supply tradeoffs with parent-set guardrails.</p>
+                    <p className="dialog-section-title">Auto-Adjust Reward Prices (Optional)</p>
+                    <p className="dialog-section-subtitle">Optional: let reward prices adjust automatically based on demand.</p>
                     <details className="dialog-subsection">
                       <summary className="dialog-subsection-summary">Pricing mode</summary>
                       <div className="dialog-subsection-body">
                         <label className="form-field">
                           <div className="form-label-row">
-                            <span className="form-label">Use educational reward pricing</span>
+                            <span className="form-label">Auto-adjust reward prices</span>
                             <HelpButton
-                              onOpen={setActiveHelpDialog}
-                              label="Educational reward pricing"
+                              onHelpClick={setActiveHelpDialog}
+                              label="Auto-adjust reward prices"
                               lines={[
-                                'Turns explainable reward-cost changes on or off.',
+                                'Turns dynamic reward pricing on or off.',
                                 'Off: reward costs stay fixed at the value you set.',
-                                'On: costs can change to model demand and limited-supply tradeoffs for learning.',
+                                'On: costs can rise/fall based on demand and scarcity settings.',
                               ]}
                             />
                           </div>
@@ -3607,10 +3696,10 @@ export default function ProfilePage() {
                               <div className="form-label-row">
                                 <span className="form-label">Pricing window</span>
                                 <HelpButton
-                                  onOpen={setActiveHelpDialog}
+                                  onHelpClick={setActiveHelpDialog}
                                   label="Pricing window"
                                   lines={[
-                                    'How often educational cost changes update.',
+                                    'How often dynamic pricing updates.',
                                     'Per day reacts faster; per week is steadier and easier to predict.',
                                   ]}
                                 />
@@ -3627,13 +3716,13 @@ export default function ProfilePage() {
 
                             <label className="form-field">
                               <div className="form-label-row">
-                                <span className="form-label">Popular-choice lesson % per claim</span>
+                                <span className="form-label">Demand impact % per claim</span>
                                 <HelpButton
-                                  onOpen={setActiveHelpDialog}
-                                  label="Popular-choice lesson % per claim"
+                                  onHelpClick={setActiveHelpDialog}
+                                  label="Demand impact % per claim"
                                   lines={[
-                                    'How strongly repeated claims model rising demand.',
-                                    'Higher values make popular rewards cost more quickly, so use gentle settings for younger kids.',
+                                    'How strongly repeated claims push a reward price up.',
+                                    'Higher value means popular rewards become expensive faster.',
                                   ]}
                                 />
                               </div>
@@ -3648,13 +3737,13 @@ export default function ProfilePage() {
 
                             <label className="form-field">
                               <div className="form-label-row">
-                                <span className="form-label">Limited-supply lesson % near limit</span>
+                                <span className="form-label">Scarcity impact % near limit</span>
                                 <HelpButton
-                                  onOpen={setActiveHelpDialog}
-                                  label="Limited-supply lesson % near limit"
+                                  onHelpClick={setActiveHelpDialog}
+                                  label="Scarcity impact % near limit"
                                   lines={[
-                                    'How strongly limited remaining uses model supply constraints.',
-                                    'Higher values make costs rise more near daily/weekly limits, so keep the lesson explainable.',
+                                    'How strongly low remaining supply increases price.',
+                                    'Higher value means prices rise more near daily/weekly limits.',
                                   ]}
                                 />
                               </div>
@@ -3671,7 +3760,7 @@ export default function ProfilePage() {
                               <div className="form-label-row">
                                 <span className="form-label">Price floor % of base cost</span>
                                 <HelpButton
-                                  onOpen={setActiveHelpDialog}
+                                  onHelpClick={setActiveHelpDialog}
                                   label="Price floor % of base cost"
                                   lines={[
                                     'Lowest price allowed relative to base cost.',
@@ -3692,7 +3781,7 @@ export default function ProfilePage() {
                               <div className="form-label-row">
                                 <span className="form-label">Price ceiling % of base cost</span>
                                 <HelpButton
-                                  onOpen={setActiveHelpDialog}
+                                  onHelpClick={setActiveHelpDialog}
                                   label="Price ceiling % of base cost"
                                   lines={[
                                     'Highest price allowed relative to base cost.',
@@ -3713,7 +3802,7 @@ export default function ProfilePage() {
                               <div className="form-label-row">
                                 <span className="form-label">Max increase % per window</span>
                                 <HelpButton
-                                  onOpen={setActiveHelpDialog}
+                                  onHelpClick={setActiveHelpDialog}
                                   label="Max increase % per window"
                                   lines={[
                                     'Limits sudden price jumps each pricing window.',
@@ -3732,7 +3821,7 @@ export default function ProfilePage() {
                             </label>
 
                             {(demandWeightValue > 120 || scarcityWeightValue > 150) ? (
-                              <p className="status-note">Extreme pricing warning: large values can feel pressuring or hard to explain.</p>
+                              <p className="status-note">Extreme pricing warning: large values can make rewards feel unpredictable.</p>
                             ) : null}
                           </>
                         ) : null}
@@ -4324,7 +4413,7 @@ export default function ProfilePage() {
                         <div className="form-label-row">
                           <span className="form-label">Show kid achievements</span>
                           <HelpButton
-                            onOpen={setActiveHelpDialog}
+                            onHelpClick={setActiveHelpDialog}
                             label="Show kid achievements"
                             lines={[
                               'Controls whether achievement badges are shown across the app.',
@@ -4346,7 +4435,7 @@ export default function ProfilePage() {
                         <div className="form-label-row">
                           <span className="form-label">Show family recognition cards</span>
                           <HelpButton
-                            onOpen={setActiveHelpDialog}
+                            onHelpClick={setActiveHelpDialog}
                             label="Show family recognition cards"
                             lines={[
                               'Controls recognition highlights like streaks and helpfulness.',
@@ -4373,7 +4462,7 @@ export default function ProfilePage() {
                         <div className="form-label-row">
                           <span className="form-label">First Goal target</span>
                           <HelpButton
-                            onOpen={setActiveHelpDialog}
+                            onHelpClick={setActiveHelpDialog}
                             label="First Goal target"
                             lines={[
                               'Sets how many completed goals unlock the First Goal badge.',
@@ -4393,7 +4482,7 @@ export default function ProfilePage() {
                         <div className="form-label-row">
                           <span className="form-label">Contributor target (credits earned)</span>
                           <HelpButton
-                            onOpen={setActiveHelpDialog}
+                            onHelpClick={setActiveHelpDialog}
                             label="Contributor target"
                             lines={[
                               'Credits-earned threshold for the Contributor badge.',
@@ -4413,7 +4502,7 @@ export default function ProfilePage() {
                         <div className="form-label-row">
                           <span className="form-label">Helper target (helper-tagged jobs)</span>
                           <HelpButton
-                            onOpen={setActiveHelpDialog}
+                            onHelpClick={setActiveHelpDialog}
                             label="Helper target"
                             lines={[
                               'How many helper-tagged chores are needed for this badge.',
@@ -4433,7 +4522,7 @@ export default function ProfilePage() {
                         <div className="form-label-row">
                           <span className="form-label">Reading target (reading-tagged jobs)</span>
                           <HelpButton
-                            onOpen={setActiveHelpDialog}
+                            onHelpClick={setActiveHelpDialog}
                             label="Reading target"
                             lines={[
                               'How many reading-tagged chores are needed for this badge.',
@@ -4453,7 +4542,7 @@ export default function ProfilePage() {
                         <div className="form-label-row">
                           <span className="form-label">Streak target (days)</span>
                           <HelpButton
-                            onOpen={setActiveHelpDialog}
+                            onHelpClick={setActiveHelpDialog}
                             label="Streak target"
                             lines={[
                               'Required consecutive days for streak recognition.',
@@ -4473,7 +4562,7 @@ export default function ProfilePage() {
                         <div className="form-label-row">
                           <span className="form-label">Helping Hand target</span>
                           <HelpButton
-                            onOpen={setActiveHelpDialog}
+                            onHelpClick={setActiveHelpDialog}
                             label="Helping Hand target"
                             lines={[
                               'Target count for the Helping Hand recognition badge.',
@@ -4493,7 +4582,7 @@ export default function ProfilePage() {
                         <div className="form-label-row">
                           <span className="form-label">Goal Getter target</span>
                           <HelpButton
-                            onOpen={setActiveHelpDialog}
+                            onHelpClick={setActiveHelpDialog}
                             label="Goal Getter target"
                             lines={[
                               'How many completed goals unlock Goal Getter recognition.',
@@ -4518,7 +4607,7 @@ export default function ProfilePage() {
                         <div className="form-label-row">
                           <span className="form-label">Badge label</span>
                           <HelpButton
-                            onOpen={setActiveHelpDialog}
+                            onHelpClick={setActiveHelpDialog}
                             label="Badge label"
                             lines={[
                               'Name shown to kids for this custom badge.',
@@ -4537,7 +4626,7 @@ export default function ProfilePage() {
                         <div className="form-label-row">
                           <span className="form-label">Icon</span>
                           <HelpButton
-                            onOpen={setActiveHelpDialog}
+                            onHelpClick={setActiveHelpDialog}
                             label="Icon"
                             lines={[
                               'Emoji icon shown with the custom badge.',
@@ -4556,7 +4645,7 @@ export default function ProfilePage() {
                         <div className="form-label-row">
                           <span className="form-label">Category</span>
                           <HelpButton
-                            onOpen={setActiveHelpDialog}
+                            onHelpClick={setActiveHelpDialog}
                             label="Badge category"
                             lines={[
                               'Achievement: milestone/progress badge.',
@@ -4577,7 +4666,7 @@ export default function ProfilePage() {
                         <div className="form-label-row">
                           <span className="form-label">Track metric</span>
                           <HelpButton
-                            onOpen={setActiveHelpDialog}
+                            onHelpClick={setActiveHelpDialog}
                             label="Track metric"
                             lines={[
                               'Select what is counted toward this badge.',
@@ -4594,14 +4683,14 @@ export default function ProfilePage() {
                           <option value="contribution_credits">Contribution credits</option>
                           <option value="helper_jobs">Helper jobs</option>
                           <option value="reading_jobs">Reading jobs</option>
-                          <option value="streak_days">Active days</option>
+                          <option value="streak_days">Streak days</option>
                         </select>
                       </label>
                       <label className="form-field">
                         <div className="form-label-row">
                           <span className="form-label">Target</span>
                           <HelpButton
-                            onOpen={setActiveHelpDialog}
+                            onHelpClick={setActiveHelpDialog}
                             label="Badge target"
                             lines={[
                               'Required value to unlock this custom badge.',
@@ -4663,7 +4752,7 @@ export default function ProfilePage() {
                       <div className="form-label-row">
                         <span className="form-label">Apply to</span>
                         <HelpButton
-                          onOpen={setActiveHelpDialog}
+                          onHelpClick={setActiveHelpDialog}
                           label="Apply chore to"
                           lines={[
                             'Choose who can see and claim this chore.',
@@ -4696,7 +4785,7 @@ export default function ProfilePage() {
                       <div className="form-label-row">
                         <span className="form-label">Earning type</span>
                         <HelpButton
-                          onOpen={setActiveHelpDialog}
+                          onHelpClick={setActiveHelpDialog}
                           label="Earning type"
                           lines={[
                             'Choose what kids earn when this chore is completed.',
@@ -4727,7 +4816,7 @@ export default function ProfilePage() {
                       <div className="form-label-row">
                         <span className="form-label">Recurrence frequency</span>
                         <HelpButton
-                          onOpen={setActiveHelpDialog}
+                          onHelpClick={setActiveHelpDialog}
                           label="Chore recurrence frequency"
                           lines={[
                             'One-time: can be completed once only.',
@@ -4756,7 +4845,7 @@ export default function ProfilePage() {
                       <div className="form-label-row">
                         <span className="form-label">Per-child claim limit (optional)</span>
                         <HelpButton
-                          onOpen={setActiveHelpDialog}
+                          onHelpClick={setActiveHelpDialog}
                           label="Per-child claim limit"
                           lines={[
                             'Sets how often one child can claim this chore.',
@@ -4788,7 +4877,7 @@ export default function ProfilePage() {
                       <div className="form-label-row">
                         <span className="form-label">Family-wide total limit (optional)</span>
                         <HelpButton
-                          onOpen={setActiveHelpDialog}
+                          onHelpClick={setActiveHelpDialog}
                           label="Family-wide total limit"
                           lines={[
                             'Sets how often all children combined can claim this chore.',
@@ -4820,7 +4909,7 @@ export default function ProfilePage() {
                       <div className="form-label-row">
                         <span className="form-label">Missed timeout override (hours, optional)</span>
                         <HelpButton
-                          onOpen={setActiveHelpDialog}
+                          onHelpClick={setActiveHelpDialog}
                           label="Missed timeout override"
                           lines={[
                             'Optional per-chore timeout before it can be marked missed.',
@@ -4845,7 +4934,7 @@ export default function ProfilePage() {
                       <div className="form-label-row">
                         <span className="form-label">Badge contribution tag</span>
                         <HelpButton
-                          onOpen={setActiveHelpDialog}
+                          onHelpClick={setActiveHelpDialog}
                           label="Badge contribution tag"
                           lines={[
                             'Choose whether this chore contributes to badge tracking.',
@@ -4868,7 +4957,7 @@ export default function ProfilePage() {
                       <div className="form-label-row">
                         <span className="form-label">Approval override (optional)</span>
                         <HelpButton
-                          onOpen={setActiveHelpDialog}
+                          onHelpClick={setActiveHelpDialog}
                           label="Per-chore approval override"
                           lines={[
                             'Override the family-wide job approval mode for this specific chore.',
@@ -4981,7 +5070,7 @@ export default function ProfilePage() {
                       <div className="form-label-row">
                         <span className="form-label">Apply to</span>
                         <HelpButton
-                          onOpen={setActiveHelpDialog}
+                          onHelpClick={setActiveHelpDialog}
                           label="Apply reward to"
                           lines={[
                             'Choose who can request this reward.',
@@ -5023,7 +5112,7 @@ export default function ProfilePage() {
                       <div className="form-label-row">
                         <span className="form-label">Recurrence frequency</span>
                         <HelpButton
-                          onOpen={setActiveHelpDialog}
+                          onHelpClick={setActiveHelpDialog}
                           label="Reward recurrence frequency"
                           lines={[
                             'One-time: can be requested only once.',
@@ -5054,7 +5143,7 @@ export default function ProfilePage() {
                         <div className="form-label-row">
                           <span className="form-label">Per-child request limit (custom)</span>
                           <HelpButton
-                            onOpen={setActiveHelpDialog}
+                            onHelpClick={setActiveHelpDialog}
                             label="Per-child request limit"
                             lines={[
                               'Sets how often one child can request this reward.',
@@ -5087,7 +5176,7 @@ export default function ProfilePage() {
                       <div className="form-label-row">
                         <span className="form-label">Family-wide total limit (optional)</span>
                         <HelpButton
-                          onOpen={setActiveHelpDialog}
+                          onHelpClick={setActiveHelpDialog}
                           label="Family-wide total reward limit"
                           lines={[
                             'Sets how often all children combined can request this reward.',
@@ -5119,7 +5208,7 @@ export default function ProfilePage() {
                       <div className="form-label-row">
                         <span className="form-label">Approval override (optional)</span>
                         <HelpButton
-                          onOpen={setActiveHelpDialog}
+                          onHelpClick={setActiveHelpDialog}
                           label="Per-reward approval override"
                           lines={[
                             'Override the family-wide reward approval mode for this specific reward.',
@@ -5217,7 +5306,7 @@ export default function ProfilePage() {
                         <div className="form-label-row">
                           <span className="form-label">Goal name</span>
                           <HelpButton
-                            onOpen={setActiveHelpDialog}
+                            onHelpClick={setActiveHelpDialog}
                             label="Goal name"
                             lines={[
                               'Short name kids will recognize right away.',
@@ -5237,7 +5326,7 @@ export default function ProfilePage() {
                         <div className="form-label-row">
                           <span className="form-label">Target credits</span>
                           <HelpButton
-                            onOpen={setActiveHelpDialog}
+                            onHelpClick={setActiveHelpDialog}
                             label="Target credits"
                             lines={[
                               'Total credits needed to complete this goal.',
@@ -5259,7 +5348,7 @@ export default function ProfilePage() {
                         <div className="form-label-row">
                           <span className="form-label">Goal scope</span>
                           <HelpButton
-                            onOpen={setActiveHelpDialog}
+                            onHelpClick={setActiveHelpDialog}
                             label="Goal scope"
                             lines={[
                               'Choose whether this goal is family-wide or for one child.',
@@ -5374,7 +5463,7 @@ export default function ProfilePage() {
                       <div className="form-label-row">
                         <span className="form-label">Category</span>
                         <HelpButton
-                          onOpen={setActiveHelpDialog}
+                          onHelpClick={setActiveHelpDialog}
                           label="Feedback category"
                           lines={[
                             'Choose the type of feedback you are sending.',
@@ -5484,9 +5573,9 @@ export default function ProfilePage() {
                           </article>
 
                           <article className="family-insight-card">
-                            <small>Reward Cost Lessons</small>
+                            <small>Reward Demand Pressure</small>
                             {dynamicPressureRewards.length === 0 ? (
-                              <p className="panel-muted">No educational cost changes active.</p>
+                              <p className="panel-muted">No dynamic-pricing uplifts active.</p>
                             ) : (
                               <ul className="family-insight-list">
                                 {dynamicPressureRewards.map((reward) => (
@@ -5648,7 +5737,7 @@ export default function ProfilePage() {
                             <div className="form-label-row">
                               <span className="form-label">Timeframe</span>
                               <HelpButton
-                                onOpen={setActiveHelpDialog}
+                                onHelpClick={setActiveHelpDialog}
                                 label="Audit report timeframe"
                                 lines={[
                                   'Select how far back to include events in the CSV report.',
@@ -5671,7 +5760,7 @@ export default function ProfilePage() {
                             <div className="form-label-row">
                               <span className="form-label">Child</span>
                               <HelpButton
-                                onOpen={setActiveHelpDialog}
+                                onHelpClick={setActiveHelpDialog}
                                 label="Audit report child filter"
                                 lines={[
                                   'Limit report rows to one child or include everyone.',
@@ -5696,7 +5785,7 @@ export default function ProfilePage() {
                             <div className="form-label-row">
                               <span className="form-label">Event type</span>
                               <HelpButton
-                                onOpen={setActiveHelpDialog}
+                                onHelpClick={setActiveHelpDialog}
                                 label="Audit report event type"
                                 lines={[
                                   'Filter to missed jobs, denied checks, or penalty-only events.',
@@ -5835,9 +5924,7 @@ export default function ProfilePage() {
                 ) : null}
                 {activeHelpDialog.lines.length > 1 ? (
                   <ul className="help-popover-list">
-                    {activeHelpDialog.lines.slice(1).map((line, index) => (
-                      <InlineHelpDetailLine key={`help-line:${index}`} line={line} />
-                    ))}
+                    {activeHelpDialog.lines.slice(1).map((line, index) => renderHelpDetailLine(line, index))}
                   </ul>
                 ) : null}
                 <div className="help-popover-actions">

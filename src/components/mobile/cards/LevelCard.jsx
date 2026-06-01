@@ -1,5 +1,3 @@
-import ProgressTrack from '../../shared/ProgressTrack'
-
 export default function LevelCard({ level, profileName, subtitle, creditsBalance, children }) {
   const safeNextXp = Number(level?.nextXp) || 500
   const safeXp = Number(level?.xp) || 0
@@ -15,7 +13,7 @@ export default function LevelCard({ level, profileName, subtitle, creditsBalance
           <div className="hero-card-greeting-row">
             <h1>Hi, {profileName || 'there'}! 👋</h1>
             {hasCreditsBalance ? (
-              <span className="hero-credits-pill">Credit Wallet: {safeCredits.toLocaleString()} credits</span>
+              <span className="hero-credits-pill">Wallet: {safeCredits.toLocaleString()} coins</span>
             ) : null}
           </div>
           <div className="hero-card-copy">
@@ -27,7 +25,9 @@ export default function LevelCard({ level, profileName, subtitle, creditsBalance
 
       <div className="level-box">
         <p>Level {level.current}</p>
-        <ProgressTrack value={progress} label="XP progress" />
+        <div className="xp-track">
+          <span style={{ width: `${progress}%` }}></span>
+        </div>
         <small>
           {safeXp} / {safeNextXp} XP
         </small>

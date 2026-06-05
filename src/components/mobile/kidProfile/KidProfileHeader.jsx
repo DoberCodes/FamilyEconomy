@@ -49,7 +49,8 @@ export default function KidProfileHeader({
               <div className="hero-badge-row">
                 {topHeroBadges.map((badge) => (
                   <span key={`hero:${badge.id}`} className="hero-badge-chip">
-                    {badge.icon} {badge.label}
+                    <span className="hero-badge-icon" data-icon={badge.icon} aria-hidden="true" />
+                    <span className="hero-badge-label">{badge.label}</span>
                   </span>
                 ))}
               </div>

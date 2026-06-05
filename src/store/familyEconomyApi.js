@@ -147,6 +147,7 @@ export const {
   useDismissRewardNotificationMutation,
   useFulfillRewardRequestMutation,
   useContributeToSavingsGoalMutation,
+  useContributeToFamilyFundMutation,
   useGetFamilyDashboardQuery,
   useGetFamilyHomeDataQuery,
   useGetFamilyStoreDataQuery,

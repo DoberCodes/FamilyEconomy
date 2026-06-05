@@ -7,6 +7,7 @@ Project documentation is located in the `/docs` directory. The root `README.md` 
 Before making recommendations, architectural decisions, or code changes, review relevant documentation from:
 
 - docs/AI_CONTEXT.md
+- docs/BRAND.md
 - docs/VISION.md
 - docs/FEATURES.md
 - docs/DOMAIN_MODEL.md

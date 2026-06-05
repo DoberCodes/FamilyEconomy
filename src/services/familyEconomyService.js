@@ -27,6 +27,7 @@ const DEFAULT_FAMILY_ID = 'family-main'
 const DEFAULT_USER_ID = 'kid-alex'
 const DEFAULT_ROLE = 'kid'
 const CREATOR_OWNER_EMAIL = 'austin.dober@gmail.com'
+const DEFAULT_FAMILY_FUND_NAME = 'Community Funds'
 const SAVINGS_GOAL_COMPLETION_XP = 140
 const WEEKLY_STREAK_MIN_DAYS = 5
 const WEEKLY_STREAK_BONUS_XP = 200
@@ -108,10 +109,36 @@ function normalizeFamilySavingsSettings(familyData = {}) {
     savingsGoalApprovalMode: normalizeSavingsGoalApprovalMode(
       familyData.savingsGoalApprovalMode,
     ),
+    familyFundEnabled: familyData.familyFundEnabled !== false,
+    familyFundName: normalizeFamilyFundName(familyData.familyFundName),
+    familyFundBalance: Math.max(0, Number(familyData.familyFundBalance) || 0),
+    familyFundIncomeTaxEnabled: Boolean(familyData.familyFundIncomeTaxEnabled),
+    familyFundIncomeTaxPercent: normalizeFundTaxPercent(familyData.familyFundIncomeTaxPercent),
+    familyFundSalesTaxEnabled: Boolean(familyData.familyFundSalesTaxEnabled),
+    familyFundSalesTaxPercent: normalizeFundTaxPercent(familyData.familyFundSalesTaxPercent),
     jobCheckApprovalMode: normalizeJobCheckApprovalMode(
       familyData.jobCheckApprovalMode,
     ),
   }
+}
+
+function normalizeFamilyFundName(value) {
+  const trimmed = String(value || '').trim()
+  return trimmed || DEFAULT_FAMILY_FUND_NAME
+}
+
+function normalizeFundTaxPercent(value) {
+  return Math.min(100, Math.max(0, Number(value) || 0))
+}
+
+function calculateFundTaxAmount(baseAmount, enabled, percent) {
+  const normalizedAmount = Math.max(0, Number(baseAmount) || 0)
+  const normalizedPercent = normalizeFundTaxPercent(percent)
+  if (!enabled || normalizedAmount <= 0 || normalizedPercent <= 0) {
+    return 0
+  }
+
+  return Math.min(normalizedAmount, Math.floor((normalizedAmount * normalizedPercent) / 100))
 }
 
 function normalizeFamilyRewardSettings(familyData = {}) {
@@ -438,10 +465,13 @@ function normalizeGoalStatus(value) {
   return 'active'
 }
 
-function normalizeGoal(goal, fallbackId) {
+function normalizeGoal(goal, fallbackId, options = {}) {
   const target = Number(goal.target) || 1
-  const saved = Number(goal.saved) || 0
   const explicitStatus = normalizeGoalStatus(goal.status)
+  const isFamilyGoal = !goal.childId
+  const saved = isFamilyGoal && explicitStatus !== 'completed' && explicitStatus !== 'denied'
+    ? Math.max(0, Number(options.familyFundBalance) || 0)
+    : Math.max(0, Number(goal.saved) || 0)
   const status = explicitStatus === 'active' && target > 0 && saved >= target
     ? 'ready_to_claim'
     : explicitStatus
@@ -808,6 +838,10 @@ function normalizeRewardRequest(request, fallbackId) {
     rewardId: request.rewardId || null,
     rewardTitle: request.rewardTitle || 'Unknown reward',
     cost: Number(request.cost) || 0,
+    costBeforeTax: Number(request.costBeforeTax) || Number(request.cost) || 0,
+    salesTaxPercent: normalizeFundTaxPercent(request.salesTaxPercent),
+    salesTaxAmount: Math.max(0, Number(request.salesTaxAmount) || 0),
+    totalCost: Number(request.totalCost) || Number(request.cost) || 0,
     requestedBy: request.requestedBy || null,
     status: request.status || 'pending',
     childNote: request.childNote || '',
@@ -950,8 +984,13 @@ export async function getFamilyDashboard(context = {}) {
     )
     .sort((a, b) => (a.order || 0) - (b.order || 0))
 
+  const familyFundBalance = Math.max(0, Number(familyData.familyFundBalance) || 0)
   const goals = goalSnapshot.docs
-    .map((item) => normalizeGoal({ id: item.id, ...item.data() }, item.id))
+    .map((item) => normalizeGoal(
+      { id: item.id, ...item.data() },
+      item.id,
+      { familyFundBalance },
+    ))
     .filter((goal) =>
       selectedChildId ? !goal.childId || goal.childId === selectedChildId : true,
     )
@@ -1351,6 +1390,7 @@ export async function requestJobCheck(job, context = {}) {
 
   // Check whether this job should be auto-approved.
   const familySnap = await getDoc(doc(db, 'families', activeFamilyId))
+  const familySettings = familySnap.exists() ? normalizeFamilySavingsSettings(familySnap.data() || {}) : normalizeFamilySavingsSettings({})
   const familyJobMode = normalizeJobCheckApprovalMode(
     familySnap.exists() ? familySnap.data()?.jobCheckApprovalMode : undefined,
   )
@@ -1366,10 +1406,27 @@ export async function requestJobCheck(job, context = {}) {
 
     if (jobData.rewardType !== 'xp') {
       const childRef = doc(db, 'families', activeFamilyId, 'children', userId)
+      const grossCredits = Math.max(0, Number(jobData.points) || 0)
+      const incomeTaxCredits = familySettings.familyFundEnabled
+        ? calculateFundTaxAmount(
+          grossCredits,
+          familySettings.familyFundIncomeTaxEnabled,
+          familySettings.familyFundIncomeTaxPercent,
+        )
+        : 0
+      const netCredits = grossCredits - incomeTaxCredits
+
       await updateDoc(childRef, {
-        credits: increment(Number(jobData.points) || 0),
+        credits: increment(netCredits),
         updatedAt: serverTimestamp(),
       })
+
+      if (incomeTaxCredits > 0) {
+        await updateDoc(doc(db, 'families', activeFamilyId), {
+          familyFundBalance: increment(incomeTaxCredits),
+          updatedAt: serverTimestamp(),
+        })
+      }
     }
 
     await awardFamilyXp(activeFamilyId, Number(jobData.points) || 0)
@@ -1628,6 +1685,9 @@ export async function reviewJobCheckRequest(requestId, decision, context = {}) {
   }
 
   if (decision === 'approved') {
+    const familyRef = doc(db, 'families', activeFamilyId)
+    const familySnap = await getDoc(familyRef)
+    const familySettings = familySnap.exists() ? normalizeFamilySavingsSettings(familySnap.data() || {}) : normalizeFamilySavingsSettings({})
     const jobRef = doc(db, 'families', activeFamilyId, 'jobs', requestData.jobId)
     const jobSnap = await getDoc(jobRef)
     const approvedJob = jobSnap.exists()
@@ -1640,11 +1700,27 @@ export async function reviewJobCheckRequest(requestId, decision, context = {}) {
     })
 
     if (requestData.rewardType !== 'xp') {
+      const grossCredits = Math.max(0, Number(requestData.points) || 0)
+      const incomeTaxCredits = familySettings.familyFundEnabled
+        ? calculateFundTaxAmount(
+          grossCredits,
+          familySettings.familyFundIncomeTaxEnabled,
+          familySettings.familyFundIncomeTaxPercent,
+        )
+        : 0
+      const netCredits = grossCredits - incomeTaxCredits
       const childRef = doc(db, 'families', activeFamilyId, 'children', requestData.childId)
       await updateDoc(childRef, {
-        credits: increment(Number(requestData.points) || 0),
+        credits: increment(netCredits),
         updatedAt: serverTimestamp(),
       })
+
+      if (incomeTaxCredits > 0) {
+        await updateDoc(familyRef, {
+          familyFundBalance: increment(incomeTaxCredits),
+          updatedAt: serverTimestamp(),
+        })
+      }
     }
 
     await awardFamilyXp(activeFamilyId, Number(requestData.points) || 0)
@@ -1862,6 +1938,11 @@ export async function getFamilyStoreData(context = {}) {
       data: {
         rewards: [],
         requests: [],
+        fundTaxSettings: {
+          familyFundEnabled: true,
+          familyFundSalesTaxEnabled: false,
+          familyFundSalesTaxPercent: 0,
+        },
       },
       context: { familyId: activeFamilyId, userId, userRole },
     }
@@ -1937,6 +2018,11 @@ export async function getFamilyStoreData(context = {}) {
   const familySnap = await getDoc(doc(db, 'families', activeFamilyId))
   const familyData = familySnap.data() || {}
   const pricingSettings = normalizeFamilyPricingSettings(familyData)
+  const fundTaxSettings = {
+    familyFundEnabled: familyData.familyFundEnabled !== false,
+    familyFundSalesTaxEnabled: Boolean(familyData.familyFundSalesTaxEnabled),
+    familyFundSalesTaxPercent: normalizeFundTaxPercent(familyData.familyFundSalesTaxPercent),
+  }
 
   const rewards = rewardsSnapshot.docs
     .map((item) => normalizeReward({ id: item.id, ...item.data() }, item.id))
@@ -1957,7 +2043,7 @@ export async function getFamilyStoreData(context = {}) {
 
   return {
     source: 'firestore',
-    data: { rewards, requests, pricingSettings, rewardUsage },
+    data: { rewards, requests, pricingSettings, rewardUsage, fundTaxSettings },
     context: { familyId: activeFamilyId, userId, userRole },
   }
 }
@@ -2015,6 +2101,14 @@ export async function requestReward(reward, context = {}) {
 
   const pricing = calculateRewardAdjustedCost(rewardData, allRewardRequests, pricingSettings)
   const effectiveCost = pricing.adjustedCost
+  const salesTaxAmount = familyData.familyFundEnabled !== false
+    ? calculateFundTaxAmount(
+      effectiveCost,
+      Boolean(familyData.familyFundSalesTaxEnabled),
+      familyData.familyFundSalesTaxPercent,
+    )
+    : 0
+  const totalCost = (Number(effectiveCost) || 0) + salesTaxAmount
 
   const targetChildId = context.selectedChildId || userId
   if (targetChildId) {
@@ -2026,8 +2120,8 @@ export async function requestReward(reward, context = {}) {
       }
 
       const childCredits = Number(childSnap.data()?.credits) || 0
-      if (childCredits < Number(effectiveCost || 0)) {
-        const deficit = Number(effectiveCost || 0) - childCredits
+      if (childCredits < Number(totalCost || 0)) {
+        const deficit = Number(totalCost || 0) - childCredits
         throw new Error(`Not enough credits. You need ${deficit} more credits.`)
       }
   }
@@ -2110,6 +2204,10 @@ export async function requestReward(reward, context = {}) {
     childId: rewardData.childId || context.selectedChildId || null,
     rewardTitle: rewardData.title,
     cost: Number(effectiveCost) || 0,
+    costBeforeTax: Number(effectiveCost) || 0,
+    salesTaxPercent: normalizeFundTaxPercent(familyData.familyFundSalesTaxPercent),
+    salesTaxAmount,
+    totalCost,
     requestedBy: userId,
     status: nextStatus,
     autoApproved: effectiveAutoApprove,
@@ -2121,7 +2219,7 @@ export async function requestReward(reward, context = {}) {
   })
 
   if (effectiveAutoApprove) {
-    const spendAmount = Number(effectiveCost) || 0
+    const spendAmount = totalCost
 
     if (targetChildId) {
       const childRef = doc(db, 'families', activeFamilyId, 'children', targetChildId)
@@ -2148,6 +2246,13 @@ export async function requestReward(reward, context = {}) {
         'balance.credits': increment(-spendAmount),
       })
     }
+
+    if (salesTaxAmount > 0) {
+      await updateDoc(doc(db, 'families', activeFamilyId), {
+        familyFundBalance: increment(salesTaxAmount),
+        updatedAt: serverTimestamp(),
+      })
+    }
   }
 
   trackAnalyticsEvent(
@@ -2156,7 +2261,9 @@ export async function requestReward(reward, context = {}) {
       itemId: rewardData.id,
       itemType: 'reward',
       title: rewardData.title,
-      cost: Number(effectiveCost) || 0,
+      cost: Number(totalCost) || 0,
+      preTaxCost: Number(effectiveCost) || 0,
+      salesTaxAmount,
       autoApproved: effectiveAutoApprove,
       source: 'requestReward',
       screen: 'kid',
@@ -2324,7 +2431,17 @@ export async function reviewRewardRequest(requestId, decision, context = {}, opt
   })
 
   if (decision === 'approved') {
-    const spendAmount = Number(requestData.cost) || 0
+    const familySnap = await getDoc(doc(db, 'families', activeFamilyId))
+    const familySettings = familySnap.exists() ? normalizeFamilySavingsSettings(familySnap.data() || {}) : normalizeFamilySavingsSettings({})
+    const baseCost = Number(requestData.costBeforeTax || requestData.cost) || 0
+    const effectiveSalesTax = Number(requestData.salesTaxAmount) > 0
+      ? Number(requestData.salesTaxAmount)
+      : (familySettings.familyFundEnabled
+        ? calculateFundTaxAmount(baseCost, familySettings.familyFundSalesTaxEnabled, familySettings.familyFundSalesTaxPercent)
+        : 0)
+    const spendAmount = Number(requestData.totalCost) > 0
+      ? Number(requestData.totalCost)
+      : (baseCost + effectiveSalesTax)
     const targetChildId = requestData.childId || requestData.requestedBy || null
 
     if (targetChildId) {
@@ -2350,6 +2467,13 @@ export async function reviewRewardRequest(requestId, decision, context = {}, opt
       const familyRef = doc(db, 'families', activeFamilyId)
       await updateDoc(familyRef, {
         'balance.credits': increment(-spendAmount),
+      })
+    }
+
+    if (effectiveSalesTax > 0) {
+      await updateDoc(doc(db, 'families', activeFamilyId), {
+        familyFundBalance: increment(effectiveSalesTax),
+        updatedAt: serverTimestamp(),
       })
     }
   }
@@ -2537,7 +2661,14 @@ export async function claimApprovedRewardProposal(requestId, context = {}) {
       throw new Error('This reward idea is not ready to claim.')
     }
 
-    const spendAmount = Number(requestData.cost) || 0
+    const familyRef = doc(db, 'families', activeFamilyId)
+    const familySnap = await transaction.get(familyRef)
+    const familySettings = familySnap.exists() ? normalizeFamilySavingsSettings(familySnap.data() || {}) : normalizeFamilySavingsSettings({})
+    const baseCost = Number(requestData.cost) || 0
+    const salesTaxAmount = familySettings.familyFundEnabled
+      ? calculateFundTaxAmount(baseCost, familySettings.familyFundSalesTaxEnabled, familySettings.familyFundSalesTaxPercent)
+      : 0
+    const spendAmount = baseCost + salesTaxAmount
     const targetChildId = requestData.childId || requestData.requestedBy || userId
     const childRef = doc(db, 'families', activeFamilyId, 'children', targetChildId)
     const childSnap = await transaction.get(childRef)
@@ -2559,9 +2690,20 @@ export async function claimApprovedRewardProposal(requestId, context = {}) {
     transaction.update(requestRef, {
       requestKind: 'purchase',
       status: 'approved',
+      costBeforeTax: baseCost,
+      salesTaxPercent: normalizeFundTaxPercent(familySettings.familyFundSalesTaxPercent),
+      salesTaxAmount,
+      totalCost: spendAmount,
       childRespondedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     })
+
+    if (salesTaxAmount > 0) {
+      transaction.update(familyRef, {
+        familyFundBalance: increment(salesTaxAmount),
+        updatedAt: serverTimestamp(),
+      })
+    }
   })
 
   trackAnalyticsEvent(
@@ -2754,6 +2896,38 @@ export async function createHousehold(household, context = {}) {
   const familySnap = await getDoc(familyRef)
   const familyDidNotExist = !familySnap.exists()
   const existingFamilyData = familySnap.exists() ? familySnap.data() : {}
+  const familyFundEnabled = household.familyFundEnabled === undefined
+    ? existingFamilyData.familyFundEnabled !== false
+    : household.familyFundEnabled !== false
+  const familyFundName = normalizeFamilyFundName(
+    household.familyFundName === undefined
+      ? existingFamilyData.familyFundName
+      : household.familyFundName,
+  )
+  const familyFundBalance = Math.max(
+    0,
+    Number(
+      household.familyFundBalance === undefined
+        ? existingFamilyData.familyFundBalance
+        : household.familyFundBalance,
+    ) || 0,
+  )
+  const familyFundIncomeTaxEnabled = household.familyFundIncomeTaxEnabled === undefined
+    ? Boolean(existingFamilyData.familyFundIncomeTaxEnabled)
+    : Boolean(household.familyFundIncomeTaxEnabled)
+  const familyFundIncomeTaxPercent = normalizeFundTaxPercent(
+    household.familyFundIncomeTaxPercent === undefined
+      ? existingFamilyData.familyFundIncomeTaxPercent
+      : household.familyFundIncomeTaxPercent,
+  )
+  const familyFundSalesTaxEnabled = household.familyFundSalesTaxEnabled === undefined
+    ? Boolean(existingFamilyData.familyFundSalesTaxEnabled)
+    : Boolean(household.familyFundSalesTaxEnabled)
+  const familyFundSalesTaxPercent = normalizeFundTaxPercent(
+    household.familyFundSalesTaxPercent === undefined
+      ? existingFamilyData.familyFundSalesTaxPercent
+      : household.familyFundSalesTaxPercent,
+  )
 
   const contextEmail = String(context.userEmail || '').trim().toLowerCase()
   const existingCreatorOwnerEmail = String(existingFamilyData.creatorOwnerEmail || '')
@@ -2775,6 +2949,13 @@ export async function createHousehold(household, context = {}) {
       profileName,
       familyRules,
       familyAnnouncement,
+      familyFundEnabled,
+      familyFundName,
+      familyFundBalance,
+      familyFundIncomeTaxEnabled,
+      familyFundIncomeTaxPercent,
+      familyFundSalesTaxEnabled,
+      familyFundSalesTaxPercent,
       childSessionSecurityEnabled: Boolean(household.childSessionSecurityEnabled),
       dynamicPricingEnabled: Boolean(household.dynamicPricingEnabled),
       dynamicPricingWindowPeriod: normalizePricingWindow(household.dynamicPricingWindowPeriod),
@@ -3379,13 +3560,20 @@ export async function updateGoal(goalId, goalPayload, context = {}) {
   const childId = goalPayload.childId || null
 
   const goalRef = doc(db, 'families', activeFamilyId, 'goals', goalId)
+  const familyRef = doc(db, 'families', activeFamilyId)
   const goalSnap = await getDoc(goalRef)
 
   if (!goalSnap.exists()) {
     throw new Error('Savings goal not found.')
   }
 
-  const currentGoal = normalizeGoal({ id: goalSnap.id, ...goalSnap.data() }, goalSnap.id)
+  const familySnap = await getDoc(familyRef)
+  const familyFundBalance = Math.max(0, Number(familySnap.data()?.familyFundBalance) || 0)
+  const currentGoal = normalizeGoal(
+    { id: goalSnap.id, ...goalSnap.data() },
+    goalSnap.id,
+    { familyFundBalance },
+  )
 
   if (currentGoal.status === 'completed') {
     throw new Error('Completed savings goals cannot be edited.')
@@ -3454,6 +3642,7 @@ export async function contributeToSavingsGoal(goalId, amountValue, context = {})
   }
 
   const goalRef = doc(db, 'families', activeFamilyId, 'goals', goalId)
+  const familyRef = doc(db, 'families', activeFamilyId)
 
   const result = await runTransaction(db, async (transaction) => {
     const goalSnap = await transaction.get(goalRef)
@@ -3462,7 +3651,21 @@ export async function contributeToSavingsGoal(goalId, amountValue, context = {})
       throw new Error('Savings goal not found.')
     }
 
-    const goalData = normalizeGoal({ id: goalSnap.id, ...goalSnap.data() }, goalSnap.id)
+    const familySnap = await transaction.get(familyRef)
+    if (!familySnap.exists()) {
+      throw new Error('Family settings not found.')
+    }
+
+    const familyData = familySnap.data() || {}
+    const familyFundEnabled = familyData.familyFundEnabled !== false
+    const familyFundName = normalizeFamilyFundName(familyData.familyFundName)
+    const familyFundBalance = Math.max(0, Number(familyData.familyFundBalance) || 0)
+    const goalData = normalizeGoal(
+      { id: goalSnap.id, ...goalSnap.data() },
+      goalSnap.id,
+      { familyFundBalance },
+    )
+    const isFamilyGoal = !goalData.childId
 
     const contributorChildId = goalData.childId || context.selectedChildId || (userRole === 'kid' ? userId : null)
 
@@ -3498,7 +3701,13 @@ export async function contributeToSavingsGoal(goalId, amountValue, context = {})
       throw new Error('Not enough credits to make that contribution.')
     }
 
-    const currentSaved = Number(goalData.saved) || 0
+    if (isFamilyGoal && !familyFundEnabled) {
+      throw new Error(`${familyFundName} is turned off. Ask a parent to enable it first.`)
+    }
+
+    const currentSaved = isFamilyGoal
+      ? familyFundBalance
+      : (Number(goalData.saved) || 0)
     const target = Number(goalData.target) || 0
 
     if (target > 0 && currentSaved >= target) {
@@ -3528,6 +3737,13 @@ export async function contributeToSavingsGoal(goalId, amountValue, context = {})
       credits: nextCredits,
       updatedAt: serverTimestamp(),
     })
+
+    if (isFamilyGoal) {
+      transaction.update(familyRef, {
+        familyFundBalance: nextSaved,
+        updatedAt: serverTimestamp(),
+      })
+    }
 
     transaction.update(goalRef, {
       saved: nextSaved,
@@ -3566,6 +3782,85 @@ export async function contributeToSavingsGoal(goalId, amountValue, context = {})
   return result
 }
 
+export async function contributeToFamilyFund(amountValue, context = {}) {
+  const { familyId: activeFamilyId, userId, userRole } = getActiveFamilyContext(context)
+
+  if (userRole !== 'parent' && userRole !== 'kid') {
+    throw new Error('Only family members can contribute to the family fund.')
+  }
+
+  if (!hasFirebaseConfig || !db) {
+    throw new Error('Firebase is not configured.')
+  }
+
+  const amount = Number(amountValue)
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error('Contribution amount must be greater than zero.')
+  }
+
+  const familyRef = doc(db, 'families', activeFamilyId)
+
+  const result = await runTransaction(db, async (transaction) => {
+    const familySnap = await transaction.get(familyRef)
+    if (!familySnap.exists()) {
+      throw new Error('Family settings not found.')
+    }
+
+    const familySettings = normalizeFamilySavingsSettings(familySnap.data() || {})
+    if (!familySettings.familyFundEnabled) {
+      throw new Error(`${familySettings.familyFundName} is turned off. Ask a parent to enable it first.`)
+    }
+
+    const contributorChildId = context.selectedChildId || (userRole === 'kid' ? userId : null)
+    if (!contributorChildId) {
+      throw new Error('Select a child profile before contributing to the family fund.')
+    }
+
+    const childRef = doc(db, 'families', activeFamilyId, 'children', contributorChildId)
+    const childSnap = await transaction.get(childRef)
+    if (!childSnap.exists()) {
+      throw new Error('Child profile not found.')
+    }
+
+    const currentCredits = Number(childSnap.data()?.credits) || 0
+    if (currentCredits < amount) {
+      throw new Error('Not enough credits to make that contribution.')
+    }
+
+    const nextCredits = currentCredits - amount
+    const nextFundBalance = Math.max(0, Number(familySettings.familyFundBalance) || 0) + amount
+
+    transaction.update(childRef, {
+      credits: nextCredits,
+      updatedAt: serverTimestamp(),
+    })
+
+    transaction.update(familyRef, {
+      familyFundBalance: nextFundBalance,
+      updatedAt: serverTimestamp(),
+    })
+
+    return {
+      contributorChildId,
+      nextCredits,
+      nextFundBalance,
+    }
+  })
+
+  trackAnalyticsEvent(
+    'family_fund_contributed',
+    {
+      amount,
+      childId: result.contributorChildId,
+      source: 'contributeToFamilyFund',
+      screen: userRole === 'kid' ? 'kid' : 'parent',
+    },
+    { familyId: activeFamilyId, userId, userRole },
+  )
+
+  return result
+}
+
 export async function approveSavingsGoalCompletion(goalId, context = {}) {
   const { familyId: activeFamilyId, userId, userRole } = getActiveFamilyContext(context)
 
@@ -3578,6 +3873,7 @@ export async function approveSavingsGoalCompletion(goalId, context = {}) {
   }
 
   const goalRef = doc(db, 'families', activeFamilyId, 'goals', goalId)
+  const familyRef = doc(db, 'families', activeFamilyId)
 
   const result = await runTransaction(db, async (transaction) => {
     const goalSnap = await transaction.get(goalRef)
@@ -3586,7 +3882,19 @@ export async function approveSavingsGoalCompletion(goalId, context = {}) {
       throw new Error('Savings goal not found.')
     }
 
-    const goalData = normalizeGoal({ id: goalSnap.id, ...goalSnap.data() }, goalSnap.id)
+    const familySnap = await transaction.get(familyRef)
+    if (!familySnap.exists()) {
+      throw new Error('Family settings not found.')
+    }
+
+    const familyData = familySnap.data() || {}
+    const familyFundBalance = Math.max(0, Number(familyData.familyFundBalance) || 0)
+    const goalData = normalizeGoal(
+      { id: goalSnap.id, ...goalSnap.data() },
+      goalSnap.id,
+      { familyFundBalance },
+    )
+    const isFamilyGoal = !goalData.childId
 
     if (goalData.status === 'completed') {
       throw new Error('This savings goal is already approved.')
@@ -3604,8 +3912,18 @@ export async function approveSavingsGoalCompletion(goalId, context = {}) {
       throw new Error('This savings goal has not reached its target yet.')
     }
 
+    if (isFamilyGoal) {
+      const nextFamilyFundBalance = Math.max(0, familyFundBalance - Number(goalData.target || 0))
+
+      transaction.update(familyRef, {
+        familyFundBalance: nextFamilyFundBalance,
+        updatedAt: serverTimestamp(),
+      })
+    }
+
     transaction.update(goalRef, {
       status: 'completed',
+      saved: Number(goalData.target) || 0,
       completedAt: serverTimestamp(),
       approvedAt: serverTimestamp(),
       approvedBy: userId,

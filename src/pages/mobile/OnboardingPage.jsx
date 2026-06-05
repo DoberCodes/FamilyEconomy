@@ -101,6 +101,12 @@ export default function OnboardingPage() {
   const [rewardCost, setRewardCost] = useState('150')
   const [rewardTemplateRows, setRewardTemplateRows] = useState(() => buildRewardTemplateRows())
   const [familyAnnouncement, setFamilyAnnouncement] = useState('')
+  const [familyFundEnabled, setFamilyFundEnabled] = useState(true)
+  const [familyFundName, setFamilyFundName] = useState('Community Funds')
+  const [familyFundIncomeTaxEnabled, setFamilyFundIncomeTaxEnabled] = useState(false)
+  const [familyFundIncomeTaxPercent, setFamilyFundIncomeTaxPercent] = useState('10')
+  const [familyFundSalesTaxEnabled, setFamilyFundSalesTaxEnabled] = useState(false)
+  const [familyFundSalesTaxPercent, setFamilyFundSalesTaxPercent] = useState('8')
   const [childSessionSecurityEnabled, setChildSessionSecurityEnabled] = useState(false)
   const [savingsGoalApprovalMode, setSavingsGoalApprovalMode] = useState('claim_only')
   const [missedJobConsequenceEnabled, setMissedJobConsequenceEnabled] = useState(false)
@@ -160,6 +166,12 @@ export default function OnboardingPage() {
       setFamilyAnnouncement(data.family.familyAnnouncement)
     }
 
+    setFamilyFundEnabled(data.family?.familyFundEnabled !== false)
+    setFamilyFundName(data.family?.familyFundName || 'Community Funds')
+    setFamilyFundIncomeTaxEnabled(Boolean(data.family?.familyFundIncomeTaxEnabled))
+    setFamilyFundIncomeTaxPercent(String(Math.max(0, Number(data.family?.familyFundIncomeTaxPercent) || 0)))
+    setFamilyFundSalesTaxEnabled(Boolean(data.family?.familyFundSalesTaxEnabled))
+    setFamilyFundSalesTaxPercent(String(Math.max(0, Number(data.family?.familyFundSalesTaxPercent) || 0)))
     setChildSessionSecurityEnabled(Boolean(data.family?.childSessionSecurityEnabled))
     setSavingsGoalApprovalMode(data.family?.savingsGoalApprovalMode || 'claim_only')
     setMissedJobConsequenceEnabled(Boolean(data.family?.missedJobConsequenceEnabled))
@@ -433,6 +445,12 @@ export default function OnboardingPage() {
           profileName: householdName,
           familyRules,
           familyAnnouncement,
+          familyFundEnabled,
+          familyFundName,
+          familyFundIncomeTaxEnabled,
+          familyFundIncomeTaxPercent: Math.min(100, Math.max(0, Number(familyFundIncomeTaxPercent) || 0)),
+          familyFundSalesTaxEnabled,
+          familyFundSalesTaxPercent: Math.min(100, Math.max(0, Number(familyFundSalesTaxPercent) || 0)),
           childSessionSecurityEnabled,
           savingsGoalApprovalMode,
           missedJobConsequenceEnabled,
@@ -1085,6 +1103,88 @@ export default function OnboardingPage() {
           </section>
 
           <section className="onboarding-mini-dialog">
+            <p className="onboarding-mini-title">Shared family fund</p>
+            <p className="onboarding-mini-subtitle">Optional pool that powers shared family savings goals.</p>
+            <label className="form-field">
+              <span className="form-label">Turn on the shared family fund?</span>
+              <select
+                className="job-input"
+                value={familyFundEnabled ? 'on' : 'off'}
+                onChange={(event) => setFamilyFundEnabled(event.target.value === 'on')}
+              >
+                <option value="on">On</option>
+                <option value="off">Off</option>
+              </select>
+            </label>
+
+            {familyFundEnabled ? (
+              <>
+                <label className="form-field">
+                  <span className="form-label">Fund name</span>
+                  <input
+                    className="job-input"
+                    placeholder="Community Funds"
+                    value={familyFundName}
+                    onChange={(event) => setFamilyFundName(event.target.value)}
+                  />
+                </label>
+
+                <label className="form-field">
+                  <span className="form-label">Use income tax on completed credit jobs?</span>
+                  <select
+                    className="job-input"
+                    value={familyFundIncomeTaxEnabled ? 'on' : 'off'}
+                    onChange={(event) => setFamilyFundIncomeTaxEnabled(event.target.value === 'on')}
+                  >
+                    <option value="off">Off</option>
+                    <option value="on">On</option>
+                  </select>
+                </label>
+
+                {familyFundIncomeTaxEnabled ? (
+                  <label className="form-field">
+                    <span className="form-label">Income tax rate (%)</span>
+                    <input
+                      className="job-input"
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={familyFundIncomeTaxPercent}
+                      onChange={(event) => setFamilyFundIncomeTaxPercent(event.target.value)}
+                    />
+                  </label>
+                ) : null}
+
+                <label className="form-field">
+                  <span className="form-label">Use sales tax on reward purchases?</span>
+                  <select
+                    className="job-input"
+                    value={familyFundSalesTaxEnabled ? 'on' : 'off'}
+                    onChange={(event) => setFamilyFundSalesTaxEnabled(event.target.value === 'on')}
+                  >
+                    <option value="off">Off</option>
+                    <option value="on">On</option>
+                  </select>
+                </label>
+
+                {familyFundSalesTaxEnabled ? (
+                  <label className="form-field">
+                    <span className="form-label">Sales tax rate (%)</span>
+                    <input
+                      className="job-input"
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={familyFundSalesTaxPercent}
+                      onChange={(event) => setFamilyFundSalesTaxPercent(event.target.value)}
+                    />
+                  </label>
+                ) : null}
+              </>
+            ) : null}
+          </section>
+
+          <section className="onboarding-mini-dialog">
             <p className="onboarding-mini-title">Safety and approvals</p>
             <p className="onboarding-mini-subtitle">Control lock behavior, parent review flow, and consequence rules.</p>
             <label className="form-field">
@@ -1402,6 +1502,20 @@ export default function OnboardingPage() {
                       : 'Approve claim only'}
                 </span>
               </li>
+              <li className="profile-list-item">
+                <span>Shared family fund</span>
+                <span className="job-status-label">{familyFundEnabled ? (familyFundName || 'Community Funds') : 'Off'}</span>
+              </li>
+              {familyFundEnabled ? (
+                <li className="profile-list-item">
+                  <span>Fund tax settings</span>
+                  <span className="job-status-label">
+                    {familyFundIncomeTaxEnabled ? `${Math.min(100, Math.max(0, Number(familyFundIncomeTaxPercent) || 0))}% income tax` : 'No income tax'}
+                    {' • '}
+                    {familyFundSalesTaxEnabled ? `${Math.min(100, Math.max(0, Number(familyFundSalesTaxPercent) || 0))}% sales tax` : 'No sales tax'}
+                  </span>
+                </li>
+              ) : null}
               <li className="profile-list-item">
                 <span>Missed job consequence</span>
                 <span className="job-status-label">

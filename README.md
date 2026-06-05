@@ -7,6 +7,7 @@ Minimal React app scaffolded with Vite.
 ### Active Docs
 
 - Vision: [docs/VISION.md](docs/VISION.md)
+- Brand system: [docs/BRAND.md](docs/BRAND.md)
 - Features: [docs/FEATURES.md](docs/FEATURES.md)
 - Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Redux conversion status: [docs/redux-conversion-status.md](docs/redux-conversion-status.md)

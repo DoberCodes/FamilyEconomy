@@ -6,6 +6,7 @@ import {
   claimApprovedRewardProposal,
   claimJob,
   clearChildSessionCode,
+  contributeToFamilyFund,
   contributeToSavingsGoal,
   createChildProfile,
   createFeedbackEntry,
@@ -223,6 +224,12 @@ export function buildFamilyMutationEndpoints(builder) {
       builder,
       ({ goalId, amount, context }) => contributeToSavingsGoal(goalId, amount, context),
       'Could not move credits into savings.',
+      DASHBOARD_TAGS,
+    ),
+    contributeToFamilyFund: familyMutation(
+      builder,
+      ({ amount, context }) => contributeToFamilyFund(amount, context),
+      'Could not move credits into the family fund.',
       DASHBOARD_TAGS,
     ),
     cancelSavingsGoal: familyMutation(

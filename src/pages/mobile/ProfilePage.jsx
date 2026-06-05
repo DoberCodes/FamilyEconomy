@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import FormattedRichText from '../../components/shared/FormattedRichText'
 import MarkdownTextArea from '../../components/shared/MarkdownTextArea'
 import { useAuth } from '../../context/AuthContext'
 import {
@@ -31,6 +32,13 @@ const emptyFamilySummary = {
   profileName: '',
   familyRules: '',
   familyAnnouncement: '',
+  familyFundEnabled: true,
+  familyFundName: 'Community Funds',
+  familyFundBalance: 0,
+  familyFundIncomeTaxEnabled: false,
+  familyFundIncomeTaxPercent: 0,
+  familyFundSalesTaxEnabled: false,
+  familyFundSalesTaxPercent: 0,
   creatorOwnerEmail: '',
   creatorMetricsEnabled: false,
   savingsGoalApprovalMode: 'claim_only',
@@ -77,6 +85,13 @@ function buildFamilySummary(family = {}) {
     profileName: family?.profileName || '',
     familyRules: family?.familyRules || '',
     familyAnnouncement: family?.familyAnnouncement || '',
+    familyFundEnabled: family?.familyFundEnabled !== false,
+    familyFundName: family?.familyFundName || 'Community Funds',
+    familyFundBalance: Number(family?.familyFundBalance) || 0,
+    familyFundIncomeTaxEnabled: Boolean(family?.familyFundIncomeTaxEnabled),
+    familyFundIncomeTaxPercent: Math.min(100, Math.max(0, Number(family?.familyFundIncomeTaxPercent) || 0)),
+    familyFundSalesTaxEnabled: Boolean(family?.familyFundSalesTaxEnabled),
+    familyFundSalesTaxPercent: Math.min(100, Math.max(0, Number(family?.familyFundSalesTaxPercent) || 0)),
     creatorOwnerEmail: family?.creatorOwnerEmail || '',
     creatorMetricsEnabled: Boolean(family?.creatorMetricsEnabled),
     savingsGoalApprovalMode: family?.savingsGoalApprovalMode || 'claim_only',
@@ -254,6 +269,12 @@ export default function ProfilePage() {
   const [savingsGoalScope, setSavingsGoalScope] = useState('family')
   const [householdName, setHouseholdName] = useState('')
   const [familyRules, setFamilyRules] = useState('')
+  const [familyFundEnabled, setFamilyFundEnabled] = useState(true)
+  const [familyFundName, setFamilyFundName] = useState('Community Funds')
+  const [familyFundIncomeTaxEnabled, setFamilyFundIncomeTaxEnabled] = useState(false)
+  const [familyFundIncomeTaxPercent, setFamilyFundIncomeTaxPercent] = useState('10')
+  const [familyFundSalesTaxEnabled, setFamilyFundSalesTaxEnabled] = useState(false)
+  const [familyFundSalesTaxPercent, setFamilyFundSalesTaxPercent] = useState('8')
   const [familyAnnouncementDraft, setFamilyAnnouncementDraft] = useState('')
   const [savingFamilyAnnouncement, setSavingFamilyAnnouncement] = useState(false)
   const [newChildName, setNewChildName] = useState('')
@@ -442,6 +463,12 @@ export default function ProfilePage() {
     return {
       profileName: source.profileName || '',
       familyRules: source.familyRules || '',
+      familyFundEnabled: source.familyFundEnabled !== false,
+      familyFundName: source.familyFundName || 'Community Funds',
+      familyFundIncomeTaxEnabled: Boolean(source.familyFundIncomeTaxEnabled),
+      familyFundIncomeTaxPercent: Math.min(100, Math.max(0, Number(source.familyFundIncomeTaxPercent) || 0)),
+      familyFundSalesTaxEnabled: Boolean(source.familyFundSalesTaxEnabled),
+      familyFundSalesTaxPercent: Math.min(100, Math.max(0, Number(source.familyFundSalesTaxPercent) || 0)),
       savingsGoalApprovalMode: source.savingsGoalApprovalMode || 'claim_only',
       rewardRequestApprovalMode: source.rewardRequestApprovalMode || 'required',
       jobCheckApprovalMode: source.jobCheckApprovalMode || 'required',
@@ -473,6 +500,12 @@ export default function ProfilePage() {
     return {
       profileName: householdName,
       familyRules,
+      familyFundEnabled,
+      familyFundName: String(familyFundName || '').trim() || 'Community Funds',
+      familyFundIncomeTaxEnabled,
+      familyFundIncomeTaxPercent: Math.min(100, Math.max(0, Number(familyFundIncomeTaxPercent) || 0)),
+      familyFundSalesTaxEnabled,
+      familyFundSalesTaxPercent: Math.min(100, Math.max(0, Number(familyFundSalesTaxPercent) || 0)),
       savingsGoalApprovalMode,
       rewardRequestApprovalMode,
       jobCheckApprovalMode,
@@ -1122,6 +1155,12 @@ export default function ProfilePage() {
     if (dialog === 'setup') {
       setHouseholdName(familySummary.profileName || '')
       setFamilyRules(familySummary.familyRules || '')
+      setFamilyFundEnabled(familySummary.familyFundEnabled !== false)
+      setFamilyFundName(familySummary.familyFundName || 'Community Funds')
+      setFamilyFundIncomeTaxEnabled(Boolean(familySummary.familyFundIncomeTaxEnabled))
+      setFamilyFundIncomeTaxPercent(String(Math.min(100, Math.max(0, Number(familySummary.familyFundIncomeTaxPercent) || 0))))
+      setFamilyFundSalesTaxEnabled(Boolean(familySummary.familyFundSalesTaxEnabled))
+      setFamilyFundSalesTaxPercent(String(Math.min(100, Math.max(0, Number(familySummary.familyFundSalesTaxPercent) || 0))))
       setSavingsGoalApprovalMode(familySummary.savingsGoalApprovalMode || 'claim_only')
       setRewardRequestApprovalMode(familySummary.rewardRequestApprovalMode || 'required')
       setJobCheckApprovalMode(familySummary.jobCheckApprovalMode || 'required')
@@ -1446,11 +1485,127 @@ export default function ProfilePage() {
     return 'custom'
   }
 
+  function applyApprovalPreset(preset) {
+    if (preset === 'gentle') {
+      setSavingsGoalApprovalMode('no_approval')
+      setRewardRequestApprovalMode('auto_approve')
+      setJobCheckApprovalMode('auto_approve')
+      return
+    }
+
+    if (preset === 'balanced') {
+      setSavingsGoalApprovalMode('claim_only')
+      setRewardRequestApprovalMode('required')
+      setJobCheckApprovalMode('required')
+      return
+    }
+
+    if (preset === 'strict') {
+      setSavingsGoalApprovalMode('create_and_claim')
+      setRewardRequestApprovalMode('required')
+      setJobCheckApprovalMode('required')
+    }
+  }
+
+  function getApprovalPreset() {
+    if (
+      savingsGoalApprovalMode === 'no_approval'
+      && rewardRequestApprovalMode === 'auto_approve'
+      && jobCheckApprovalMode === 'auto_approve'
+    ) {
+      return 'gentle'
+    }
+
+    if (
+      savingsGoalApprovalMode === 'claim_only'
+      && rewardRequestApprovalMode === 'required'
+      && jobCheckApprovalMode === 'required'
+    ) {
+      return 'balanced'
+    }
+
+    if (
+      savingsGoalApprovalMode === 'create_and_claim'
+      && rewardRequestApprovalMode === 'required'
+      && jobCheckApprovalMode === 'required'
+    ) {
+      return 'strict'
+    }
+
+    return 'custom'
+  }
+
+  function applyFamilyFundContributionPreset(preset) {
+    const currentFundName = String(familyFundName || '').trim()
+    const nextFundName = currentFundName || 'Community Funds'
+
+    setFamilyFundEnabled(true)
+    setFamilyFundName(nextFundName)
+
+    if (preset === 'gentle') {
+      setFamilyFundIncomeTaxEnabled(false)
+      setFamilyFundIncomeTaxPercent('0')
+      setFamilyFundSalesTaxEnabled(false)
+      setFamilyFundSalesTaxPercent('0')
+      return
+    }
+
+    if (preset === 'balanced') {
+      setFamilyFundIncomeTaxEnabled(true)
+      setFamilyFundIncomeTaxPercent('5')
+      setFamilyFundSalesTaxEnabled(true)
+      setFamilyFundSalesTaxPercent('3')
+      return
+    }
+
+    if (preset === 'strict') {
+      setFamilyFundIncomeTaxEnabled(true)
+      setFamilyFundIncomeTaxPercent('15')
+      setFamilyFundSalesTaxEnabled(true)
+      setFamilyFundSalesTaxPercent('10')
+    }
+  }
+
+  function getFamilyFundContributionPreset() {
+    if (!familyFundEnabled) {
+      return 'off'
+    }
+
+    const incomeContributionRate = Math.min(100, Math.max(0, Number(familyFundIncomeTaxPercent) || 0))
+    const rewardContributionRate = Math.min(100, Math.max(0, Number(familyFundSalesTaxPercent) || 0))
+
+    if (!familyFundIncomeTaxEnabled && !familyFundSalesTaxEnabled) {
+      return 'gentle'
+    }
+
+    if (
+      familyFundIncomeTaxEnabled
+      && incomeContributionRate === 5
+      && familyFundSalesTaxEnabled
+      && rewardContributionRate === 3
+    ) {
+      return 'balanced'
+    }
+
+    if (
+      familyFundIncomeTaxEnabled
+      && incomeContributionRate === 15
+      && familyFundSalesTaxEnabled
+      && rewardContributionRate === 10
+    ) {
+      return 'strict'
+    }
+
+    return 'custom'
+  }
+
   function applyHouseholdPreset(preset) {
     if (preset === 'gentle') {
       applyConsequencePreset('gentle')
       applyStaleBonusPreset('strong')
       applyDynamicPricingPreset('gentle')
+      applyFamilyFundContributionPreset('gentle')
+      applyApprovalPreset('gentle')
       return
     }
 
@@ -1458,6 +1613,8 @@ export default function ProfilePage() {
       applyConsequencePreset('balanced')
       applyStaleBonusPreset('balanced')
       applyDynamicPricingPreset('balanced')
+      applyFamilyFundContributionPreset('balanced')
+      applyApprovalPreset('balanced')
       return
     }
 
@@ -1465,6 +1622,8 @@ export default function ProfilePage() {
       applyConsequencePreset('strict')
       applyStaleBonusPreset('light')
       applyDynamicPricingPreset('responsive')
+      applyFamilyFundContributionPreset('strict')
+      applyApprovalPreset('strict')
     }
   }
 
@@ -1472,11 +1631,15 @@ export default function ProfilePage() {
     const consequencePreset = getConsequencePreset()
     const staleBonusPreset = getStaleBonusPreset()
     const dynamicPricingPreset = getDynamicPricingPreset()
+    const familyFundPreset = getFamilyFundContributionPreset()
+    const approvalPreset = getApprovalPreset()
 
     if (
       consequencePreset === 'gentle'
       && staleBonusPreset === 'strong'
       && dynamicPricingPreset === 'gentle'
+      && familyFundPreset === 'gentle'
+      && approvalPreset === 'gentle'
     ) {
       return 'gentle'
     }
@@ -1485,6 +1648,8 @@ export default function ProfilePage() {
       consequencePreset === 'balanced'
       && staleBonusPreset === 'balanced'
       && dynamicPricingPreset === 'balanced'
+      && familyFundPreset === 'balanced'
+      && approvalPreset === 'balanced'
     ) {
       return 'balanced'
     }
@@ -1493,6 +1658,8 @@ export default function ProfilePage() {
       consequencePreset === 'strict'
       && staleBonusPreset === 'light'
       && dynamicPricingPreset === 'responsive'
+      && familyFundPreset === 'strict'
+      && approvalPreset === 'strict'
     ) {
       return 'strict'
     }
@@ -1649,6 +1816,12 @@ export default function ProfilePage() {
         profileName: householdName,
         familyRules,
         familyAnnouncement: familySummary.familyAnnouncement || '',
+        familyFundEnabled,
+        familyFundName,
+        familyFundIncomeTaxEnabled,
+        familyFundIncomeTaxPercent: Math.min(100, Math.max(0, Number(familyFundIncomeTaxPercent) || 0)),
+        familyFundSalesTaxEnabled,
+        familyFundSalesTaxPercent: Math.min(100, Math.max(0, Number(familyFundSalesTaxPercent) || 0)),
         childSessionSecurityEnabled,
         savingsGoalApprovalMode,
         rewardRequestApprovalMode,
@@ -1679,6 +1852,13 @@ export default function ProfilePage() {
         profileName: householdName,
         familyRules,
         familyAnnouncement: familySummary.familyAnnouncement || '',
+        familyFundEnabled,
+        familyFundName: String(familyFundName || '').trim() || 'Community Funds',
+        familyFundBalance: Number(familySummary.familyFundBalance) || 0,
+        familyFundIncomeTaxEnabled,
+        familyFundIncomeTaxPercent: Math.min(100, Math.max(0, Number(familyFundIncomeTaxPercent) || 0)),
+        familyFundSalesTaxEnabled,
+        familyFundSalesTaxPercent: Math.min(100, Math.max(0, Number(familyFundSalesTaxPercent) || 0)),
         creatorOwnerEmail: familySummary.creatorOwnerEmail || (userEmailLower === CREATOR_OWNER_EMAIL ? CREATOR_OWNER_EMAIL : ''),
         creatorMetricsEnabled: Boolean(familySummary.creatorMetricsEnabled) || userEmailLower === CREATOR_OWNER_EMAIL,
         savingsGoalApprovalMode,
@@ -2462,37 +2642,42 @@ export default function ProfilePage() {
             </section>
 
             <section className="panel">
-              <p className="panel-label">Parent Tools</p>
-              <p className="panel-muted">Pick what you want to manage.</p>
-              <div className="button-row">
-                <button type="button" className="text-button" onClick={() => openDialog('overview')}>
-                  Family snapshot
-                </button>
-                <button type="button" className="text-button" onClick={() => openDialog('setup')}>
-                  Family settings
-                </button>
-                <button type="button" className="text-button" onClick={() => openDialog('badges')}>
-                  Badges
-                </button>
-                <button type="button" className="text-button" onClick={() => openDialog('jobs')}>
-                  Chores and jobs
-                </button>
+              <p className="panel-label">Parent Actions</p>
+              <p className="panel-muted">Daily tools for approvals, chores, rewards, and a quick family snapshot. Occasional setup lives in More tools.</p>
+              <div className="button-row parent-actions-primary">
                 <button type="button" className="text-button command-button" onClick={() => openDialog('requests')}>
                   <span>Approvals queue</span>
                   {pendingRequestsCount > 0 ? (
                     <span className="command-badge">{pendingRequestsCount}</span>
                   ) : null}
                 </button>
+                <button type="button" className="text-button" onClick={() => openDialog('overview')}>
+                  Family snapshot
+                </button>
+                <button type="button" className="text-button" onClick={() => openDialog('jobs')}>
+                  Chores and jobs
+                </button>
                 <button type="button" className="text-button" onClick={() => openDialog('rewards')}>
                   Rewards
                 </button>
-                <button type="button" className="text-button" onClick={() => openDialog('savings')}>
-                  Savings goals
-                </button>
-                <button type="button" className="text-button" onClick={() => openDialog('analytics')}>
-                  Family insights
-                </button>
               </div>
+              <details className="parent-actions-more">
+                <summary>More tools</summary>
+                <div className="button-row parent-actions-secondary">
+                  <button type="button" className="text-button" onClick={() => openDialog('setup')}>
+                    Family settings
+                  </button>
+                  <button type="button" className="text-button" onClick={() => openDialog('badges')}>
+                    Badges
+                  </button>
+                  <button type="button" className="text-button" onClick={() => openDialog('savings')}>
+                    Savings goals
+                  </button>
+                  <button type="button" className="text-button" onClick={() => openDialog('analytics')}>
+                    Family insights
+                  </button>
+                </div>
+              </details>
             </section>
 
             <section className="panel">
@@ -2745,11 +2930,132 @@ export default function ProfilePage() {
               </div>
 
               {activeDialog === 'overview' ? (
-                <div className="dialog-content">
+                <div className="dialog-content family-snapshot-dialog">
+                  <p className="dialog-section-subtitle">Quick summary of your current family setup.</p>
+
+                  <section className="family-snapshot-hero" aria-label="Family identity">
+                    <div>
+                      <span className="family-snapshot-kicker">Family</span>
+                      <strong>{familySummary.profileName || 'Not set'}</strong>
+                    </div>
+                    <span className="family-snapshot-count">{childProfiles.length} {childProfiles.length === 1 ? 'child' : 'children'}</span>
+                  </section>
+
+                  <div className="family-snapshot-feature-grid">
+                    <section className="family-snapshot-feature-card">
+                      <span className="family-snapshot-kicker">Family News</span>
+                      {familySummary.familyAnnouncement ? (
+                        <FormattedRichText className="family-snapshot-rich-text" value={familySummary.familyAnnouncement} />
+                      ) : (
+                        <p>No family news posted.</p>
+                      )}
+                    </section>
+                    <section className="family-snapshot-feature-card">
+                      <span className="family-snapshot-kicker">Family Rules</span>
+                      {familySummary.familyRules ? (
+                        <FormattedRichText className="family-snapshot-rich-text" value={familySummary.familyRules} />
+                      ) : (
+                        <p>No family rules yet.</p>
+                      )}
+                    </section>
+                  </div>
+
+                  <section className="family-snapshot-section">
+                    <p className="family-snapshot-section-title">Money Settings</p>
+                    <dl className="family-snapshot-grid">
+                      <div>
+                        <dt>Shared family fund</dt>
+                        <dd>{familySummary.familyFundEnabled ? `${familySummary.familyFundName || 'Community Funds'} (${Number(familySummary.familyFundBalance) || 0} credits available)` : 'Off'}</dd>
+                      </div>
+                      {familySummary.familyFundEnabled ? (
+                        <div>
+                          <dt>Fund contributions</dt>
+                          <dd>{familySummary.familyFundIncomeTaxEnabled ? `${Math.min(100, Math.max(0, Number(familySummary.familyFundIncomeTaxPercent) || 0))}% income contribution` : 'No income contribution'} / {familySummary.familyFundSalesTaxEnabled ? `${Math.min(100, Math.max(0, Number(familySummary.familyFundSalesTaxPercent) || 0))}% reward contribution` : 'No reward contribution'}</dd>
+                        </div>
+                      ) : null}
+                      <div>
+                        <dt>Dynamic pricing</dt>
+                        <dd>{familySummary.dynamicPricingEnabled ? 'On' : 'Off'}</dd>
+                      </div>
+                      {familySummary.dynamicPricingEnabled ? (
+                        <div>
+                          <dt>Dynamic guardrails</dt>
+                          <dd>{Number(familySummary.dynamicPricingMinMultiplierPercent) || 100}% to {Number(familySummary.dynamicPricingMaxMultiplierPercent) || 220}% of base, max +{Number(familySummary.dynamicPricingMaxStepPercent) || 60}% per window</dd>
+                        </div>
+                      ) : null}
+                      <div>
+                        <dt>Savings approvals</dt>
+                        <dd>{
+                          familySummary.savingsGoalApprovalMode === 'create_and_claim'
+                            ? 'Parent approves create + claim'
+                            : familySummary.savingsGoalApprovalMode === 'no_approval'
+                              ? 'No parent approval'
+                              : 'Parent approves claim only'
+                        }</dd>
+                      </div>
+                    </dl>
+                  </section>
+
+                  <section className="family-snapshot-section">
+                    <p className="family-snapshot-section-title">Jobs And Guardrails</p>
+                    <dl className="family-snapshot-grid">
+                      <div>
+                        <dt>Missed job consequence</dt>
+                        <dd>{familySummary.missedJobConsequenceEnabled ? `On (${familySummary.missedJobPenaltyCredits} credit penalty)` : 'Off'}</dd>
+                      </div>
+                      {familySummary.missedJobConsequenceEnabled ? (
+                        <div>
+                          <dt>Missed timing</dt>
+                          <dd>{familySummary.missedJobTimingEnabled ? `Time-based (${familySummary.missedJobDefaultHours}h default)` : 'Manual'}</dd>
+                        </div>
+                      ) : null}
+                      <div>
+                        <dt>Failed parent check</dt>
+                        <dd>{familySummary.failedJobCheckConsequenceEnabled ? `On (-${familySummary.failedJobCheckPenaltyCredits} credits)` : 'Off'}</dd>
+                      </div>
+                      <div>
+                        <dt>Shared chore slots</dt>
+                        <dd>{familySummary.maxActivePoolClaimsPerChild || 1} per child</dd>
+                      </div>
+                      <div>
+                        <dt>Pending checks count toward slots</dt>
+                        <dd>{familySummary.allowClaimingWithPendingChecks ? 'No' : 'Yes'}</dd>
+                      </div>
+                      <div>
+                        <dt>Stale job bonus</dt>
+                        <dd>{familySummary.staleJobBonusEnabled ? `On (+${Number(familySummary.staleJobBonusRatePercent) || 5}% every ${Number(familySummary.staleJobBonusPeriodHours) || 24}h, cap ${Number(familySummary.staleJobBonusCapPercent) || 30}%)` : 'Off'}</dd>
+                      </div>
+                    </dl>
+                  </section>
+
+                  <section className="family-snapshot-section">
+                    <p className="family-snapshot-section-title">Recognition</p>
+                    <dl className="family-snapshot-grid family-snapshot-grid-compact">
+                      <div>
+                        <dt>Achievements</dt>
+                        <dd>{familySummary.achievementsEnabled ? 'On' : 'Off'}</dd>
+                      </div>
+                      <div>
+                        <dt>Family recognition cards</dt>
+                        <dd>{familySummary.familyRecognitionEnabled ? 'On' : 'Off'}</dd>
+                      </div>
+                    </dl>
+                  </section>
+                  <p className="family-snapshot-edit-note">
+                    Review-only view. To change these settings, open More tools, then Family settings.
+                  </p>
                   <p className="panel-muted">Quick summary of your current family setup.</p>
                   <p className="panel-muted">Family: {familySummary.profileName || 'Not set'}</p>
                   <p className="panel-muted">Family News: {familySummary.familyAnnouncement || 'No family news posted'}</p>
                   <p className="panel-muted">Family Rules: {familySummary.familyRules || 'No family rules yet'}</p>
+                  <p className="panel-muted">
+                    Shared family fund: {familySummary.familyFundEnabled ? `${familySummary.familyFundName || 'Community Funds'} (${Number(familySummary.familyFundBalance) || 0} credits available)` : 'Off'}
+                  </p>
+                  {familySummary.familyFundEnabled ? (
+                    <p className="panel-muted">
+                      Fund contribution settings: {familySummary.familyFundIncomeTaxEnabled ? `${Math.min(100, Math.max(0, Number(familySummary.familyFundIncomeTaxPercent) || 0))}% income contribution` : 'No income contribution'} • {familySummary.familyFundSalesTaxEnabled ? `${Math.min(100, Math.max(0, Number(familySummary.familyFundSalesTaxPercent) || 0))}% reward contribution` : 'No reward contribution'}
+                    </p>
+                  ) : null}
                   <p className="panel-muted">
                     Dynamic pricing: {familySummary.dynamicPricingEnabled ? 'On' : 'Off'}
                   </p>
@@ -2879,6 +3185,36 @@ export default function ProfilePage() {
                   </section>
 
                   <section className="dialog-section">
+                    <p className="dialog-section-title">Family Settings Preset</p>
+                    <p className="dialog-section-subtitle">Choose one starting style for fund contributions, consequences, stale bonus, and dynamic pricing.</p>
+                    <label className="form-field">
+                      <div className="form-label-row">
+                        <span className="form-label">Quick family preset</span>
+                        <HelpButton
+                          onHelpClick={setActiveHelpDialog}
+                          label="Quick family preset"
+                          lines={[
+                            'Applies a starter bundle for shared fund contribution settings, consequences, stale bonus, and pricing.',
+                            'Gentle: shared fund on with no income/reward contributions, softer penalties, and no parent approvals.',
+                            'Balanced: shared fund on with light contributions and recommended/default approval settings.',
+                            'Strict: shared fund on with heavier contributions, tighter accountability, and maximum approvals.',
+                          ]}
+                        />
+                      </div>
+                      <select
+                        className="job-input"
+                        value={getHouseholdPreset()}
+                        onChange={(event) => applyHouseholdPreset(event.target.value)}
+                      >
+                        <option value="custom">Custom</option>
+                        <option value="gentle">Gentle</option>
+                        <option value="balanced">Balanced</option>
+                        <option value="strict">Strict</option>
+                      </select>
+                    </label>
+                  </section>
+
+                  <section className="dialog-section">
                     <p className="dialog-section-title">Savings Approvals</p>
                     <p className="dialog-section-subtitle">Choose when parent approval is needed for savings goals.</p>
                     <label className="form-field">
@@ -2990,39 +3326,169 @@ export default function ProfilePage() {
                     </label>
                   </section>
 
-                  <section className="dialog-section">
-                    <p className="dialog-section-title">Family Settings Preset</p>
-                    <p className="dialog-section-subtitle">Choose one starting style for consequences, stale bonus, and dynamic pricing.</p>
+                  <details className="dialog-subsection dialog-advanced-settings">
+                    <summary className="dialog-subsection-summary">Advanced fine-tuning</summary>
+                    <div className="dialog-subsection-body dialog-advanced-settings-body">
+
+                  <section className="dialog-advanced-group">
+                    <p className="dialog-section-title">Shared Family Fund</p>
+                    <p className="dialog-section-subtitle">Optional pool that powers shared family savings goals.</p>
                     <label className="form-field">
                       <div className="form-label-row">
-                        <span className="form-label">Quick family preset</span>
+                        <span className="form-label">Turn on the shared family fund</span>
                         <HelpButton
                           onHelpClick={setActiveHelpDialog}
-                          label="Quick family preset"
+                          label="Shared family fund"
                           lines={[
-                            'Applies a starter bundle for consequences, stale bonus, and pricing.',
-                            'Gentle: more forgiving settings and softer penalties.',
-                            'Balanced: recommended default for most families.',
-                            'Strict: tighter limits and stronger accountability.',
+                            'Creates a shared balance kids can add to together.',
+                            'That balance powers shared family savings goals.',
+                            'Turn it off if you do not want collaborative family-goal saving right now.',
                           ]}
                         />
                       </div>
                       <select
                         className="job-input"
-                        value={getHouseholdPreset()}
-                        onChange={(event) => applyHouseholdPreset(event.target.value)}
+                        value={familyFundEnabled ? 'on' : 'off'}
+                        onChange={(event) => setFamilyFundEnabled(event.target.value === 'on')}
                       >
-                        <option value="custom">Custom</option>
-                        <option value="gentle">Gentle</option>
-                        <option value="balanced">Balanced</option>
-                        <option value="strict">Strict</option>
+                        <option value="on">On</option>
+                        <option value="off">Off</option>
                       </select>
+                      <p className="form-help">
+                        When on, kids can build one shared balance for family goals.
+                      </p>
                     </label>
-                  </section>
+                    {familyFundEnabled ? (
+                      <>
+                        <label className="form-field">
+                          <div className="form-label-row">
+                            <span className="form-label">Fund name</span>
+                            <HelpButton
+                              onHelpClick={setActiveHelpDialog}
+                              label="Fund name"
+                              lines={[
+                                'This is the display name kids see for the shared fund.',
+                                'Keep it short and clear, like Community Funds or Family Goal Pot.',
+                              ]}
+                            />
+                          </div>
+                          <input
+                            className="job-input"
+                            placeholder="Community Funds"
+                            value={familyFundName}
+                            onChange={(event) => setFamilyFundName(event.target.value)}
+                          />
+                          <p className="form-help">
+                            Example: Community Funds, Family Goal Pot, or Team Savings.
+                          </p>
+                        </label>
 
-                  <details className="dialog-subsection dialog-advanced-settings">
-                    <summary className="dialog-subsection-summary">Advanced fine-tuning</summary>
-                    <div className="dialog-subsection-body dialog-advanced-settings-body">
+                        <label className="form-field">
+                          <div className="form-label-row">
+                            <span className="form-label">Use income contribution on completed credit jobs</span>
+                            <HelpButton
+                              onHelpClick={setActiveHelpDialog}
+                              label="Income contribution"
+                              lines={[
+                                'Adds a contribution from completed credit jobs into the shared fund.',
+                                'The child still earns credits; a percentage is routed to the fund.',
+                              ]}
+                            />
+                          </div>
+                          <select
+                            className="job-input"
+                            value={familyFundIncomeTaxEnabled ? 'on' : 'off'}
+                            onChange={(event) => setFamilyFundIncomeTaxEnabled(event.target.value === 'on')}
+                          >
+                            <option value="off">Off</option>
+                            <option value="on">On</option>
+                          </select>
+                          <p className="form-help">
+                            Good starter range: 3-10% for balanced households.
+                          </p>
+                        </label>
+
+                        {familyFundIncomeTaxEnabled ? (
+                          <label className="form-field">
+                            <div className="form-label-row">
+                              <span className="form-label">Income contribution rate (%)</span>
+                              <HelpButton
+                                onHelpClick={setActiveHelpDialog}
+                                label="Income contribution rate"
+                                lines={[
+                                  'Percentage of completed credit-job rewards sent to the shared fund.',
+                                  'Lower rates feel lighter for younger kids; higher rates build shared goals faster.',
+                                ]}
+                              />
+                            </div>
+                            <input
+                              className="job-input"
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={familyFundIncomeTaxPercent}
+                              onChange={(event) => setFamilyFundIncomeTaxPercent(event.target.value)}
+                            />
+                            <p className="form-help">
+                              Recommended: 5% (light), 10% (moderate), 15%+ (strong).
+                            </p>
+                          </label>
+                        ) : null}
+
+                        <label className="form-field">
+                          <div className="form-label-row">
+                            <span className="form-label">Use reward contribution on reward purchases</span>
+                            <HelpButton
+                              onHelpClick={setActiveHelpDialog}
+                              label="Reward contribution"
+                              lines={[
+                                'Adds a contribution when kids buy rewards, and routes that amount to the shared fund.',
+                                'Helps keep shared goals moving while personal rewards are still used.',
+                              ]}
+                            />
+                          </div>
+                          <select
+                            className="job-input"
+                            value={familyFundSalesTaxEnabled ? 'on' : 'off'}
+                            onChange={(event) => setFamilyFundSalesTaxEnabled(event.target.value === 'on')}
+                          >
+                            <option value="off">Off</option>
+                            <option value="on">On</option>
+                          </select>
+                          <p className="form-help">
+                            Usually set lower than income contribution to keep rewards feeling affordable.
+                          </p>
+                        </label>
+
+                        {familyFundSalesTaxEnabled ? (
+                          <label className="form-field">
+                            <div className="form-label-row">
+                              <span className="form-label">Reward contribution rate (%)</span>
+                              <HelpButton
+                                onHelpClick={setActiveHelpDialog}
+                                label="Reward contribution rate"
+                                lines={[
+                                  'Percentage added on reward purchases and routed to the shared fund.',
+                                  'Keep this modest if kids buy rewards often.',
+                                ]}
+                              />
+                            </div>
+                            <input
+                              className="job-input"
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={familyFundSalesTaxPercent}
+                              onChange={(event) => setFamilyFundSalesTaxPercent(event.target.value)}
+                            />
+                            <p className="form-help">
+                              Recommended: 2-5% for light use, 8-10% for stronger shared-goal funding.
+                            </p>
+                          </label>
+                        ) : null}
+                      </>
+                    ) : null}
+                  </section>
 
                   <section className="dialog-advanced-group">
                     <p className="dialog-section-title">Consequences</p>

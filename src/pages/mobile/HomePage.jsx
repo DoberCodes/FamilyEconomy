@@ -3,6 +3,7 @@ import BalanceCard from '../../components/mobile/cards/BalanceCard'
 import LevelCard from '../../components/mobile/cards/LevelCard'
 import JobsCard from '../../components/mobile/cards/MissionsCard'
 import StreakCard from '../../components/mobile/cards/StreakCard'
+import FormattedRichText from '../../components/shared/FormattedRichText'
 import ProgressTrack from '../../components/shared/ProgressTrack'
 import StatusNote from '../../components/shared/StatusNote'
 import {
@@ -30,28 +31,17 @@ export default function HomePage() {
     dashboard,
     store,
     childProfiles,
+    familyAnnouncement,
+    familyFundEnabled,
+    familyFundName,
+    familyFundBalance,
     familyDashboardTopCardsEnabled,
     achievementsEnabled,
     familyRecognitionEnabled,
     loading,
     error,
   } = useFamilyHomeData()
-  const [trendView, setTrendView] = useState('daily')
   const [nowMs, setNowMs] = useState(() => Date.now())
-
-  useEffect(() => {
-    if (!isParent) {
-      return undefined
-    }
-
-    const timerId = window.setInterval(() => {
-      setTrendView((currentView) => (currentView === 'daily' ? 'weekly' : 'daily'))
-    }, 8000)
-
-    return () => {
-      window.clearInterval(timerId)
-    }
-  }, [isParent])
 
   useEffect(() => {
     if (!isParent || loading || error || !familyId) {
@@ -141,50 +131,35 @@ export default function HomePage() {
     return job.rewardType === 'xp' ? `+ ${amount} XP` : `+ ${amount} credits`
   }
 
+  function buildDirectionDelta(currentValue, previousValue, reverseGood = false) {
+    const current = Number(currentValue) || 0
+    const previous = Number(previousValue) || 0
+    const delta = current - previous
+
+    if (delta === 0) {
+      return {
+        delta,
+        label: 'flat vs last month',
+        tone: 'flat',
+      }
+    }
+
+    const rawTone = delta > 0 ? 'up' : 'down'
+    const tone = reverseGood ? (rawTone === 'up' ? 'down' : 'up') : rawTone
+
+    return {
+      delta,
+      label: `${delta > 0 ? '+' : ''}${delta} vs last month`,
+      tone,
+    }
+  }
+
   const todayStart = startOfToday()
   const yesterdayStart = new Date(todayStart)
   yesterdayStart.setDate(yesterdayStart.getDate() - 1)
   const thisWeekStart = startOfWeek()
   const lastWeekStart = new Date(thisWeekStart)
   lastWeekStart.setDate(lastWeekStart.getDate() - 7)
-
-  const childDailyEarnings = childProfiles.map((child) => {
-    const earned = dashboard.jobs
-      .filter((job) => job.status === 'claimed' || job.status === 'done')
-      .filter((job) => resolveChildIdForJob(job) === child.id)
-      .filter((job) => {
-        const completedAt = toDate(job.completedAt)
-        const claimedAt = toDate(job.claimedAt)
-
-        if (job.status === 'done') {
-          return Boolean(completedAt && completedAt >= todayStart)
-        }
-
-        return Boolean(claimedAt && claimedAt >= todayStart)
-      })
-      .reduce((sum, job) => sum + getJobCreditAmount(job), 0)
-
-    return {
-      child,
-      earned,
-    }
-  })
-
-  const childDailySpending = childProfiles.map((child) => {
-    const spent = store.requests
-      .filter((request) => request.status === 'approved' || request.status === 'fulfilled')
-      .filter((request) => resolveChildIdForRewardRequest(request) === child.id)
-      .filter((request) => {
-        const reviewedAt = toDate(request.reviewedAt || request.createdAt)
-        return Boolean(reviewedAt && reviewedAt >= todayStart)
-      })
-      .reduce((sum, request) => sum + Number(request.cost || 0), 0)
-
-    return {
-      child,
-      spent,
-    }
-  })
 
   const childWeeklyEarnings = childProfiles.map((child) => {
     const earned = dashboard.jobs
@@ -208,200 +183,17 @@ export default function HomePage() {
     }
   })
 
-  const childWeeklySpending = childProfiles.map((child) => {
-    const spent = store.requests
-      .filter((request) => request.status === 'approved' || request.status === 'fulfilled')
-      .filter((request) => resolveChildIdForRewardRequest(request) === child.id)
-      .filter((request) => {
-        const reviewedAt = toDate(request.reviewedAt || request.createdAt)
-        return Boolean(reviewedAt && reviewedAt >= thisWeekStart)
-      })
-      .reduce((sum, request) => sum + Number(request.cost || 0), 0)
-
-    return {
-      child,
-      spent,
-    }
-  })
-
-  const childSavedTotals = childProfiles.map((child) => {
-    const saved = Number(child.credits) || 0
-
-    return {
-      child,
-      saved,
-    }
-  })
-
-  const currentDayJobCompletions = dashboard.jobs.filter((job) => {
-    const completedAt = toDate(job.completedAt)
-    return job.status === 'done' && isWithinDateRange(completedAt, todayStart, new Date())
-  })
-
-  const previousDayJobCompletions = dashboard.jobs.filter((job) => {
-    const completedAt = toDate(job.completedAt)
-    return job.status === 'done' && isWithinDateRange(completedAt, yesterdayStart, todayStart)
-  })
-
-  const currentDayRewardApprovals = store.requests.filter((request) => {
-    const reviewedAt = toDate(request.reviewedAt || request.createdAt)
-    return (request.status === 'approved' || request.status === 'fulfilled')
-      && isWithinDateRange(reviewedAt, todayStart, new Date())
-  })
-
-  const previousDayRewardApprovals = store.requests.filter((request) => {
-    const reviewedAt = toDate(request.reviewedAt || request.createdAt)
-    return (request.status === 'approved' || request.status === 'fulfilled')
-      && isWithinDateRange(reviewedAt, yesterdayStart, todayStart)
-  })
-
-  const currentDayEarnedCredits = currentDayJobCompletions.reduce(
-    (sum, job) => sum + getJobCreditAmount(job),
-    0,
-  )
-  const previousDayEarnedCredits = previousDayJobCompletions.reduce(
-    (sum, job) => sum + getJobCreditAmount(job),
-    0,
-  )
-  const currentDaySpentCredits = currentDayRewardApprovals.reduce(
-    (sum, request) => sum + Number(request.cost || 0),
-    0,
-  )
-  const previousDaySpentCredits = previousDayRewardApprovals.reduce(
-    (sum, request) => sum + Number(request.cost || 0),
-    0,
-  )
-
-  const dailyTrendCards = [
-    {
-      label: 'Earned today',
-      value: `+${currentDayEarnedCredits}`,
-      helper: `${currentDayJobCompletions.length} completed jobs`,
-      delta: currentDayEarnedCredits - previousDayEarnedCredits,
-      tone: 'earn',
-    },
-    {
-      label: 'Spent today',
-      value: `-${currentDaySpentCredits}`,
-      helper: `${currentDayRewardApprovals.length} approved rewards`,
-      delta: currentDaySpentCredits - previousDaySpentCredits,
-      tone: 'spend',
-    },
-    {
-      label: 'Job completions',
-      value: String(currentDayJobCompletions.length),
-      helper: `${previousDayJobCompletions.length} yesterday`,
-      delta: currentDayJobCompletions.length - previousDayJobCompletions.length,
-      tone: 'save',
-    },
-    {
-      label: 'Reward approvals',
-      value: String(currentDayRewardApprovals.length),
-      helper: `${previousDayRewardApprovals.length} yesterday`,
-      delta: currentDayRewardApprovals.length - previousDayRewardApprovals.length,
-      tone: 'spend',
-    },
-  ]
-
-  const currentWeekJobCompletions = dashboard.jobs.filter((job) => {
-    const completedAt = toDate(job.completedAt)
-    return job.status === 'done' && isWithinDateRange(completedAt, thisWeekStart, new Date())
-  })
-
-  const previousWeekJobCompletions = dashboard.jobs.filter((job) => {
-    const completedAt = toDate(job.completedAt)
-    return job.status === 'done' && isWithinDateRange(completedAt, lastWeekStart, thisWeekStart)
-  })
-
-  const currentWeekRewardApprovals = store.requests.filter((request) => {
-    const reviewedAt = toDate(request.reviewedAt || request.createdAt)
-    return (request.status === 'approved' || request.status === 'fulfilled')
-      && isWithinDateRange(reviewedAt, thisWeekStart, new Date())
-  })
-
-  const previousWeekRewardApprovals = store.requests.filter((request) => {
-    const reviewedAt = toDate(request.reviewedAt || request.createdAt)
-    return (request.status === 'approved' || request.status === 'fulfilled')
-      && isWithinDateRange(reviewedAt, lastWeekStart, thisWeekStart)
-  })
-
-  const currentWeekEarnedCredits = currentWeekJobCompletions.reduce(
-    (sum, job) => sum + getJobCreditAmount(job),
-    0,
-  )
-  const previousWeekEarnedCredits = previousWeekJobCompletions.reduce(
-    (sum, job) => sum + getJobCreditAmount(job),
-    0,
-  )
-  const currentWeekSpentCredits = currentWeekRewardApprovals.reduce(
-    (sum, request) => sum + Number(request.cost || 0),
-    0,
-  )
-  const previousWeekSpentCredits = previousWeekRewardApprovals.reduce(
-    (sum, request) => sum + Number(request.cost || 0),
-    0,
-  )
-
-  const weeklyTrendCards = [
-    {
-      label: 'Earned this week',
-      value: `+${currentWeekEarnedCredits}`,
-      helper: `${currentWeekJobCompletions.length} completed jobs`,
-      delta: currentWeekEarnedCredits - previousWeekEarnedCredits,
-      tone: 'earn',
-    },
-    {
-      label: 'Spent this week',
-      value: `-${currentWeekSpentCredits}`,
-      helper: `${currentWeekRewardApprovals.length} approved rewards`,
-      delta: currentWeekSpentCredits - previousWeekSpentCredits,
-      tone: 'spend',
-    },
-    {
-      label: 'Job completions',
-      value: String(currentWeekJobCompletions.length),
-      helper: `${previousWeekJobCompletions.length} last week`,
-      delta: currentWeekJobCompletions.length - previousWeekJobCompletions.length,
-      tone: 'save',
-    },
-    {
-      label: 'Reward approvals',
-      value: String(currentWeekRewardApprovals.length),
-      helper: `${previousWeekRewardApprovals.length} last week`,
-      delta: currentWeekRewardApprovals.length - previousWeekRewardApprovals.length,
-      tone: 'spend',
-    },
-  ]
-
-  const topDailyEarner = childDailyEarnings
-    .slice()
-    .sort((a, b) => b.earned - a.earned)[0] || null
   const topWeeklyEarner = childWeeklyEarnings
     .slice()
     .sort((a, b) => b.earned - a.earned)[0] || null
-  const topDailySpender = childDailySpending
-    .slice()
-    .sort((a, b) => b.spent - a.spent)[0] || null
-  const topWeeklySpender = childWeeklySpending
-    .slice()
-    .sort((a, b) => b.spent - a.spent)[0] || null
-  const topCreditsHolder = childSavedTotals
-    .slice()
-    .sort((a, b) => b.saved - a.saved)[0] || null
 
-  const completedGoalsByChildId = dashboard.goals
-    .filter((goal) => goal.status === 'completed' && resolveChildId(goal.childId))
-    .reduce((accumulator, goal) => {
-      accumulator[goal.childId] = (accumulator[goal.childId] || 0) + 1
-      return accumulator
-    }, {})
-
-  const familyContributionsByChildId = dashboard.goals
+  const familyWeeklyContributionsByChildId = dashboard.goals
     .filter((goal) => !resolveChildId(goal.childId))
     .reduce((accumulator, goal) => {
       ;(goal.contributionHistory || []).forEach((entry) => {
         const id = resolveChildId(entry.childId)
-        if (!id) {
+        const createdAt = toDate(entry.createdAt)
+        if (!id || !createdAt || createdAt < thisWeekStart) {
           return
         }
         accumulator[id] = (accumulator[id] || 0) + (Number(entry.amount) || 0)
@@ -409,84 +201,133 @@ export default function HomePage() {
       return accumulator
     }, {})
 
-  const doneJobsByChildId = dashboard.jobs
+  const weeklyDoneJobsByChildId = dashboard.jobs
     .filter((job) => job.status === 'done')
     .reduce((accumulator, job) => {
       const childId = resolveChildIdForJob(job)
-      if (!childId) {
+      const completedAt = toDate(job.completedAt)
+      if (!childId || !completedAt || completedAt < thisWeekStart) {
         return accumulator
       }
       accumulator[childId] = (accumulator[childId] || 0) + 1
       return accumulator
     }, {})
 
-  const helperPoolJobsByChildId = dashboard.jobs
-    .filter((job) => job.status === 'done' && !job.childId)
-    .reduce((accumulator, job) => {
-      const childId = resolveChildIdForJob(job)
-      if (!childId) {
+  const weeklyCompletedGoalsByChildId = dashboard.goals
+    .filter((goal) => goal.status === 'completed' && resolveChildId(goal.childId))
+    .reduce((accumulator, goal) => {
+      const completedAt = toDate(goal.completedAt)
+      if (!completedAt || completedAt < thisWeekStart) {
         return accumulator
       }
-      accumulator[childId] = (accumulator[childId] || 0) + 1
+      accumulator[goal.childId] = (accumulator[goal.childId] || 0) + 1
       return accumulator
     }, {})
 
-  const readingJobsByChildId = dashboard.jobs
-    .filter((job) => job.status === 'done' && /read|book|reading/i.test(job.title || ''))
-    .reduce((accumulator, job) => {
-      const childId = resolveChildIdForJob(job)
-      if (!childId) {
-        return accumulator
-      }
-      accumulator[childId] = (accumulator[childId] || 0) + 1
-      return accumulator
-    }, {})
+  function findNthDate(values, minimumCount) {
+    if (values.length < minimumCount) {
+      return null
+    }
 
-  const childAchievements = childProfiles
-    .map((child) => {
-      const badges = []
-      if ((completedGoalsByChildId[child.id] || 0) >= 1) {
-        badges.push({ id: 'first-goal', icon: '🏁', label: 'First Goal' })
-      }
-      if ((familyContributionsByChildId[child.id] || 0) >= 100) {
-        badges.push({ id: 'consistent-contributor', icon: '🤝', label: 'Consistent Contributor' })
-      }
-      if ((helperPoolJobsByChildId[child.id] || 0) >= 3) {
-        badges.push({ id: 'family-helper', icon: '🛟', label: 'Family Helper' })
-      }
-      if ((readingJobsByChildId[child.id] || 0) >= 5) {
-        badges.push({ id: 'reading-champion', icon: '📚', label: 'Reading Champion' })
-      }
+    return values[minimumCount - 1] || null
+  }
 
-      return { child, badges }
+  const recentAchievements = childProfiles
+    .flatMap((child) => {
+      const completedGoalDates = dashboard.goals
+        .filter((goal) => resolveChildId(goal.childId) === child.id && goal.status === 'completed')
+        .map((goal) => toDate(goal.completedAt))
+        .filter(Boolean)
+        .sort((left, right) => left.getTime() - right.getTime())
+
+      const familyContributionDates = dashboard.goals
+        .filter((goal) => !resolveChildId(goal.childId))
+        .flatMap((goal) => (goal.contributionHistory || []))
+        .filter((entry) => resolveChildId(entry.childId) === child.id)
+        .map((entry) => ({
+          amount: Number(entry.amount) || 0,
+          at: toDate(entry.createdAt),
+        }))
+        .filter((entry) => entry.at)
+        .sort((left, right) => left.at.getTime() - right.at.getTime())
+
+      let contributionTotal = 0
+      let contributorBadgeDate = null
+      familyContributionDates.forEach((entry) => {
+        if (contributorBadgeDate) {
+          return
+        }
+        contributionTotal += entry.amount
+        if (contributionTotal >= 100) {
+          contributorBadgeDate = entry.at
+        }
+      })
+
+      const helperJobDates = dashboard.jobs
+        .filter((job) => job.status === 'done' && !job.childId && resolveChildIdForJob(job) === child.id)
+        .map((job) => toDate(job.completedAt || job.claimedAt))
+        .filter(Boolean)
+        .sort((left, right) => left.getTime() - right.getTime())
+
+      const readingJobDates = dashboard.jobs
+        .filter((job) => job.status === 'done' && resolveChildIdForJob(job) === child.id && /read|book|reading/i.test(job.title || ''))
+        .map((job) => toDate(job.completedAt || job.claimedAt))
+        .filter(Boolean)
+        .sort((left, right) => left.getTime() - right.getTime())
+
+      return [
+        {
+          id: `achievement:first-goal:${child.id}`,
+          icon: '🏁',
+          label: 'First Goal',
+          childName: child.displayName,
+          at: findNthDate(completedGoalDates, 1),
+        },
+        {
+          id: `achievement:consistent-contributor:${child.id}`,
+          icon: '🤝',
+          label: 'Consistent Contributor',
+          childName: child.displayName,
+          at: contributorBadgeDate,
+        },
+        {
+          id: `achievement:family-helper:${child.id}`,
+          icon: '🛟',
+          label: 'Family Helper',
+          childName: child.displayName,
+          at: findNthDate(helperJobDates, 3),
+        },
+        {
+          id: `achievement:reading-champion:${child.id}`,
+          icon: '📚',
+          label: 'Reading Champion',
+          childName: child.displayName,
+          at: findNthDate(readingJobDates, 5),
+        },
+      ].filter((achievement) => achievement.at)
     })
-    .filter((entry) => entry.badges.length > 0)
-
-  const weeklyDoneDaysByChildId = dashboard.jobs
-    .filter((job) => job.status === 'done')
-    .reduce((accumulator, job) => {
-      const childId = resolveChildIdForJob(job)
-      const completedAt = toDate(job.completedAt || job.claimedAt)
-      if (!childId || !completedAt) {
-        return accumulator
-      }
-      const key = completedAt.toISOString().slice(0, 10)
-      accumulator[childId] = accumulator[childId] || new Set()
-      accumulator[childId].add(key)
-      return accumulator
-    }, {})
+    .sort((left, right) => right.at.getTime() - left.at.getTime())
+    .slice(0, 6)
 
   const mostHelpful = childProfiles
-    .map((child) => ({ child, value: doneJobsByChildId[child.id] || 0 }))
-    .sort((left, right) => right.value - left.value)[0] || null
-
-  const longestStreakKid = childProfiles
-    .map((child) => ({ child, value: (weeklyDoneDaysByChildId[child.id] || new Set()).size }))
+    .map((child) => ({ child, value: weeklyDoneJobsByChildId[child.id] || 0 }))
     .sort((left, right) => right.value - left.value)[0] || null
 
   const goalSetter = childProfiles
-    .map((child) => ({ child, value: completedGoalsByChildId[child.id] || 0 }))
+    .map((child) => ({ child, value: weeklyCompletedGoalsByChildId[child.id] || 0 }))
     .sort((left, right) => right.value - left.value)[0] || null
+
+  const topContributor = childProfiles
+    .map((child) => ({
+      child,
+      contribution: familyWeeklyContributionsByChildId[child.id] || 0,
+    }))
+    .sort((left, right) => {
+      if (right.contribution !== left.contribution) {
+        return right.contribution - left.contribution
+      }
+      return left.child.displayName.localeCompare(right.child.displayName)
+    })[0] || null
 
   const familySavingsGoal = dashboard.goals
     .filter((goal) => !resolveChildId(goal.childId))
@@ -525,6 +366,7 @@ export default function HomePage() {
       ),
     )
     : 0
+  const familyFundLabel = String(familyFundName || 'Community Funds').trim() || 'Community Funds'
   const familySavingsContributors = Object.values(
     (familySavingsGoal?.contributionHistory || []).reduce((accumulator, entry) => {
       if (!entry?.childId) {
@@ -582,15 +424,179 @@ export default function HomePage() {
     )
   }
 
-  const activeTrendCards = trendView === 'daily' ? dailyTrendCards : weeklyTrendCards
-  const trendHeading = trendView === 'daily' ? 'Today at a Glance' : 'This Week at a Glance'
-  const trendDescription = trendView === 'daily'
-    ? 'See how today is going compared with yesterday.'
-    : 'See how this week is going compared with last week.'
-  const trendDeltaLabel = trendView === 'daily' ? 'from yesterday' : 'from last week'
-  const topWindowLabel = trendView === 'daily' ? 'today' : 'this week'
-  const activeTopEarner = trendView === 'daily' ? topDailyEarner : topWeeklyEarner
-  const activeTopSpender = trendView === 'daily' ? topDailySpender : topWeeklySpender
+  const currentDate = toDate(nowMs) || new Date()
+  const currentMonthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
+  const previousMonthStart = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1)
+
+  function getMonthlyDoneJobs(start, end) {
+    return dashboard.jobs.filter((job) => {
+      if (job.status !== 'done') {
+        return false
+      }
+      const completedAt = toDate(job.completedAt)
+      return isWithinDateRange(completedAt, start, end)
+    })
+  }
+
+  function getMonthlyCompletedGoals(start, end) {
+    return dashboard.goals.filter((goal) => {
+      const completedAt = toDate(goal.completedAt)
+      return isWithinDateRange(completedAt, start, end)
+    }).length
+  }
+
+  function getFamilyContributionTotalsByWindow(start, end) {
+    return dashboard.goals
+      .filter((goal) => !resolveChildId(goal.childId))
+      .reduce((sum, goal) => {
+        const scopedContribution = (goal.contributionHistory || []).reduce((goalSum, entry) => {
+          const createdAt = toDate(entry.createdAt)
+          if (!isWithinDateRange(createdAt, start, end)) {
+            return goalSum
+          }
+
+          return goalSum + (Number(entry.amount) || 0)
+        }, 0)
+
+        return sum + scopedContribution
+      }, 0)
+  }
+
+  function getEngagedChildrenCount(start, end) {
+    const engagedIds = new Set()
+
+    dashboard.jobs.forEach((job) => {
+      if (job.status !== 'done') {
+        return
+      }
+      const completedAt = toDate(job.completedAt)
+      if (!isWithinDateRange(completedAt, start, end)) {
+        return
+      }
+
+      const childId = resolveChildIdForJob(job)
+      if (childId) {
+        engagedIds.add(childId)
+      }
+    })
+
+    dashboard.goals.forEach((goal) => {
+      ;(goal.contributionHistory || []).forEach((entry) => {
+        const createdAt = toDate(entry.createdAt)
+        if (!isWithinDateRange(createdAt, start, end)) {
+          return
+        }
+
+        const childId = resolveChildId(entry.childId)
+        if (childId) {
+          engagedIds.add(childId)
+        }
+      })
+    })
+
+    return engagedIds.size
+  }
+
+  const currentMonthDoneJobs = getMonthlyDoneJobs(currentMonthStart, currentDate)
+  const previousMonthDoneJobs = getMonthlyDoneJobs(previousMonthStart, currentMonthStart)
+  const currentMonthEarnedCredits = currentMonthDoneJobs.reduce((sum, job) => sum + getJobCreditAmount(job), 0)
+  const previousMonthEarnedCredits = previousMonthDoneJobs.reduce((sum, job) => sum + getJobCreditAmount(job), 0)
+
+  const currentMonthCompletedGoals = getMonthlyCompletedGoals(currentMonthStart, currentDate)
+  const previousMonthCompletedGoals = getMonthlyCompletedGoals(previousMonthStart, currentMonthStart)
+
+  const currentMonthFamilyContribution = getFamilyContributionTotalsByWindow(currentMonthStart, currentDate)
+  const previousMonthFamilyContribution = getFamilyContributionTotalsByWindow(previousMonthStart, currentMonthStart)
+
+  const currentMonthEngagement = getEngagedChildrenCount(currentMonthStart, currentDate)
+  const previousMonthEngagement = getEngagedChildrenCount(previousMonthStart, currentMonthStart)
+
+  const earnedDirection = buildDirectionDelta(currentMonthEarnedCredits, previousMonthEarnedCredits)
+  const goalsDirection = buildDirectionDelta(currentMonthCompletedGoals, previousMonthCompletedGoals)
+  const engagementDirection = buildDirectionDelta(currentMonthEngagement, previousMonthEngagement)
+  const communityFundDirection = buildDirectionDelta(currentMonthFamilyContribution, previousMonthFamilyContribution)
+
+  const familySnapshotCards = [
+    {
+      key: 'economy-flow',
+      label: 'Economy Flow',
+      value: `${currentMonthEarnedCredits} credits earned`,
+      helper: `${currentMonthDoneJobs.length} jobs completed this month`,
+      direction: earnedDirection,
+    },
+    {
+      key: 'goal-progress',
+      label: 'Goals Moving Forward',
+      value: `${currentMonthCompletedGoals} goals completed`,
+      helper: `${dashboard.goals.filter((goal) => goal.status === 'active').length} active goals in progress`,
+      direction: goalsDirection,
+    },
+    {
+      key: 'participation',
+      label: 'Family Participation',
+      value: `${currentMonthEngagement}/${childProfiles.length || 1} kids active`,
+      helper: 'Completed jobs or contributed to a goal',
+      direction: engagementDirection,
+    },
+    {
+      key: 'community-fund',
+      label: familyFundLabel,
+      value: familyFundEnabled
+        ? `${familyFundBalance} credits available`
+        : 'Feature is off',
+      helper: familyFundEnabled
+        ? familySavingsGoal
+          ? `+${currentMonthFamilyContribution} added this month toward ${(familySavingsGoal.rewardTitle || familySavingsGoal.name || 'family goal').toLowerCase()}`
+          : `+${currentMonthFamilyContribution} added this month for future family goals`
+        : 'Enable it in Parent Actions or setup to power shared family goals',
+      direction: communityFundDirection,
+    },
+  ]
+
+  const focusThisWeek = (() => {
+    if (engagementDirection.tone === 'down') {
+      return {
+        title: 'Boost Family Participation',
+        detail: 'Participation dropped vs last month. Add two shared jobs that any child can claim.',
+        metric: `${currentMonthEngagement}/${childProfiles.length || 1} kids active this month`,
+        tone: 'down',
+      }
+    }
+
+    if (goalsDirection.tone === 'down') {
+      return {
+        title: 'Unblock Goal Momentum',
+        detail: 'Completed goals are down. Pick one active goal and schedule a focused contribution day.',
+        metric: `${currentMonthCompletedGoals} goals completed this month`,
+        tone: 'down',
+      }
+    }
+
+    if (communityFundDirection.tone === 'down') {
+      return {
+        title: 'Reinforce Community Funding',
+        detail: 'Family goal contributions slowed. Run a short family challenge tied to the shared goal.',
+        metric: `${familyFundBalance} available • +${currentMonthFamilyContribution} this month`,
+        tone: 'down',
+      }
+    }
+
+    if (earnedDirection.tone === 'down') {
+      return {
+        title: 'Recover Economy Flow',
+        detail: 'Credits earned are down. Rebalance open jobs so each child has at least one quick win.',
+        metric: `${currentMonthEarnedCredits} credits earned this month`,
+        tone: 'down',
+      }
+    }
+
+    return {
+      title: 'Scale What Is Working',
+      detail: 'Momentum is positive. Keep this cadence and introduce one stretch goal for next week.',
+      metric: `${currentMonthEarnedCredits} earned • ${currentMonthCompletedGoals} goals completed`,
+      tone: 'up',
+    }
+  })()
 
   const activityFeedItems = (() => {
     const items = []
@@ -676,58 +682,7 @@ export default function HomePage() {
       .slice(0, 10)
   })()
 
-  const latestCelebrationItem = activityFeedItems.find((item) => {
-    if (!item?.at) {
-      return false
-    }
-    if (item.kind !== 'goal-complete' && item.kind !== 'reward-fulfilled') {
-      return false
-    }
-
-    const ageMs = nowMs - item.at.getTime()
-    return ageMs >= 0 && ageMs <= (24 * 60 * 60 * 1000)
-  })
-
-  const childGoalMomentumById = childProfiles.reduce((accumulator, child) => {
-    const bestGoal = dashboard.goals
-      .filter((goal) => resolveChildId(goal.childId) === child.id)
-      .sort((left, right) => {
-        const rank = {
-          ready_to_claim: 0,
-          active: 1,
-          pending_parent_approval: 2,
-          countered: 3,
-          completed: 4,
-        }
-        const leftRank = rank[left.status] ?? 99
-        const rightRank = rank[right.status] ?? 99
-
-        if (leftRank !== rightRank) {
-          return leftRank - rightRank
-        }
-
-        const leftProgress = (Number(left.saved) || 0) / Math.max(1, Number(left.target) || 1)
-        const rightProgress = (Number(right.saved) || 0) / Math.max(1, Number(right.target) || 1)
-        return rightProgress - leftProgress
-      })[0] || null
-
-    if (!bestGoal) {
-      accumulator[child.id] = null
-      return accumulator
-    }
-
-    const pct = Math.min(
-      100,
-      Math.round(((Number(bestGoal.saved) || 0) / Math.max(1, Number(bestGoal.target) || 1)) * 100),
-    )
-
-    accumulator[child.id] = {
-      goal: bestGoal,
-      pct,
-    }
-
-    return accumulator
-  }, {})
+  const hasFamilyAnnouncement = Boolean(String(familyAnnouncement || '').trim())
 
   const kidGoalSpotlight = dashboard.goals
     .filter((goal) => {
@@ -767,148 +722,58 @@ export default function HomePage() {
 
         {isParent ? (
           <>
-            {latestCelebrationItem ? (
-              <section className="panel celebration-panel celebration-pop home-col-full">
-                <div className="celebration-confetti" aria-hidden="true">
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                  <span></span>
+            {hasFamilyAnnouncement ? (
+              <section className="panel home-col-full family-news-panel">
+                <div className="family-news-header">
+                  <span className="family-news-icon" aria-hidden="true">📰</span>
+                  <div>
+                    <p className="panel-label">Family News</p>
+                    <p className="family-news-kicker">Latest update from home base</p>
+                  </div>
                 </div>
-                <p className="panel-label">Family Celebration</p>
-                <p className="panel-muted">{latestCelebrationItem.icon} {latestCelebrationItem.text}</p>
-                <p className="panel-muted">{formatRelativeActivityTime(latestCelebrationItem.at, nowMs)}</p>
+                <div className="family-news-body">
+                  <FormattedRichText className="family-news-copy" value={familyAnnouncement} />
+                </div>
               </section>
             ) : null}
 
-            <section className="panel home-col-full">
-              <div className="money-block">
-                <div className="trend-panel-header">
-                  <p className="panel-label">{trendHeading}</p>
-                  <div className="trend-tabs" role="tablist" aria-label="Trend range">
-                    <button
-                      type="button"
-                      className={trendView === 'daily' ? 'trend-tab trend-tab-active' : 'trend-tab'}
-                      onClick={() => setTrendView('daily')}
-                      aria-pressed={trendView === 'daily'}
-                    >
-                      Daily
-                    </button>
-                    <button
-                      type="button"
-                      className={trendView === 'weekly' ? 'trend-tab trend-tab-active' : 'trend-tab'}
-                      onClick={() => setTrendView('weekly')}
-                      aria-pressed={trendView === 'weekly'}
-                    >
-                      Weekly
-                    </button>
-                  </div>
-                </div>
-                <p className="panel-muted home-section-subtitle">Family Economy Activity</p>
-                {familyDashboardTopCardsEnabled ? (
-                  <div className="family-podium">
-                    <div className="family-score-card">
-                      <small>Top Earner</small>
-                      <strong>
-                        {activeTopEarner ? `${activeTopEarner.child.avatar} ${activeTopEarner.child.displayName}` : 'No data'}
-                      </strong>
-                      <span>+{activeTopEarner?.earned || 0} {topWindowLabel}</span>
-                    </div>
-                    <div className="family-score-card">
-                      <small>Top Credits</small>
-                      <strong>
-                        {topCreditsHolder ? `${topCreditsHolder.child.avatar} ${topCreditsHolder.child.displayName}` : 'No data'}
-                      </strong>
-                      <span>{topCreditsHolder?.saved || 0} credits total</span>
-                    </div>
-                    <div className="family-score-card">
-                      <small>Top Spender</small>
-                      <strong>
-                        {activeTopSpender ? `${activeTopSpender.child.avatar} ${activeTopSpender.child.displayName}` : 'No data'}
-                      </strong>
-                      <span>-{activeTopSpender?.spent || 0} {topWindowLabel}</span>
-                    </div>
-                  </div>
-                ) : null}
-                <p className="panel-muted">{trendDescription}</p>
-                <div className="family-trend-grid">
-                  {activeTrendCards.map((card) => (
-                    <div key={card.label} className="family-trend-card">
-                      <small>{card.label}</small>
-                      <strong>{card.value}</strong>
-                      <span>{card.helper}</span>
-                      <span
-                        className={
-                          card.delta > 0
-                            ? 'family-trend-delta family-trend-delta-up'
-                            : card.delta < 0
-                              ? 'family-trend-delta family-trend-delta-down'
-                              : 'family-trend-delta'
-                        }
-                      >
-                        {card.delta > 0 ? '+' : ''}{card.delta} {trendDeltaLabel}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+            <section className="panel home-col-full family-snapshot-panel">
+              <p className="panel-label">Family Snapshot</p>
+              <p className="panel-muted home-section-subtitle">
+                Direction over the last month, compared with the month before.
+              </p>
+              <div className="family-insight-grid">
+                {familySnapshotCards.map((card) => (
+                  <article key={card.key} className="family-insight-card">
+                    <small>{card.label}</small>
+                    <strong>{card.value}</strong>
+                    <span className="family-insight-note">{card.helper}</span>
+                    <span className={`family-direction-pill family-direction-pill-${card.direction.tone}`}>
+                      {card.direction.label}
+                    </span>
+                  </article>
+                ))}
               </div>
+              <article className={`family-focus-card family-focus-card-${focusThisWeek.tone}`}>
+                <small>Focus This Week</small>
+                <strong>{focusThisWeek.title}</strong>
+                <p>{focusThisWeek.detail}</p>
+                <span>{focusThisWeek.metric}</span>
+              </article>
             </section>
-
-            {familyRecognitionEnabled ? (
-              <section className="panel home-col-full">
-                <p className="panel-label">Family Recognition</p>
-                <p className="panel-muted home-section-subtitle">Celebrating positive habits and consistency</p>
-                <div className="family-podium">
-                  <div className="family-score-card">
-                    <small>Most Helpful</small>
-                    <strong>{mostHelpful ? `${mostHelpful.child.avatar} ${mostHelpful.child.displayName}` : 'No data'}</strong>
-                    <span>{mostHelpful?.value || 0} jobs completed</span>
-                  </div>
-                  <div className="family-score-card">
-                    <small>Longest Streak</small>
-                    <strong>{longestStreakKid ? `${longestStreakKid.child.avatar} ${longestStreakKid.child.displayName}` : 'No data'}</strong>
-                    <span>{longestStreakKid?.value || 0} active day(s)</span>
-                  </div>
-                  <div className="family-score-card">
-                    <small>Goal Setter</small>
-                    <strong>{goalSetter ? `${goalSetter.child.avatar} ${goalSetter.child.displayName}` : 'No data'}</strong>
-                    <span>{goalSetter?.value || 0} completed goal(s)</span>
-                  </div>
-                </div>
-              </section>
-            ) : null}
-
-            {achievementsEnabled ? (
-              <section className="panel home-col-full">
-                <p className="panel-label">Achievement Board</p>
-                <p className="panel-muted home-section-subtitle">Milestones unlocked by family members</p>
-                {childAchievements.length === 0 ? (
-                  <p className="panel-muted">No achievements unlocked yet.</p>
-                ) : (
-                  <ul className="family-grid-list">
-                    {childAchievements.map((entry) => (
-                      <li key={`achievements:${entry.child.id}`}>
-                        <span className="mission-main">{entry.child.avatar} {entry.child.displayName}</span>
-                        <div className="limit-chip-row" style={{ marginTop: '0.45rem' }}>
-                          {entry.badges.map((badge) => (
-                            <span key={badge.id} className="limit-chip">{badge.icon} {badge.label}</span>
-                          ))}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            ) : null}
 
             <section className="panel home-col-full">
               <p className="panel-label">Family Goal</p>
               <p className="panel-muted home-section-subtitle">The shared target everyone can build together.</p>
               <div className="money-section-card money-section-card--shared family-goal-hero" style={{ marginTop: '0.25rem' }}>
+                {!familyFundEnabled ? (
+                  <p className="panel-muted">{familyFundLabel} is off. Turn it on in Parent Actions or setup to power shared family goals.</p>
+                ) : null}
                 {!familySavingsGoal ? (
-                  <p className="panel-muted">No shared family goal yet. Create one in Savings with no child selected.</p>
+                  <>
+                    <p className="panel-muted" style={{ marginTop: 0 }}>{familyFundLabel}: {familyFundBalance} credits available</p>
+                    <p className="panel-muted">No shared family goal yet. Create one in Savings with no child selected.</p>
+                  </>
                 ) : (
                   <>
                     <p className="family-goal-kicker">🎯 FAMILY GOAL</p>
@@ -917,6 +782,7 @@ export default function HomePage() {
                       <span className="limit-chip">{getGoalStatusLabel(familySavingsGoal.status)}</span>
                       <span className="limit-chip">{childProfiles.length} kids can contribute</span>
                     </div>
+                    <p className="panel-muted" style={{ marginTop: '0.45rem', marginBottom: 0 }}>{familyFundLabel}: {familyFundBalance} credits available</p>
                     <p className="family-goal-math">{familySavingsGoal.saved} / {familySavingsGoal.target} Credits</p>
                     <p className="family-goal-percent">{familySavingsGoalPct}%</p>
                     <ProgressTrack value={familySavingsGoalPct} light label="Family goal progress" />
@@ -947,52 +813,62 @@ export default function HomePage() {
               </div>
             </section>
 
-            <section className="panel home-col-full">
-              <p className="panel-label">Kids At A Glance</p>
-              <p className="panel-muted">Daily performance plus personal goal momentum for each child.</p>
-              {childProfiles.length === 0 ? (
-                <p className="panel-muted">No kids added yet.</p>
-              ) : (
-                <ul className="family-grid-list">
-                  {childProfiles.map((child) => {
-                    const earn = childDailyEarnings.find((item) => item.child.id === child.id)?.earned || 0
-                    const spend = childDailySpending.find((item) => item.child.id === child.id)?.spent || 0
-                    const save = childSavedTotals.find((item) => item.child.id === child.id)?.saved || 0
-                    const childMomentum = childGoalMomentumById[child.id]
-                    return (
-                      <li key={child.id} className="family-kid-row">
-                        <div className="family-kid-row-header">
-                          <span className="mission-main">{child.avatar} {child.displayName}</span>
-                          <span className="family-stat-pill family-stat-pill-save">{save} credits total</span>
-                        </div>
+            {(familyRecognitionEnabled || achievementsEnabled) ? (
+              <section className="panel home-col-full family-recognition-panel">
+                <p className="panel-label">Weekly Family Recognition</p>
+                <p className="panel-muted home-section-subtitle">Highlights from this week</p>
 
-                        <div className="family-kid-row-stats">
-                          <span className="family-stat-pill family-stat-pill-earn">+{earn} earned today</span>
-                          <span className="family-stat-pill family-stat-pill-spend">-{spend} spent today</span>
+                {familyRecognitionEnabled ? (
+                  <div className="family-podium family-podium-compact">
+                    {familyDashboardTopCardsEnabled ? (
+                      <>
+                        <div className="family-score-card family-score-card-compact">
+                          <small>Top Earner</small>
+                          <strong>
+                            {topWeeklyEarner ? `${topWeeklyEarner.child.avatar} ${topWeeklyEarner.child.displayName}` : 'No data'}
+                          </strong>
                         </div>
+                        <div className="family-score-card family-score-card-compact">
+                          <small>Top Contributor</small>
+                          <strong>
+                            {topContributor ? `${topContributor.child.avatar} ${topContributor.child.displayName}` : 'No data'}
+                          </strong>
+                        </div>
+                      </>
+                    ) : null}
+                    <div className="family-score-card family-score-card-compact">
+                      <small>Most Helpful</small>
+                      <strong>{mostHelpful ? `${mostHelpful.child.avatar} ${mostHelpful.child.displayName}` : 'No data'}</strong>
+                    </div>
+                    <div className="family-score-card family-score-card-compact">
+                      <small>Goal Setter</small>
+                      <strong>{goalSetter ? `${goalSetter.child.avatar} ${goalSetter.child.displayName}` : 'No data'}</strong>
+                    </div>
+                  </div>
+                ) : null}
 
-                        <div className="family-kid-row-goals">
-                          <article className="family-kid-goal-card">
-                            <small>Goal Progress</small>
-                            {!childMomentum ? (
-                              <p className="panel-muted">No personal goal yet.</p>
-                            ) : (
-                              <>
-                                <strong>{childMomentum.goal.rewardTitle || childMomentum.goal.name}</strong>
-                                <span className="family-insight-note">
-                                  {getGoalStatusLabel(childMomentum.goal.status)} • {childMomentum.goal.saved}/{childMomentum.goal.target} credits
-                                </span>
-                                <ProgressTrack value={childMomentum.pct} light label={`${child.displayName} goal progress`} />
-                              </>
-                            )}
-                          </article>
-                        </div>
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-            </section>
+                {achievementsEnabled ? (
+                  <>
+                    <p className="panel-muted home-section-subtitle family-recognition-achievements-title">Recent Achievements</p>
+                    {recentAchievements.length === 0 ? (
+                      <p className="panel-muted">No recent achievements unlocked yet.</p>
+                    ) : (
+                      <ul className="family-achievement-feed">
+                        {recentAchievements.map((achievement) => (
+                          <li key={achievement.id} className="family-achievement-item">
+                            <span className="family-achievement-icon" aria-hidden="true">{achievement.icon}</span>
+                            <span className="family-achievement-label">{achievement.label}</span>
+                            <span className="family-achievement-time">
+                              {achievement.childName} earned this {formatRelativeActivityTime(achievement.at, nowMs)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                ) : null}
+              </section>
+            ) : null}
 
             <section className="panel home-col-full">
               <p className="panel-label">Family Job Tracker</p>
@@ -1064,18 +940,18 @@ export default function HomePage() {
           </>
         ) : (
           <>
-            {latestCelebrationItem ? (
-              <section className="panel celebration-panel celebration-pop home-col-full">
-                <div className="celebration-confetti" aria-hidden="true">
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                  <span></span>
+            {hasFamilyAnnouncement ? (
+              <section className="panel home-col-full family-news-panel">
+                <div className="family-news-header">
+                  <span className="family-news-icon" aria-hidden="true">📰</span>
+                  <div>
+                    <p className="panel-label">Family News</p>
+                    <p className="family-news-kicker">Latest update from home base</p>
+                  </div>
                 </div>
-                <p className="panel-label">Celebrate</p>
-                <p className="panel-muted">{latestCelebrationItem.icon} {latestCelebrationItem.text}</p>
+                <div className="family-news-body">
+                  <FormattedRichText className="family-news-copy" value={familyAnnouncement} />
+                </div>
               </section>
             ) : null}
 

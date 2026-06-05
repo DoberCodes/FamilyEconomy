@@ -54,6 +54,7 @@ Parents with children ages 7-10.
 7. Credits, balances, rewards, statements, and goals are fictional educational constructs.
 8. Taxes and community funds should teach shared responsibility, not punishment.
 9. Gamified elements should support learning outcomes and avoid manipulative retention patterns.
+10. Visual design should follow the Family Economy brand palette: teal for trustworthy structure, gold for rewards/progress, success green for healthy completion, light surfaces, and slate text.
 
 ## Parent-Controlled Child Sessions
 

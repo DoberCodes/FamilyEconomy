@@ -15,6 +15,7 @@ export default function StorePage() {
     selectedChildId,
     rewards,
     requests,
+    fundTaxSettings,
     loading,
     error,
   } = useFamilyStoreData()
@@ -39,6 +40,20 @@ export default function StorePage() {
     })
   }
 
+  function getSalesTaxAmount(costValue) {
+    const baseCost = Math.max(0, Number(costValue) || 0)
+    const taxEnabled =
+      fundTaxSettings.familyFundEnabled !== false
+      && Boolean(fundTaxSettings.familyFundSalesTaxEnabled)
+    const taxPercent = Math.max(0, Number(fundTaxSettings.familyFundSalesTaxPercent) || 0)
+
+    if (!taxEnabled || taxPercent <= 0 || baseCost <= 0) {
+      return 0
+    }
+
+    return Math.round(baseCost * (taxPercent / 100))
+  }
+
   return (
     <>
       <main className="phone-content">
@@ -52,8 +67,23 @@ export default function StorePage() {
           <ul className="mission-list">
             {rewards.map((reward) => (
               <li key={reward.id}>
+                {(() => {
+                  const salesTaxAmount = getSalesTaxAmount(reward.cost)
+                  const totalCost = (Number(reward.cost) || 0) + salesTaxAmount
+                  return (
+                    <>
                 <span className="mission-main">🎁 {reward.title}</span>
-                <span className="mission-reward">{reward.cost}</span>
+                {salesTaxAmount > 0 ? (
+                  <div className="job-status-label" style={{ display: 'grid', gap: '0.1rem' }}>
+                    <span>Base: {reward.cost} credits</span>
+                    <span>Contribution: {salesTaxAmount} credits</span>
+                    <span className="mission-reward" style={{ fontSize: '1rem', lineHeight: 1.1 }}>
+                      Total: {totalCost} credits
+                    </span>
+                  </div>
+                ) : (
+                  <span className="mission-reward">{totalCost}</span>
+                )}
                 {reward.pricingMeta?.dynamicPricingApplied ? (
                   <span className="job-status-label">
                     Base {reward.pricingMeta.baseCost} -&gt; Now {reward.pricingMeta.adjustedCost} -&gt; Next est {reward.pricingMeta.projectedNextCost}
@@ -71,6 +101,9 @@ export default function StorePage() {
                 ) : (
                   <span className="job-status-label">Requests are managed in Parent tab</span>
                 )}
+                    </>
+                  )
+                })()}
               </li>
             ))}
           </ul>

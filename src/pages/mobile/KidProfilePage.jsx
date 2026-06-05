@@ -14,6 +14,7 @@ import {
   useCancelSavingsGoalMutation,
   useClaimApprovedRewardProposalMutation,
   useClaimJobMutation,
+  useContributeToFamilyFundMutation,
   useContributeToSavingsGoalMutation,
   useCreateCustomRewardRequestMutation,
   useCreateGoalMutation,
@@ -60,6 +61,7 @@ export default function KidProfilePage() {
   const [cancelSavingsGoalMutation] = useCancelSavingsGoalMutation()
   const [claimApprovedRewardProposalMutation] = useClaimApprovedRewardProposalMutation()
   const [claimJobMutation] = useClaimJobMutation()
+  const [contributeToFamilyFundMutation] = useContributeToFamilyFundMutation()
   const [contributeToSavingsGoalMutation] = useContributeToSavingsGoalMutation()
   const [createCustomRewardRequestMutation] = useCreateCustomRewardRequestMutation()
   const [createGoalMutation] = useCreateGoalMutation()
@@ -73,7 +75,15 @@ export default function KidProfilePage() {
 
   const [childProfiles, setChildProfiles] = useState([])
   const [dashboard, setDashboard] = useState(emptyDashboard)
-  const [storeData, setStoreData] = useState({ rewards: [], requests: [] })
+  const [storeData, setStoreData] = useState({
+    rewards: [],
+    requests: [],
+    fundTaxSettings: {
+      familyFundEnabled: true,
+      familyFundSalesTaxEnabled: false,
+      familyFundSalesTaxPercent: 0,
+    },
+  })
   const [jobCheckRequests, setJobCheckRequests] = useState([])
   const [consequenceEvents, setConsequenceEvents] = useState([])
   const [loading, setLoading] = useState(true)
@@ -106,6 +116,9 @@ export default function KidProfilePage() {
   const [savingsGoalApprovalMode, setSavingsGoalApprovalMode] = useState('claim_only')
   const [familyAnnouncementText, setFamilyAnnouncementText] = useState('')
   const [familyRulesText, setFamilyRulesText] = useState('')
+  const [familyFundEnabled, setFamilyFundEnabled] = useState(true)
+  const [familyFundName, setFamilyFundName] = useState('Community Funds')
+  const [familyFundBalance, setFamilyFundBalance] = useState(0)
   const [achievementsEnabled, setAchievementsEnabled] = useState(true)
   const [familyRecognitionEnabled, setFamilyRecognitionEnabled] = useState(true)
   const [achievementFirstGoalTarget, setAchievementFirstGoalTarget] = useState(1)
@@ -326,6 +339,9 @@ export default function KidProfilePage() {
         setChildProfiles(children)
         setFamilyAnnouncementText(onboarding.data.family?.familyAnnouncement || '')
         setFamilyRulesText(onboarding.data.family?.familyRules || '')
+        setFamilyFundEnabled(onboarding.data.family?.familyFundEnabled !== false)
+        setFamilyFundName(onboarding.data.family?.familyFundName || 'Community Funds')
+        setFamilyFundBalance(Number(onboarding.data.family?.familyFundBalance) || 0)
         setSavingsGoalApprovalMode(onboarding.data.family?.savingsGoalApprovalMode || 'claim_only')
         setAchievementsEnabled(onboarding.data.family?.achievementsEnabled !== false)
         setFamilyRecognitionEnabled(onboarding.data.family?.familyRecognitionEnabled !== false)
@@ -783,9 +799,6 @@ export default function KidProfilePage() {
 
   async function handleContributeToFamilySavingsGoal(event) {
     event.preventDefault()
-    if (!familySavingsGoal?.id) {
-      return
-    }
 
     setError('')
     setSavingFamilyContribution(true)
@@ -793,21 +806,33 @@ export default function KidProfilePage() {
     const contribution = Number(familyContributionAmount) || 0
 
     try {
-      await contributeToSavingsGoalMutation({
-        goalId: familySavingsGoal.id,
-        amount: contribution,
-        context: {
-          familyId,
-          userId,
-          userRole,
-          selectedChildId: resolvedChild?.id,
-        },
-      }).unwrap()
+      if (familySavingsGoal?.id) {
+        await contributeToSavingsGoalMutation({
+          goalId: familySavingsGoal.id,
+          amount: contribution,
+          context: {
+            familyId,
+            userId,
+            userRole,
+            selectedChildId: resolvedChild?.id,
+          },
+        }).unwrap()
+      } else {
+        await contributeToFamilyFundMutation({
+          amount: contribution,
+          context: {
+            familyId,
+            userId,
+            userRole,
+            selectedChildId: resolvedChild?.id,
+          },
+        }).unwrap()
+      }
 
       await refreshChildData(resolvedChild?.id)
       setFamilyContributionAmount('25')
     } catch (caughtError) {
-      setError(caughtError.message || 'Could not move credits into the family savings goal.')
+      setError(caughtError.message || 'Could not move credits into the family fund.')
     } finally {
       setSavingFamilyContribution(false)
     }
@@ -1000,6 +1025,24 @@ export default function KidProfilePage() {
   const hasOpenRewardRequest = rewardHistory.some(
     (item) => item.status === 'pending' || item.status === 'countered',
   )
+  const rewardTaxSettings = storeData.fundTaxSettings || {
+    familyFundEnabled: true,
+    familyFundSalesTaxEnabled: false,
+    familyFundSalesTaxPercent: 0,
+  }
+  const getRewardSalesTaxAmount = (costValue) => {
+    const baseCost = Math.max(0, Number(costValue) || 0)
+    const taxEnabled =
+      rewardTaxSettings.familyFundEnabled !== false
+      && Boolean(rewardTaxSettings.familyFundSalesTaxEnabled)
+    const taxPercent = Math.max(0, Number(rewardTaxSettings.familyFundSalesTaxPercent) || 0)
+
+    if (!taxEnabled || taxPercent <= 0 || baseCost <= 0) {
+      return 0
+    }
+
+    return Math.round(baseCost * (taxPercent / 100))
+  }
   const pendingRewardCount = rewardHistory.filter((item) => item.status === 'pending' || item.status === 'countered').length
   const approvedRewardCount = rewardHistory.filter((item) => item.status === 'approved').length
   const fulfilledRewardCount = rewardHistory.filter((item) => item.status === 'fulfilled').length
@@ -1042,6 +1085,7 @@ export default function KidProfilePage() {
   )
     .sort((left, right) => right.amount - left.amount)
   const childGoals = dashboard.goals.filter((goal) => goal.childId === resolvedChild?.id)
+  const familyFundLabel = String(familyFundName || 'Community Funds').trim() || 'Community Funds'
   const childCompletedGoalsCount = childGoals.filter((goal) => goal.status === 'completed').length
   const childFamilyContributionCredits = (familySavingsGoal?.contributionHistory || [])
     .filter((entry) => entry.childId === resolvedChild?.id)
@@ -1705,7 +1749,8 @@ export default function KidProfilePage() {
                     <div className="hero-badge-row">
                       {topHeroBadges.map((badge) => (
                         <span key={`hero:${badge.id}`} className="hero-badge-chip">
-                          {badge.icon} {badge.label}
+                          <span className="hero-badge-icon" data-icon={badge.icon} aria-hidden="true" />
+                          <span className="hero-badge-label">{badge.label}</span>
                         </span>
                       ))}
                     </div>
@@ -2699,7 +2744,7 @@ export default function KidProfilePage() {
                 <div className="money-section-header">
                   <p className="panel-label money-section-title">Family Savings Goal</p>
                   <p className="money-section-description">
-                    Everyone can contribute here to move the family toward one shared target.
+                    Everyone can contribute to {familyFundLabel} to move the family toward one shared target.
                   </p>
                 </div>
                 <div className="limit-chip-row">
@@ -2713,6 +2758,9 @@ export default function KidProfilePage() {
                     <div>
                       <p className="panel-muted" style={{ marginTop: 0 }}>
                         {familySavingsGoal.rewardTitle || familySavingsGoal.name}
+                      </p>
+                      <p className="panel-muted" style={{ marginBottom: '0.35rem' }}>
+                        {familyFundLabel}: {familyFundBalance} credits available
                       </p>
                       <p className="panel-muted">
                         {familySavingsGoal.saved}/{familySavingsGoal.target} credits ({familySavingsGoalProgress}%)
@@ -2743,10 +2791,10 @@ export default function KidProfilePage() {
                         <p className="panel-muted">No one has chipped in yet.</p>
                       )}
                     </div>
-                    {familySavingsGoal.status === 'active' ? (
+                    {familyFundEnabled ? (
                       <form className="auth-form" onSubmit={handleContributeToFamilySavingsGoal}>
                         <div className="money-section-divider"></div>
-                        <p className="money-section-description">Help the whole family reach this goal.</p>
+                        <p className="money-section-description">Help the whole family add to {familyFundLabel}.</p>
                         <div className="money-quick-row" role="group" aria-label="Quick family contribution amounts">
                           {[10, 25, 50].map((value) => (
                             <button
@@ -2774,13 +2822,54 @@ export default function KidProfilePage() {
                           className="claim-button"
                           disabled={savingFamilyContribution || (Number(dashboard.balance.credits) || 0) <= 0}
                         >
-                          {savingFamilyContribution ? 'Saving...' : 'Contribute to Family Goal'}
+                          {savingFamilyContribution ? 'Saving...' : `Add To ${familyFundLabel}`}
                         </button>
                       </form>
-                    ) : null}
+                    ) : (
+                      <p className="panel-muted">{familyFundLabel} is off right now. Ask a parent to turn it on before contributing.</p>
+                    )}
                   </>
                 ) : (
-                  <p className="panel-muted">No shared family savings goal is set yet.</p>
+                  <>
+                    <p className="panel-muted">No shared family savings goal is set yet.</p>
+                    {familyFundEnabled ? (
+                      <form className="auth-form" onSubmit={handleContributeToFamilySavingsGoal}>
+                        <div className="money-section-divider"></div>
+                        <p className="money-section-description">You can still add credits to {familyFundLabel} now.</p>
+                        <div className="money-quick-row" role="group" aria-label="Quick family contribution amounts">
+                          {[10, 25, 50].map((value) => (
+                            <button
+                              key={`fund-only:${value}`}
+                              type="button"
+                              className="limit-chip money-quick-chip"
+                              onClick={() => setFamilyContributionAmount(String(value))}
+                            >
+                              +{value}
+                            </button>
+                          ))}
+                        </div>
+                        <input
+                          className="job-input"
+                          type="number"
+                          min="1"
+                          max={Math.max(0, Number(dashboard.balance.credits) || 0)}
+                          placeholder="Contribution amount"
+                          value={familyContributionAmount}
+                          onChange={(event) => setFamilyContributionAmount(event.target.value)}
+                          required
+                        />
+                        <button
+                          type="submit"
+                          className="claim-button"
+                          disabled={savingFamilyContribution || (Number(dashboard.balance.credits) || 0) <= 0}
+                        >
+                          {savingFamilyContribution ? 'Saving...' : `Add To ${familyFundLabel}`}
+                        </button>
+                      </form>
+                    ) : (
+                      <p className="panel-muted">{familyFundLabel} is off right now. Ask a parent to turn it on before contributing.</p>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -2838,6 +2927,8 @@ export default function KidProfilePage() {
             ) : (
               <ul className="kid-job-list">
                 {visibleRewards.map((reward) => {
+                  const rewardSalesTaxAmount = getRewardSalesTaxAmount(reward.cost)
+                  const rewardTotalCost = (Number(reward.cost) || 0) + rewardSalesTaxAmount
                   const limitDetails = getRewardLimitDetails(reward)
                   const alreadySavingForThis = childGoals.some(
                     (g) =>
@@ -2849,10 +2940,11 @@ export default function KidProfilePage() {
                   const goalSlotTaken = !!(activeChildGoal || pendingChildGoalRequest || childGoalCountered)
                   return (
                     <li key={reward.id} className="kid-job-item">
-                      <div className="kid-job-main">
+                      <div className="kid-reward-card-top">
+                        <div className="kid-job-main">
                         <span className="mission-main">🎁 {reward.title}</span>
                         <div className="limit-chip-row">
-                          <span className="limit-chip">
+                          <span className={reward.repeatMode === 'once' ? 'limit-chip' : 'limit-chip limit-chip-recurring'}>
                             {reward.repeatMode === 'once' ? 'One-time' : 'Recurring'}
                           </span>
                           {reward.pricingMeta?.dynamicPricingApplied ? (
@@ -2878,26 +2970,20 @@ export default function KidProfilePage() {
                         {alreadySavingForThis ? (
                           <p className="kid-job-hint">✅ Saving for this</p>
                         ) : null}
+                        </div>
+                        <div className="kid-reward-pricing panel-muted">
+                          <span>Base: {reward.cost} credits</span>
+                            <span>Contribution: {rewardSalesTaxAmount} credits</span>
+                          <span className="mission-reward" style={{ fontSize: '1rem', lineHeight: 1.1 }}>
+                            Total: {rewardTotalCost} credits
+                          </span>
+                        </div>
                       </div>
-                      <div className="kid-job-side">
-                        <span className="mission-reward">{reward.cost}</span>
-                        <button
-                          type="button"
-                          className="claim-button"
-                          onClick={() => handleRequestReward(reward)}
-                          disabled={
-                            requestingRewardId === reward.id
-                            || hasOpenRewardRequest
-                            || limitDetails.personalBlocked
-                            || limitDetails.familyBlocked
-                          }
-                        >
-                          {requestingRewardId === reward.id ? 'Requesting...' : 'Request'}
-                        </button>
+                      <div className="kid-reward-actions-grid">
                         <button
                           type="button"
                           className="text-button"
-                          style={{ marginTop: '0.25rem', fontSize: '0.78rem' }}
+                          style={{ marginTop: '0', fontSize: '0.78rem' }}
                           disabled={
                             savingForRewardId === reward.id
                             || alreadySavingForThis
@@ -2913,6 +2999,19 @@ export default function KidProfilePage() {
                                 ? 'Slot taken'
                                 : '🪙 Save for this'}
                         </button>
+                        <button
+                          type="button"
+                          className="claim-button"
+                          onClick={() => handleRequestReward(reward)}
+                          disabled={
+                            requestingRewardId === reward.id
+                            || hasOpenRewardRequest
+                            || limitDetails.personalBlocked
+                            || limitDetails.familyBlocked
+                          }
+                        >
+                          {requestingRewardId === reward.id ? 'Requesting...' : 'Request'}
+                        </button>
                       </div>
                     </li>
                   )
@@ -2925,11 +3024,37 @@ export default function KidProfilePage() {
               <p className="panel-muted">No reward requests yet.</p>
             ) : (
               <ul className="kid-job-list">
-                {sortedPastRewardHistory.map((item) => (
-                  
-                  <li key={item.id} className="kid-job-item">
-                    <div className="kid-job-main">
+                {sortedPastRewardHistory.map((item) => {
+                  const isApprovedProposal = item.status === 'approved' && item.requestKind === 'proposal'
+                  const claimSalesTaxAmount = isApprovedProposal ? getRewardSalesTaxAmount(item.cost) : 0
+                  const claimTotalCost = isApprovedProposal
+                    ? (Number(item.cost) || 0) + claimSalesTaxAmount
+                    : 0
+                  const availableCredits = Number(dashboard.balance?.credits) || 0
+                  const claimDeficit = isApprovedProposal
+                    ? Math.max(0, claimTotalCost - availableCredits)
+                    : 0
+                  const isActionLocked = isApprovedProposal ? isRewardRequestActionLocked(item) : false
+                  const hasGoalSlotTaken = !!(activeChildGoal || pendingChildGoalRequest || childGoalCountered)
+
+                  return (
+                    <li key={item.id} className="kid-job-item">
+                    <div className="kid-reward-card-top">
+                      <div className="kid-job-main">
                       <span className="mission-main">{item.rewardTitle}</span>
+                      <span
+                        className="limit-chip"
+                        style={{
+                          width: '7.5rem',
+                          justifyContent: 'center',
+                          textAlign: 'center',
+                          background: 'rgba(22, 128, 90, 0.14)',
+                          borderColor: 'rgba(22, 128, 90, 0.32)',
+                          color: 'var(--tone-success-strong)',
+                        }}
+                      >
+                        {displayRequestStatus(item.status)}
+                      </span>
                       {item.childNote ? (
                         <p className="panel-muted">Your note: {item.childNote}</p>
                       ) : null}
@@ -2951,11 +3076,13 @@ export default function KidProfilePage() {
                           You already started saving for this request.
                         </p>
                       ) : null}
-                    </div>
-                    <div className="kid-job-side">
-                      <span className={`kid-job-state kid-job-state-${getRequestTone(item.status)}`}>
-                        {displayRequestStatus(item.status)}
-                      </span>
+                      {isApprovedProposal && claimDeficit > 0 ? (
+                        <p className="panel-muted">
+                          Need {claimDeficit} more credits to claim.
+                        </p>
+                      ) : null}
+                      </div>
+                      <div className="kid-job-side">
                       {item.status === 'countered' ? (
                         <div className="button-row" style={{ marginTop: '0.35rem' }}>
                           <button
@@ -2976,41 +3103,57 @@ export default function KidProfilePage() {
                           </button>
                         </div>
                       ) : null}
-                      {item.status === 'approved' && item.requestKind === 'proposal' && !isRewardRequestActionLocked(item) ? (
-                        <div className="button-row" style={{ marginTop: '0.35rem' }}>
-                          {Number(item.cost || 0) > (Number(dashboard.balance?.credits) || 0) ? (
-                            <p className="panel-muted">
-                              Need {Math.max(0, Number(item.cost || 0) - (Number(dashboard.balance?.credits) || 0))} more credits to claim.
-                            </p>
-                          ) : null}
-                          <button
-                            type="button"
-                            className="claim-button"
-                            disabled={
-                              requestingRewardId.length > 0
-                              || Number(item.cost || 0) > (Number(dashboard.balance?.credits) || 0)
-                            }
-                            onClick={() => handleClaimApprovedReward(item)}
-                          >
-                            {requestingRewardId === `approved:${item.id}` ? 'Claiming...' : 'Claim Now'}
-                          </button>
-                          <button
-                            type="button"
-                            className="text-button"
-                            disabled={savingForRewardId.length > 0 || !!(activeChildGoal || pendingChildGoalRequest || childGoalCountered)}
-                            onClick={() => handleCreateSavingsGoal({
-                              id: item.rewardId || `proposal:${item.id}`,
-                              title: item.rewardTitle,
-                              cost: item.cost,
-                            })}
-                          >
-                            Save For This
-                          </button>
+                      {isApprovedProposal ? (
+                        <div className="kid-reward-pricing panel-muted" style={{ marginTop: '0.35rem' }}>
+                            <span>Base: {Number(item.cost) || 0} credits</span>
+                            <span>Contribution: {claimSalesTaxAmount} credits</span>
+                            <span className="mission-reward" style={{ fontSize: '1rem', lineHeight: 1.1 }}>
+                              Total: {claimTotalCost} credits
+                            </span>
                         </div>
                       ) : null}
                     </div>
+                    </div>
+                    {isApprovedProposal ? (
+                      <div className="kid-reward-actions-grid">
+                        <button
+                          type="button"
+                          className="text-button"
+                          style={{ marginTop: '0', fontSize: '0.78rem' }}
+                          disabled={
+                            isActionLocked
+                            || savingForRewardId.length > 0
+                            || hasGoalSlotTaken
+                          }
+                          onClick={() => handleCreateSavingsGoal({
+                            id: item.rewardId || `proposal:${item.id}`,
+                            title: item.rewardTitle,
+                            cost: item.cost,
+                          })}
+                        >
+                          {isActionLocked ? 'Already saving' : hasGoalSlotTaken ? 'Slot taken' : 'Save For This'}
+                        </button>
+                        <button
+                          type="button"
+                          className="claim-button"
+                          disabled={
+                            requestingRewardId.length > 0
+                            || claimTotalCost > availableCredits
+                            || isActionLocked
+                          }
+                          onClick={() => handleClaimApprovedReward(item)}
+                        >
+                          {isActionLocked
+                            ? 'Already saving'
+                            : requestingRewardId === `approved:${item.id}`
+                              ? 'Claiming...'
+                              : 'Claim Now'}
+                        </button>
+                      </div>
+                    ) : null}
                   </li>
-                ))}
+                  )
+                })}
               </ul>
             )}
           </section>

@@ -82,12 +82,14 @@ When making recommendations:
 3. FEATURES.md defines implemented and planned functionality.
 4. ARCHITECTURE.md defines technical structure.
 5. ROADMAP.md defines future priorities.
+6. BRAND.md defines visual identity, palette, typography, and UI color guardrails.
 
 If implementation differs from documentation, identify and report the discrepancy.
 
 ## Reference Docs
 
 - Product vision: [VISION.md](VISION.md)
+- Brand system: [BRAND.md](BRAND.md)
 - Product brief: [product-brief.md](product-brief.md)
 - Features: [FEATURES.md](FEATURES.md)
 - Domain model: [DOMAIN_MODEL.md](DOMAIN_MODEL.md)

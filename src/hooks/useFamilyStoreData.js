@@ -46,5 +46,10 @@ export default function useFamilyStoreData(options = {}) {
     refresh,
     rewards: data?.rewards || EMPTY_ARRAY,
     requests: data?.requests || EMPTY_ARRAY,
+    fundTaxSettings: data?.fundTaxSettings || {
+      familyFundEnabled: true,
+      familyFundSalesTaxEnabled: false,
+      familyFundSalesTaxPercent: 0,
+    },
   }
 }

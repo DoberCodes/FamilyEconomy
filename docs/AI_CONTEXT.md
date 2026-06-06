@@ -2,6 +2,29 @@
 
 Use this document when an AI assistant or contributor needs quick product and implementation context.
 
+## Documentation Hierarchy
+
+When making product decisions, updating features, or proposing architectural changes, use the following documentation order:
+
+1. `VISION.md` (authoritative)
+2. `ECONOMY_RULES.md`
+3. `EDUCATIONAL_PROGRESSION.md`
+4. `DOMAIN_MODEL.md`
+5. `ROADMAP.md`
+6. `FEATURES.md`
+7. `ARCHITECTURE.md`
+
+If documentation conflicts:
+
+* `VISION.md` wins.
+* Educational outcomes take priority over engagement mechanics.
+* Parent authority takes priority over child autonomy.
+* Simplicity takes priority over realism.
+
+Major product, architecture, roadmap, UX, and naming decisions should be recorded in `DECISION_LOG.md`.
+
+The decision log exists to preserve reasoning and historical context, not implementation details.
+
 ## Product Mission
 
 Family Economy is a family-focused financial literacy platform designed to teach children responsible money management through a fictional household economy.
@@ -18,6 +41,31 @@ The platform teaches:
 - Financial decision making
 
 Family Economy is educational first and a software product second.
+
+## Current Product Direction
+
+Family Economy is evolving from a simple jobs-and-rewards system into a family financial literacy platform.
+
+Current pillars include:
+
+* Family Dashboard
+* Recognition
+* Goals
+* Community Contribution
+* Financial Literacy
+* Family Participation
+
+Recognition is a first-class product domain and should emphasize:
+
+* Effort
+* Consistency
+* Generosity
+* Goal Completion
+* Positive Participation
+
+Avoid balance-based competition or wealth-focused mechanics unless explicitly required for educational purposes.
+
+The Family Dashboard should function as a family hub rather than a management dashboard.
 
 ## Non-Negotiable Product Boundaries
 

@@ -1,61 +1,442 @@
 # Features
 
-## Implemented
+This document tracks major user-facing functionality within Family Economy.
 
-### Core Family Economy Flows
+Product purpose, educational philosophy, and platform guardrails are defined in `VISION.md`.
 
-- Mobile-first child sessions with preconfigured dashboard, goals, rewards, jobs, and statements.
-- Parent-owned authentication with child profile selection/mock login inside the household.
-- Parent control center with family settings, reward approvals, job review, and onboarding.
-- Onboarding starter templates for jobs and rewards, with bulk add and per-item editing before parents create them.
-- Firestore-backed family data store with parent user profiles, child profiles, and household relationships.
-- Fictional educational credits only; no real-money balances, transfers, banking, or payment processing.
+If there is a conflict between this document and `VISION.md`, `VISION.md` is authoritative.
 
-### Jobs And Tasks
+---
 
-- Parent-created jobs and job pool support.
-- Kid claim flow for open jobs, including in-progress and done states.
-- Job check requests and parent review paths.
-- Pool job limit tracking for each child.
+# Implemented
 
-### Savings And Rewards
+## Core Family Economy Experience
 
-- Kid savings goal creation and progress tracking.
-- Parent approval flows for savings goals where required.
-- Reward request workflow that distinguishes proposal vs purchase requests.
-- Parent review of rewards with approve, counter, deny, and `Add to Family Pool` options.
-- Support for resolving reward proposals into shared family pool rewards.
-- Child-facing reward claim and save-for-this actions with credit gating.
+### Household Structure
 
-### UX Polish
+* Parent-owned household accounts.
+* Parent-controlled child profiles.
+* Parent-authenticated family boundary.
+* Child profile selection and child session support.
+* Family-level settings and economy controls.
+* Mobile-first experience for both parents and children.
 
-- Child-friendly hero and Credit Wallet display that frames balances as fictional educational credits.
-- Reward history and statement views.
-- Dismissable reward notification support for auto-approved purchases.
-- Credit-safe guardrails for claiming and saving actions.
-- Learning-oriented language that keeps credits distinct from real money.
+### Educational Credits
 
-## Planned
+* Fictional educational credit system.
+* Child wallets.
+* Transaction history.
+* Credit earning through participation.
+* Credit spending through rewards and goals.
+* Educational framing throughout the application.
 
-### Experience Improvements
+Credits are fictional educational units only.
 
-- Complete parent reward pool resolution UI and polish the parent review experience.
-- Improve child reward discovery by prioritizing actionable requests and making pool/goal statuses clearer.
-- Add celebratory feedback across savings and reward milestones while avoiding pressure-based streak loops.
-- Extend reward and savings copy to be more engaging and educational throughout.
+---
 
-### Family Policy And Controls
+## Family Dashboard
 
-- Clarify and harden parent-authenticated child session boundaries across service calls and Firestore writes.
-- Add family-level approval defaults for jobs, rewards, and savings that are easier to configure.
-- Add per-item approval overrides with clearer parent decision flows.
-- Improve notification handling for rejected, countered, and redirected reward requests.
-- Add optional family tax, family fund, and community project flows that teach shared responsibility without punishment framing.
+The Family Dashboard acts as the family hub.
 
-### Product Expansion
+### Family News
 
-- Add richer reward catalog and filtering for saver-friendly items.
-- Add analytics and progress summaries for family performance.
-- Support more flexible fictional credit economics, including recurring pool rewards and educational time-based limits.
-- Add budgeting helpers that keep fictional credits separate from real-world accounts.
-- Expand onboarding and parent/child session handoff flows.
+* Family announcements.
+* Family updates.
+* Parent-created messages.
+* Family-wide visibility.
+
+### Family Goals
+
+* Shared family objectives.
+* Family contribution tracking.
+* Goal progress visualization.
+* Contributor visibility.
+
+### Weekly Recognition
+
+Recognition carousel supporting:
+
+* Hardest Worker
+* Most Helpful
+* Goal Setter
+* Most Generous
+* Consistency Champion
+* Additional future categories
+
+Features include:
+
+* Weekly title holders.
+* Leader cards.
+* Empty-state support.
+* Family participation visibility.
+
+### Family Job Tracker
+
+* Open jobs.
+* In-progress jobs.
+* Completed jobs.
+* Family-wide visibility.
+
+### Recent Achievements
+
+* Recent accomplishments.
+* Achievement history.
+* Recognition visibility.
+
+### Activity Feed
+
+* Job completions.
+* Reward activity.
+* Goal activity.
+* Community activity.
+* Family participation history.
+
+---
+
+# Jobs And Responsibilities
+
+## Jobs
+
+Parents can create:
+
+* One-time jobs.
+* Recurring jobs.
+* Child-specific jobs.
+* Family pool jobs.
+* Helper jobs.
+
+### Job Workflow
+
+* Open
+* Claimed
+* In Progress
+* Submitted
+* Approved
+
+### Parent Controls
+
+* Approval requirements.
+* Reward amounts.
+* XP rewards.
+* Visibility controls.
+
+---
+
+## Job Review
+
+Parents can:
+
+* Approve jobs.
+* Deny jobs.
+* Review submissions.
+* Track participation.
+
+---
+
+# Savings And Goals
+
+## Savings Goals
+
+Children can:
+
+* Create savings goals.
+* Track progress.
+* Save toward goals.
+* Complete goals.
+
+### Goal Features
+
+* Goal names and descriptions.
+* Progress tracking.
+* Completion states.
+* Educational messaging.
+
+---
+
+## Family Goals
+
+Families can:
+
+* Create shared goals.
+* Contribute collectively.
+* Track family progress.
+* Celebrate completion together.
+
+Examples:
+
+* Family outings.
+* Shared rewards.
+* Community projects.
+* Vacation goals.
+
+---
+
+# Rewards
+
+## Rewards
+
+Parents can create:
+
+* Personal rewards.
+* Shared rewards.
+* Family pool rewards.
+
+Children can:
+
+* Browse rewards.
+* Request rewards.
+* Save toward rewards.
+* Redeem rewards.
+
+---
+
+## Reward Requests
+
+Supported workflows:
+
+* Purchase requests.
+* Reward proposals.
+* Parent review.
+* Counter offers.
+* Family pool conversion.
+
+### Parent Actions
+
+* Approve
+* Counter
+* Deny
+* Add To Family Pool
+
+---
+
+## Family Reward Pool
+
+Shared reward catalog supporting:
+
+* Family experiences.
+* Shared rewards.
+* Household activities.
+* Family-wide participation.
+
+---
+
+# Recognition And Progress
+
+## XP System
+
+Children earn XP through participation.
+
+Examples:
+
+* Completing jobs.
+* Helping family members.
+* Goal progress.
+* Community participation.
+
+---
+
+## Levels
+
+Level progression tracks long-term growth and participation.
+
+Levels are separate from credits.
+
+---
+
+## Achievements
+
+Achievement system supporting:
+
+* Milestone achievements.
+* Goal achievements.
+* Participation achievements.
+* Contribution achievements.
+
+Achievements are permanent accomplishments.
+
+---
+
+## Badges
+
+Parent-defined badges and recognition.
+
+Badges reinforce:
+
+* Responsibility.
+* Contribution.
+* Consistency.
+* Family values.
+
+---
+
+## Weekly Recognition
+
+Weekly recognition categories celebrate positive participation.
+
+Recognition focuses on:
+
+* Growth.
+* Effort.
+* Contribution.
+* Consistency.
+
+Recognition intentionally avoids focusing solely on wealth or balances.
+
+---
+
+# Community Systems
+
+## Community Fund
+
+Shared family resource funded through contributions.
+
+Community Funds support:
+
+* Family goals.
+* Shared rewards.
+* Community projects.
+* Family activities.
+
+---
+
+## Family Contributions
+
+Optional contribution system that teaches:
+
+* Shared responsibility.
+* Community participation.
+* Family collaboration.
+
+Contribution systems are educational and should not be punitive.
+
+---
+
+## Community Projects
+
+Families can use shared resources for:
+
+* Family projects.
+* Shared experiences.
+* Group goals.
+* Collaborative rewards.
+
+---
+
+# Family Economy Features
+
+## Economy Customization
+
+Parents can configure:
+
+* Approval workflows.
+* Community contribution settings.
+* Competition settings.
+* Scarcity settings.
+* Supply and demand settings.
+
+---
+
+## Competitive Mode
+
+Optional family competition mechanics.
+
+Features are designed to encourage participation while maintaining educational focus.
+
+---
+
+## Supply And Demand
+
+Optional educational economy mechanics.
+
+Supports:
+
+* Resource management.
+* Tradeoff discussions.
+* Economic concepts.
+
+---
+
+## Scarcity
+
+Optional scarcity systems designed to teach:
+
+* Planning.
+* Prioritization.
+* Decision-making.
+
+Scarcity systems should remain educational and never become engagement mechanics.
+
+---
+
+# Onboarding
+
+## Family Setup
+
+Guided onboarding for:
+
+* Parent account setup.
+* Child profile creation.
+* Economy configuration.
+
+---
+
+## Starter Content
+
+Starter templates for:
+
+* Jobs
+* Rewards
+* Goals
+
+Templates can be customized before use.
+
+---
+
+# Planned Features
+
+## Family Templates
+
+* Cooperative Economy
+* Balanced Economy
+* Competitive Economy
+
+---
+
+## Parent Insights
+
+* Family participation summaries.
+* Recognition summaries.
+* Economy health indicators.
+* Contribution summaries.
+* Family engagement reporting.
+
+---
+
+## Recognition Expansion
+
+Additional recognition categories:
+
+* Rising Star
+* Top Saver
+* Community Builder
+* Future family-defined categories
+
+---
+
+## Advanced Economy
+
+Designed primarily for older children.
+
+Planned concepts include:
+
+* Savings Accounts
+* Emergency Funds
+* Budgeting
+* Expenses
+* Family Bank
+* Loans
+* Credit Simulations
+* Investing Simulations
+* Family Business Systems
+
+See `ROADMAP.md` and `VISION.md` for future educational progression plans.

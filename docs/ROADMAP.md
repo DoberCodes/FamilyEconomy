@@ -1,47 +1,324 @@
 # Roadmap
 
-## Current Priorities
+This roadmap defines the current development priorities and future direction for Family Economy.
 
-0. **Keep the educational direction explicit**
-   - Treat Family Economy as a financial literacy product first.
-   - Keep all credits, balances, rewards, and statements clearly fictional.
-   - Avoid banking, payment, gambling, loot-box, or engagement-loop patterns.
+Product purpose and philosophy are defined in `VISION.md`.
 
-1. **Align child sessions with parent-owned auth**
-   - Treat Firebase Auth as the parent household boundary.
-   - Make child profile selection/session codes feel like kid login without implying independent child accounts.
-   - Keep service and rules behavior explicit about which writes are parent-mediated and which future flows require true kid auth.
+Educational progression is defined in `EDUCATIONAL_PROGRESSION.md`.
 
-2. **Finish parent reward pool resolution workflow**
-   - Complete the parent UI for converting reward proposals into family pool rewards.
-   - Make the pool creation flow obvious, editable, and fast to use.
-   - Preserve linked request semantics so redirected pool items do not appear as personal reward actions.
+Behavioral guardrails are defined in `ECONOMY_RULES.md`.
 
-3. **Polish child reward and savings experience**
-   - Prioritize actionable approved proposals at the top of reward history.
-   - Ensure saved-for-this requests hide actions while the linked savings goal remains active.
-   - Continue copy hygiene for Credit Wallet, fictional credits, and reward statuses.
-   - Strengthen goal-based saving and delayed gratification cues.
+If roadmap priorities conflict with those documents, those documents are authoritative.
 
-4. **Make savings and job cards more educational and approachable**
-   - Continue the guided savings experience.
-   - Apply friendly language and visual energy to jobs, rewards, and family pool cards.
-   - Reduce crowding and improve spacing for card header rows.
+---
 
-## Planned Features
+# Roadmap Principles
 
-- Better parent configuration for approval defaults across jobs, rewards, and savings.
-- More flexible family pool rules with per-child and family claim limits.
-- Expanded reward catalog and filtering to support easier reward discovery.
-- Improved notifications and history for reward request lifecycle events.
-- Analytics and progress summaries for family activity.
-- Optional family tax, family fund, and community project workflows with explicit educational framing.
-- Budgeting helpers that keep fictional credits separate from real-world accounts.
+Features should be prioritized using the following criteria:
 
-## Longer-Term Direction
+1. Educational value
+2. Family engagement
+3. Simplicity and accessibility
+4. Long-term maintainability
+5. Implementation effort
 
-- Support multiple children and shared pool dynamics more explicitly.
-- Add lightweight achievements and habit-building mechanics tied to chores, savings, and rewards without excessive streak pressure.
-- Consider offline resilience for Firebase state and local child sessions.
-- Refine onboarding for families setting up their first jobs, goals, and reward pools.
-- Add teen concepts such as budgeting categories, emergency savings, investing simulation, and entrepreneurship only as educational simulations with no real-money handling.
+The goal is to build the simplest feature that delivers meaningful educational outcomes.
+
+---
+
+# Current Priorities
+
+## Family Dashboard Refinement
+
+Continue evolving the Family Dashboard into the central family hub.
+
+### Goals
+
+* Remove Family Snapshot from the Family Dashboard.
+* Position Family Goal directly beneath Family News.
+* Continue refining Weekly Recognition.
+* Improve Family Job Tracker usability.
+* Continue refining Recent Achievements and Activity Feed.
+* Improve dashboard storytelling and family visibility.
+
+### Desired Flow
+
+```text
+Family News
+↓
+Family Goal
+↓
+Weekly Recognition
+↓
+Family Job Tracker
+↓
+Recent Activity
+```
+
+---
+
+## Weekly Recognition Expansion
+
+Continue strengthening recognition as a family celebration system.
+
+### Current Focus
+
+* Refine carousel experience.
+* Improve title-holder cards.
+* Improve empty-state experiences.
+* Improve mobile presentation.
+* Continue reinforcing participation and growth.
+
+### Recognition Categories
+
+Implemented:
+
+* Hardest Worker
+* Most Helpful
+* Goal Setter
+* Most Generous
+* Consistency Champion
+
+Planned:
+
+* Rising Star
+* Top Saver
+
+---
+
+## Family Onboarding
+
+Reduce setup friction for new families.
+
+### Improvements
+
+* Parent setup wizard
+* Child profile setup flow
+* Starter job recommendations
+* Starter reward recommendations
+* Starter goal recommendations
+* Age-based starter templates
+
+---
+
+## Savings & Goals Experience
+
+Continue strengthening delayed gratification and planning concepts.
+
+### Improvements
+
+* Goal progress visibility
+* Goal completion celebrations
+* Savings-related achievements
+* Reward-to-goal workflows
+* Educational messaging
+
+---
+
+# Next Up
+
+## Community Systems Expansion
+
+Continue expanding collaborative family experiences.
+
+### Features
+
+* Family projects
+* Community project workflows
+* Expanded Family News
+* Family voting systems
+* Shared decision-making tools
+
+---
+
+## Parent Insights
+
+Parent-focused educational reporting.
+
+### Features
+
+* Participation summaries
+* Recognition summaries
+* Contribution summaries
+* Family engagement indicators
+* Economy health summaries
+
+---
+
+## Family Templates
+
+Provide easier setup and customization.
+
+### Planned Templates
+
+* Cooperative Economy
+* Balanced Economy
+* Competitive Economy
+
+---
+
+## Recognition Expansion
+
+Expand recognition systems beyond the initial implementation.
+
+### Ideas
+
+* Rising Star
+* Community Builder
+* Goal Champion
+* Family MVP
+* Additional family-defined categories
+
+---
+
+# Future Expansion
+
+## Advanced Economy
+
+Introduce deeper financial concepts for older children.
+
+### Savings Account
+
+* Wallet → Savings transfers
+* General savings
+* Emergency fund concepts
+* Savings-based recognition
+
+### Budgeting & Expenses
+
+* Housing Contribution
+* Food Contribution
+* Utilities Contribution
+* Transportation Contribution
+
+Educational focus:
+
+* Budgeting
+* Cash flow
+* Planning
+* Financial responsibility
+
+### Family Bank
+
+* Parent-issued loans
+* Repayment schedules
+* Down-payment simulations
+* Lending concepts
+
+### Credit Concepts
+
+* Credit score simulation
+* Trust and repayment concepts
+* Long-term planning
+
+### Investing Simulation
+
+* Risk and reward
+* Long-term growth
+* Educational investing only
+
+### Family Business
+
+* Equipment ownership
+* Equipment rental
+* Business income
+* Business expenses
+* Entrepreneurship education
+
+---
+
+## Ecosystem Expansion
+
+Pursue only after product-market fit is established.
+
+### Family Hub
+
+* Raspberry Pi deployment
+* Household dashboard display
+* Family kiosk experiences
+
+### Education Variants
+
+* Classroom Economy
+* Homeschool Economy
+* Group educational experiences
+
+---
+
+# Product Evolution
+
+This section provides a high-level view of how Family Economy is expected to grow.
+
+---
+
+## Core Economy
+
+### Implemented
+
+* Jobs
+* Rewards
+* Savings Goals
+* Family Goals
+* Community Fund
+* Family Contributions
+* XP & Levels
+* Achievements
+* Badges
+* Weekly Recognition
+* Family Dashboard
+* Family News
+* Activity Feed
+
+### Future
+
+* Family Voting
+* Community Projects
+* Parent Insights
+* Economy Templates
+* Expanded Recognition
+
+---
+
+## Advanced Economy
+
+### Future
+
+* Savings Accounts
+* Emergency Funds
+* Budgeting
+* Expenses
+* Family Bank
+* Loans
+* Credit Simulation
+* Investing Simulation
+* Family Business
+
+---
+
+## Ecosystem
+
+### Future
+
+* Raspberry Pi Family Hub
+* Classroom Edition
+* Homeschool Edition
+
+---
+
+# Success Criteria
+
+Family Economy should evolve from a simple household responsibility system into a complete family financial literacy platform.
+
+The platform should help families teach:
+
+* Responsibility
+* Saving
+* Spending
+* Goal Setting
+* Delayed Gratification
+* Community Contribution
+* Budgeting
+* Financial Planning
+* Entrepreneurship
+
+while remaining safe, fictional, educational, and parent-controlled.

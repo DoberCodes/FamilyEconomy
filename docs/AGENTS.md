@@ -39,6 +39,44 @@ When significant features, architecture, or domain concepts change:
 - Do not allow documentation to drift from implementation.
 - Call out outdated documentation when discovered.
 
+If a change affects:
+
+- Product philosophy
+- Educational outcomes
+- Domain structure
+- Architecture boundaries
+- Roadmap direction
+
+Update documentation before implementation is considered complete.
+
+## Decision Log
+
+When a product, architecture, domain, roadmap, or UX decision changes the direction of the app, update `docs/DECISION_LOG.md`.
+
+Use the decision log for decisions that explain **why** something changed, not just what changed.
+
+Good decision log candidates:
+
+* Product direction changes
+* Dashboard structure changes
+* Domain model changes
+* Roadmap priority changes
+* Architecture boundary changes
+* Major UX philosophy decisions
+* Naming changes with long-term impact
+* Feature scope decisions
+
+Do not use the decision log for routine bug fixes, small styling changes, minor copy edits, or implementation details that do not affect product direction.
+
+Each entry should include:
+
+* Date
+* Decision
+* Context
+* Reasoning
+* Impact
+* Related documents updated
+
 ## Refactoring And Scalability
 
 When implementing refactors or architecture changes, prefer the cleanest scalable design over preserving an awkward structure for compatibility.

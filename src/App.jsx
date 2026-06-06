@@ -4,6 +4,7 @@ import { BrowserRouter, HashRouter, Navigate, Route, Routes, useLocation, useNav
 import BottomTabBar from './components/mobile/BottomTabBar'
 import PhoneFrame from './components/mobile/PhoneFrame'
 import TopStatusBar from './components/mobile/TopStatusBar'
+import SplashScreen from './components/shared/SplashScreen'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import AuthPage from './pages/AuthPage'
 import ChildProfilesPage from './pages/mobile/ChildProfilesPage'
@@ -136,18 +137,14 @@ function MobileAppRoutes() {
 
   if ((loading && !loadingTimedOut) || checkingOnboarding) {
     return (
-      <main className="phone-content auth-wrap">
-        <section className="panel auth-card">
-          <p className="panel-label">Family Economy</p>
-          <p className="panel-muted">Loading secure parent session...</p>
-          {blockedByClient ? (
-            <p className="status-note status-error">
-              Browser privacy/ad-block settings are blocking Firebase requests. Allow
-              firestore.googleapis.com and identitytoolkit.googleapis.com for this site.
-            </p>
-          ) : null}
-        </section>
-      </main>
+      <SplashScreen
+        message="Loading secure parent session..."
+        error={
+          blockedByClient
+            ? 'Browser privacy/ad-block settings are blocking Firebase requests. Allow firestore.googleapis.com and identitytoolkit.googleapis.com for this site.'
+            : ''
+        }
+      />
     )
   }
 
@@ -252,6 +249,31 @@ function ShellChrome() {
   )
 }
 
+function SplashPreviewGate() {
+  const location = useLocation()
+  const searchParams = new URLSearchParams(location.search)
+  const showSplashPreview = searchParams.get('splash') === '1' || searchParams.get('loading') === '1'
+
+  if (showSplashPreview) {
+    return (
+      <SplashScreen
+        message="Splash preview"
+        detail="Remove ?splash=1 to continue into the app."
+      />
+    )
+  }
+
+  return (
+    <>
+      <ShellChrome />
+      <Routes>
+        <Route path="/auth" element={<AuthPage />} />
+        <Route path="*" element={<MobileAppRoutes />} />
+      </Routes>
+    </>
+  )
+}
+
 function App() {
   const Router = import.meta.env.VITE_USE_HASH_ROUTER === 'true' ? HashRouter : BrowserRouter
 
@@ -260,11 +282,7 @@ function App() {
       <AuthProvider>
         <UiThemeSync />
         <PhoneFrame>
-          <ShellChrome />
-          <Routes>
-            <Route path="/auth" element={<AuthPage />} />
-            <Route path="*" element={<MobileAppRoutes />} />
-          </Routes>
+          <SplashPreviewGate />
         </PhoneFrame>
       </AuthProvider>
     </Router>

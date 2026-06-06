@@ -1,8 +1,11 @@
 import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
 
+import SplashScreen from '../components/shared/SplashScreen'
 import { useAuth } from '../context/AuthContext'
 import { isBlockedByClientSignal, normalizeErrorMessage } from '../utils/errorUtils'
+
+const authLogoSrc = `${import.meta.env.BASE_URL}verticalnotag.png`
 
 function createFamilyId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -56,6 +59,10 @@ export default function AuthPage() {
 
   if (shouldRedirectToParentHome) {
     return <Navigate to="/mobile/home" replace />
+  }
+
+  if (loading) {
+    return <SplashScreen message="Loading parent sign in..." />
   }
 
   async function handleCompleteProfile(event) {
@@ -145,19 +152,22 @@ export default function AuthPage() {
   }
 
   return (
-    <main className="phone-content auth-wrap">
-      <section className="panel auth-card">
-        <p className="panel-label">Family Economy</p>
-        <p className="panel-muted">Parent account required. App defaults to kid-safe view after sign in.</p>
+    <main className="auth-screen">
+      <section className="auth-brand-hero" aria-label="Family Economy">
+        <img className="auth-brand-logo" src={authLogoSrc} alt="Family Economy" />
+      </section>
+
+      <section className="auth-card auth-login-panel">
+        <p className="auth-kicker">Parent Access</p>
+        <h1 className="auth-title">
+          {mode === 'register' ? 'Create parent account' : 'Welcome back'}
+        </h1>
         {blockedByClient ? (
           <p className="status-note status-error">
             Browser privacy/ad-block settings are blocking Firebase requests. Allow
             firestore.googleapis.com and identitytoolkit.googleapis.com for this site.
           </p>
         ) : null}
-        <h1 className="auth-title">
-          {mode === 'register' ? 'Create parent account' : 'Parent sign in'}
-        </h1>
 
         {authStatusText ? (
           <p className="status-note status-error">{authStatusText}</p>
@@ -214,7 +224,7 @@ export default function AuthPage() {
 
         <button
           type="button"
-          className="text-button"
+          className="auth-mode-link"
           onClick={() => setMode(mode === 'register' ? 'login' : 'register')}
         >
           {mode === 'register'

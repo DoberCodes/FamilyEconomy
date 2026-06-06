@@ -66,6 +66,8 @@ GitHub Actions must also receive your Firebase web app values at build time. Add
 
 If Firebase env values are missing, the app automatically uses seeded local data.
 
+Firestore-backed analytics event writes are opt-in. Set `VITE_FIRESTORE_ANALYTICS_ENABLED=true` only when you want Creator analytics events persisted to Firestore; leave it false for quieter local development.
+
 ## Auth + User Profiles
 
 After registration, each user gets a profile document:

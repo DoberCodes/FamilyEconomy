@@ -22,6 +22,7 @@ function buildStorageKey(eventName, familyId, userId, childId) {
 }
 
 const ANALYTICS_EVENTS_COLLECTION = 'analyticsEvents'
+const FIRESTORE_ANALYTICS_ENABLED = import.meta.env.VITE_FIRESTORE_ANALYTICS_ENABLED === 'true'
 
 const MEANINGFUL_EVENT_NAMES = new Set([
   'onboarding_started',
@@ -40,7 +41,12 @@ const MEANINGFUL_EVENT_NAMES = new Set([
 ])
 
 async function persistAnalyticsEvent(event) {
-  if (!hasFirebaseConfig || !db || !MEANINGFUL_EVENT_NAMES.has(event.eventName)) {
+  if (
+    !FIRESTORE_ANALYTICS_ENABLED
+    || !hasFirebaseConfig
+    || !db
+    || !MEANINGFUL_EVENT_NAMES.has(event.eventName)
+  ) {
     return
   }
 
@@ -53,7 +59,7 @@ async function persistAnalyticsEvent(event) {
 }
 
 async function readAnalyticsEvents(days) {
-  if (!hasFirebaseConfig || !db) {
+  if (!FIRESTORE_ANALYTICS_ENABLED || !hasFirebaseConfig || !db) {
     return []
   }
 

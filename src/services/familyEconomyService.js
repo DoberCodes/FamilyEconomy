@@ -1203,6 +1203,44 @@ export async function updateJob(jobId, jobPayload, context = {}) {
   )
 }
 
+export async function deleteJob(jobId, context = {}) {
+  const { familyId: activeFamilyId, userId, userRole } = getActiveFamilyContext(context)
+
+  if (userRole !== 'parent') {
+    throw new Error('Only parents can delete jobs.')
+  }
+
+  if (!hasFirebaseConfig || !db) {
+    throw new Error('Firebase is not configured.')
+  }
+
+  if (!jobId) {
+    throw new Error('Job ID is required.')
+  }
+
+  await deleteDoc(doc(db, 'families', activeFamilyId, 'jobs', jobId))
+
+  const relatedRequests = await getDocs(
+    query(
+      collection(db, 'families', activeFamilyId, 'jobCheckRequests'),
+      where('jobId', '==', jobId),
+    ),
+  )
+
+  await Promise.all(relatedRequests.docs.map((item) => deleteDoc(item.ref)))
+
+  trackAnalyticsEvent(
+    'job_deleted',
+    {
+      itemId: jobId,
+      itemType: 'job',
+      source: 'deleteJob',
+      screen: 'parent',
+    },
+    { familyId: activeFamilyId, userId, userRole },
+  )
+}
+
 export async function claimJob(jobId, context = {}) {
   const { familyId: activeFamilyId, userId, userRole } = getActiveFamilyContext(
     context,
@@ -4372,7 +4410,20 @@ export async function getFamilyFeedbackEntries(context = {}) {
     }
   }
 
-  const snapshot = await getDocs(collection(db, 'families', activeFamilyId, 'feedbackEntries'))
+  let snapshot
+  try {
+    snapshot = await getDocs(collection(db, 'families', activeFamilyId, 'feedbackEntries'))
+  } catch (error) {
+    if (error?.code === 'permission-denied') {
+      return {
+        source: 'empty',
+        data: { entries: [] },
+        context: { familyId: activeFamilyId, userId, userRole },
+      }
+    }
+    throw error
+  }
+
   const entries = snapshot.docs
     .map((item) => normalizeFeedbackEntry({ id: item.id, ...item.data() }, item.id))
     .sort((left, right) => {

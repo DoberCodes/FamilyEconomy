@@ -63,5 +63,13 @@ export default function useFamilyHomeData() {
     familyDashboardTopCardsEnabled: family?.familyDashboardTopCardsEnabled !== false,
     achievementsEnabled: family?.achievementsEnabled !== false,
     familyRecognitionEnabled: family?.familyRecognitionEnabled !== false,
+    customBadges: family?.customBadges || EMPTY_ARRAY,
+    achievementFirstGoalTarget: Math.max(1, Number(family?.achievementFirstGoalTarget) || 1),
+    achievementContributorCreditsTarget: Math.max(1, Number(family?.achievementContributorCreditsTarget) || 100),
+    achievementHelperJobsTarget: Math.max(1, Number(family?.achievementHelperJobsTarget) || 3),
+    achievementReadingJobsTarget: Math.max(1, Number(family?.achievementReadingJobsTarget) || 5),
+    recognitionStreakDaysTarget: Math.max(1, Number(family?.recognitionStreakDaysTarget) || 3),
+    recognitionHelpingHandJobsTarget: Math.max(1, Number(family?.recognitionHelpingHandJobsTarget) || 1),
+    recognitionGoalGetterTarget: Math.max(1, Number(family?.recognitionGoalGetterTarget) || 1),
   }
 }

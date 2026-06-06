@@ -10,6 +10,7 @@ import {
 } from '../../services/analytics'
 import { getParentAnalyticsSummary } from '../../services/parentAnalyticsSelectors'
 import { getParentCommandCenterRequestSummary } from '../../services/parentCommandCenterSelectors'
+import { deleteJob as deleteJobService } from '../../services/familyEconomyService'
 import useParentCommandCenterData from '../../hooks/useParentCommandCenterData'
 
 const emptyWeeklySummary = {
@@ -2238,6 +2239,60 @@ export default function ProfilePage() {
     }
   }
 
+  async function handleDeleteJob(jobId) {
+    const job = jobs.find((item) => item.id === jobId)
+    const title = job?.title || 'this job'
+
+    if (!window.confirm(`Delete "${title}"? This also clears any pending check request for it.`)) {
+      return
+    }
+
+    setDialogBusy(true)
+    setReviewingRequestId(`job-delete:${jobId}`)
+    setError('')
+
+    try {
+      await deleteJobService(jobId, { familyId, userId, userRole })
+      const refreshedData = await refreshParentCommandCenterData()
+      applyParentCommandCenterData(refreshedData)
+    } catch (caughtError) {
+      setError(caughtError.message || 'Could not delete this job.')
+    } finally {
+      setReviewingRequestId('')
+      setDialogBusy(false)
+    }
+  }
+
+  async function handleDeleteShownJobs() {
+    const jobCount = visibleJobsForCurrentScope.length
+    const scopeLabel = jobScopeChildId ? currentJobScopeLabel : 'the shared queue'
+
+    if (jobCount === 0) {
+      return
+    }
+
+    if (!window.confirm(`Delete ${jobCount} job(s) shown for ${scopeLabel}? This also clears related check requests.`)) {
+      return
+    }
+
+    setDialogBusy(true)
+    setReviewingRequestId('job-delete-shown')
+    setError('')
+
+    try {
+      await Promise.all(visibleJobsForCurrentScope.map((job) => (
+        deleteJobService(job.id, { familyId, userId, userRole })
+      )))
+      const refreshedData = await refreshParentCommandCenterData()
+      applyParentCommandCenterData(refreshedData)
+    } catch (caughtError) {
+      setError(caughtError.message || 'Could not delete all shown jobs.')
+    } finally {
+      setReviewingRequestId('')
+      setDialogBusy(false)
+    }
+  }
+
   async function handleExportWeeklyActiveSummary() {
     const summary = JSON.stringify(
       {
@@ -2490,6 +2545,26 @@ export default function ProfilePage() {
     goals,
     childNameById,
   })
+  const pendingJobCheckByJobId = pendingJobCheckRequests.reduce((accumulator, request) => {
+    if (request.jobId) {
+      accumulator[request.jobId] = request
+    }
+    return accumulator
+  }, {})
+  const currentJobScopeLabel = jobScopeChildId
+    ? childProfiles.find((child) => child.id === jobScopeChildId)?.displayName || 'Selected child'
+    : 'Shared family'
+  const visibleJobsForCurrentScope = jobs.filter((job) => {
+    if (!jobScopeChildId) {
+      return !job.childId
+    }
+
+    if (job.childId === jobScopeChildId || job.claimedBy === jobScopeChildId) {
+      return true
+    }
+
+    return !job.childId && job.status === 'open'
+  })
 
   useEffect(() => {
     if (!activeHelpDialog) {
@@ -2643,7 +2718,7 @@ export default function ProfilePage() {
 
             <section className="panel">
               <p className="panel-label">Parent Actions</p>
-              <p className="panel-muted">Daily tools for approvals, chores, rewards, and a quick family snapshot. Occasional setup lives in More tools.</p>
+              <p className="panel-muted">Daily tools for approvals, chores, rewards, and the economy overview. Occasional setup lives in More tools.</p>
               <div className="button-row parent-actions-primary">
                 <button type="button" className="text-button command-button" onClick={() => openDialog('requests')}>
                   <span>Approvals queue</span>
@@ -2652,7 +2727,7 @@ export default function ProfilePage() {
                   ) : null}
                 </button>
                 <button type="button" className="text-button" onClick={() => openDialog('overview')}>
-                  Family snapshot
+                  Economy overview
                 </button>
                 <button type="button" className="text-button" onClick={() => openDialog('jobs')}>
                   Chores and jobs
@@ -2906,7 +2981,7 @@ export default function ProfilePage() {
             <div className="dialog-card panel">
               <div className="panel-head">
                 <p className="panel-label">
-                  {activeDialog === 'overview' ? 'Family Snapshot' : null}
+                  {activeDialog === 'overview' ? 'Economy Overview' : null}
                   {activeDialog === 'add-child' ? 'Add Child' : null}
                   {activeDialog === 'setup' ? 'Family Settings' : null}
                   {activeDialog === 'badges' ? 'Badges' : null}
@@ -2931,7 +3006,7 @@ export default function ProfilePage() {
 
               {activeDialog === 'overview' ? (
                 <div className="dialog-content family-snapshot-dialog">
-                  <p className="dialog-section-subtitle">Quick summary of your current family setup.</p>
+                  <p className="dialog-section-subtitle">Review your current economy setup before changing it in Family settings.</p>
 
                   <section className="family-snapshot-hero" aria-label="Family identity">
                     <div>
@@ -3044,78 +3119,6 @@ export default function ProfilePage() {
                   <p className="family-snapshot-edit-note">
                     Review-only view. To change these settings, open More tools, then Family settings.
                   </p>
-                  <p className="panel-muted">Quick summary of your current family setup.</p>
-                  <p className="panel-muted">Family: {familySummary.profileName || 'Not set'}</p>
-                  <p className="panel-muted">Family News: {familySummary.familyAnnouncement || 'No family news posted'}</p>
-                  <p className="panel-muted">Family Rules: {familySummary.familyRules || 'No family rules yet'}</p>
-                  <p className="panel-muted">
-                    Shared family fund: {familySummary.familyFundEnabled ? `${familySummary.familyFundName || 'Community Funds'} (${Number(familySummary.familyFundBalance) || 0} credits available)` : 'Off'}
-                  </p>
-                  {familySummary.familyFundEnabled ? (
-                    <p className="panel-muted">
-                      Fund contribution settings: {familySummary.familyFundIncomeTaxEnabled ? `${Math.min(100, Math.max(0, Number(familySummary.familyFundIncomeTaxPercent) || 0))}% income contribution` : 'No income contribution'} • {familySummary.familyFundSalesTaxEnabled ? `${Math.min(100, Math.max(0, Number(familySummary.familyFundSalesTaxPercent) || 0))}% reward contribution` : 'No reward contribution'}
-                    </p>
-                  ) : null}
-                  <p className="panel-muted">
-                    Dynamic pricing: {familySummary.dynamicPricingEnabled ? 'On' : 'Off'}
-                  </p>
-                  {familySummary.dynamicPricingEnabled ? (
-                    <p className="panel-muted">
-                      Dynamic guardrails: {Number(familySummary.dynamicPricingMinMultiplierPercent) || 100}% to {Number(familySummary.dynamicPricingMaxMultiplierPercent) || 220}% of base, max +{Number(familySummary.dynamicPricingMaxStepPercent) || 60}% per window
-                    </p>
-                  ) : null}
-                  <p className="panel-muted">
-                    Savings approvals: {
-                      familySummary.savingsGoalApprovalMode === 'create_and_claim'
-                        ? 'Parent approves create + claim'
-                        : familySummary.savingsGoalApprovalMode === 'no_approval'
-                          ? 'No parent approval'
-                          : 'Parent approves claim only'
-                    }
-                  </p>
-                  <p className="panel-muted">
-                    Missed job consequence: {
-                      familySummary.missedJobConsequenceEnabled
-                        ? `On (${familySummary.missedJobPenaltyCredits} credit penalty)`
-                        : 'Off'
-                    }
-                  </p>
-                  {familySummary.missedJobConsequenceEnabled ? (
-                    <p className="panel-muted">
-                      Missed timing: {
-                        familySummary.missedJobTimingEnabled
-                          ? `Time-based (${familySummary.missedJobDefaultHours}h default)`
-                          : 'Manual'
-                      }
-                    </p>
-                  ) : null}
-                  <p className="panel-muted">
-                    Failed parent check consequence: {
-                      familySummary.failedJobCheckConsequenceEnabled
-                        ? `On (-${familySummary.failedJobCheckPenaltyCredits} credits)`
-                        : 'Off'
-                    }
-                  </p>
-                  <p className="panel-muted">
-                    Shared chore slots per child: {familySummary.maxActivePoolClaimsPerChild || 1}
-                  </p>
-                  <p className="panel-muted">
-                    Pending checks count toward slots: {familySummary.allowClaimingWithPendingChecks ? 'No' : 'Yes'}
-                  </p>
-                  <p className="panel-muted">
-                    Stale job bonus: {
-                      familySummary.staleJobBonusEnabled
-                        ? `On (+${Number(familySummary.staleJobBonusRatePercent) || 5}% every ${Number(familySummary.staleJobBonusPeriodHours) || 24}h, cap ${Number(familySummary.staleJobBonusCapPercent) || 30}%)`
-                        : 'Off'
-                    }
-                  </p>
-                  <p className="panel-muted">
-                    Achievements: {familySummary.achievementsEnabled ? 'On' : 'Off'}
-                  </p>
-                  <p className="panel-muted">
-                    Family recognition cards: {familySummary.familyRecognitionEnabled ? 'On' : 'Off'}
-                  </p>
-                  <p className="panel-muted">Children: {childProfiles.length}</p>
                 </div>
               ) : null}
 
@@ -5111,17 +5114,44 @@ export default function ProfilePage() {
                   </form>
 
                   <section className="dialog-section">
-                    <p className="dialog-section-title">Current Chores</p>
+                    <p className="dialog-section-title">
+                      Current Chores: {currentJobScopeLabel} ({visibleJobsForCurrentScope.length})
+                    </p>
+                    <p className="panel-muted">
+                      {jobScopeChildId
+                        ? 'Showing jobs assigned to this child, shared jobs they can claim, and shared jobs they already claimed or submitted.'
+                        : 'Showing the shared family job queue.'}
+                    </p>
+                    {visibleJobsForCurrentScope.length > 0 ? (
+                      <div className="button-row">
+                        <button
+                          type="button"
+                          className="text-button"
+                          disabled={dialogBusy || reviewingRequestId === 'job-delete-shown'}
+                          onClick={handleDeleteShownJobs}
+                        >
+                          {reviewingRequestId === 'job-delete-shown' ? 'Deleting...' : 'Delete shown jobs'}
+                        </button>
+                      </div>
+                    ) : null}
+                    {visibleJobsForCurrentScope.length === 0 ? (
+                      <p className="panel-muted">No jobs in this queue.</p>
+                    ) : (
                     <ul className="mission-list">
-                    {jobs
-                      .filter((job) =>
-                        jobScopeChildId ? job.childId === jobScopeChildId : !job.childId,
-                      )
-                      .map((job) => (
+                    {visibleJobsForCurrentScope.map((job) => {
+                      const pendingCheck = pendingJobCheckByJobId[job.id]
+                      const claimedChild = childProfiles.find((child) => child.id === job.claimedBy)
+                      return (
                       <li key={job.id || job.title}>
                         <span className="mission-main">{job.title}</span>
                         <span className="mission-reward">{formatJobReward(job)}</span>
                         <span className="job-status-label">{job.status || 'open'}</span>
+                        {pendingCheck ? (
+                          <span className="job-status-label status-warning">Pending parent check</span>
+                        ) : null}
+                        {claimedChild ? (
+                          <span className="job-status-label">Claimed by {claimedChild.displayName}</span>
+                        ) : null}
                         <span className="job-status-label">
                           {job.autoRecreate ? 'Recurring' : 'One-time'}
                         </span>
@@ -5154,6 +5184,14 @@ export default function ProfilePage() {
                         >
                           Edit
                         </button>
+                        <button
+                          type="button"
+                          className="text-button"
+                          disabled={dialogBusy || reviewingRequestId === `job-delete:${job.id}`}
+                          onClick={() => handleDeleteJob(job.id)}
+                        >
+                          {reviewingRequestId === `job-delete:${job.id}` ? 'Deleting...' : 'Delete'}
+                        </button>
                         {job.status === 'claimed' ? (
                           <button
                             type="button"
@@ -5167,12 +5205,14 @@ export default function ProfilePage() {
                                 ? familySummary.missedJobTimingEnabled
                                   ? `Mark missed if due (-${familySummary.missedJobPenaltyCredits})`
                                   : `Mark missed (-${familySummary.missedJobPenaltyCredits})`
-                                : 'Mark missed'}
+                            : 'Mark missed'}
                           </button>
                         ) : null}
                       </li>
-                      ))}
+                      )
+                    })}
                     </ul>
+                    )}
                   </section>
                 </div>
               ) : null}

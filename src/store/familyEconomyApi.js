@@ -11,6 +11,17 @@ import {
 import { familyQuery, getErrorMessage } from './familyEconomyApiUtils'
 import { buildFamilyMutationEndpoints } from './familyEconomyMutationEndpoints'
 
+async function optionalFamilyQuery(loadData, fallbackData) {
+  try {
+    return await loadData()
+  } catch (error) {
+    if (error?.code === 'permission-denied' || error?.message === 'Missing or insufficient permissions.') {
+      return { data: fallbackData }
+    }
+    throw error
+  }
+}
+
 export const familyEconomyApi = createApi({
   reducerPath: 'familyEconomyApi',
   baseQuery: fakeBaseQuery(),
@@ -94,11 +105,11 @@ export const familyEconomyApi = createApi({
           selectedChildId: null,
         }
         const [dashboardResult, storeResult, checkResult, consequenceResult, feedbackResult] = await Promise.all([
-          getFamilyDashboard(parentContext),
-          getFamilyStoreData(parentContext),
-          getFamilyJobCheckRequests(parentContext),
-          getFamilyConsequenceEvents(parentContext),
-          getFamilyFeedbackEntries(parentContext),
+          optionalFamilyQuery(() => getFamilyDashboard(parentContext), { jobs: [], goals: [] }),
+          optionalFamilyQuery(() => getFamilyStoreData(parentContext), { rewards: [], requests: [] }),
+          optionalFamilyQuery(() => getFamilyJobCheckRequests(parentContext), { requests: [] }),
+          optionalFamilyQuery(() => getFamilyConsequenceEvents(parentContext), { events: [] }),
+          optionalFamilyQuery(() => getFamilyFeedbackEntries(parentContext), { entries: [] }),
         ])
 
         return {

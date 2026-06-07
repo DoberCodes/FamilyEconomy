@@ -92,7 +92,6 @@ export default function OnboardingPage() {
   const [familyRules, setFamilyRules] = useState('')
   const [childName, setChildName] = useState('')
   const [childAvatar, setChildAvatar] = useState('🧒')
-  const [weeklyGoalCredits, setWeeklyGoalCredits] = useState('300')
   const [jobTitle, setJobTitle] = useState('')
   const [jobPoints, setJobPoints] = useState('50')
   const [jobBadgeContribution, setJobBadgeContribution] = useState('none')
@@ -289,12 +288,10 @@ export default function OnboardingPage() {
         childProfile: {
           displayName: childName,
           avatar: childAvatar,
-          weeklyGoalCredits,
         },
         context: { familyId, userId, userRole },
       }).unwrap()
       setChildName('')
-      setWeeklyGoalCredits('300')
       setStatus('Child profile added.')
       await loadOnboarding({ preserveCurrentStep: true })
       setCurrentStep(2)
@@ -696,23 +693,6 @@ export default function OnboardingPage() {
                 </select>
               </label>
             </section>
-            <section className="onboarding-mini-dialog">
-              <p className="onboarding-mini-title">Weekly goal</p>
-              <label className="form-field">
-                <span className="form-label">Weekly earning goal</span>
-                <input
-                  className="job-input"
-                  type="number"
-                  min="0"
-                  step="1"
-                  inputMode="numeric"
-                  placeholder="Ex: 300"
-                  value={weeklyGoalCredits}
-                  onChange={(event) => setWeeklyGoalCredits(event.target.value)}
-                />
-                <span className="form-help">Suggested starter goal: 300 credits per week.</span>
-              </label>
-            </section>
             <div className="button-row">
               <button
                 type="button"
@@ -745,7 +725,6 @@ export default function OnboardingPage() {
                   <span>
                     {child.avatar} {child.displayName}
                   </span>
-                  <span className="job-status-label">Goal {child.weeklyGoalCredits}</span>
                 </li>
               ))}
             </ul>

@@ -34,6 +34,7 @@ export default function HomePage() {
     familyFundEnabled,
     familyFundName,
     familyFundBalance,
+    familyFundContributionHistory,
     achievementsEnabled,
     familyRecognitionEnabled,
     customBadges,
@@ -127,12 +128,12 @@ export default function HomePage() {
     return null
   }
 
-  function getJobCreditAmount(job) {
-    if (job.rewardType === 'xp') {
-      return 0
-    }
-    return Number(job.points || 0)
-  }
+  // function getJobCreditAmount(job) {
+  //   if (job.rewardType === 'xp') {
+  //     return 0
+  //   }
+  //   return Number(job.points || 0)
+  // }
 
   function formatJobReward(job) {
     const amount = Number(job.points || 0)
@@ -146,17 +147,20 @@ export default function HomePage() {
   const lastWeekStart = new Date(thisWeekStart)
   lastWeekStart.setDate(lastWeekStart.getDate() - 7)
 
-  const familyWeeklyContributionsByChildId = dashboard.goals
-    .filter((goal) => !resolveChildId(goal.childId))
-    .reduce((accumulator, goal) => {
-      ;(goal.contributionHistory || []).forEach((entry) => {
-        const id = resolveChildId(entry.childId)
-        const createdAt = toDate(entry.createdAt)
-        if (!id || !createdAt || createdAt < thisWeekStart) {
-          return
-        }
-        accumulator[id] = (accumulator[id] || 0) + (Number(entry.amount) || 0)
-      })
+  const familyFundContributions = (familyFundContributionHistory || []).length > 0
+    ? familyFundContributionHistory
+    : dashboard.goals
+      .filter((goal) => !resolveChildId(goal.childId))
+      .flatMap((goal) => goal.contributionHistory || [])
+
+  const familyWeeklyContributionsByChildId = familyFundContributions
+    .reduce((accumulator, entry) => {
+      const id = resolveChildId(entry.childId)
+      const createdAt = toDate(entry.createdAt)
+      if (!id || !createdAt || createdAt < thisWeekStart) {
+        return accumulator
+      }
+      accumulator[id] = (accumulator[id] || 0) + (Number(entry.amount) || 0)
       return accumulator
     }, {})
 
@@ -344,7 +348,7 @@ export default function HomePage() {
       const achievementHighlights = [
         {
           id: `achievement:first-goal:${child.id}`,
-          icon: '🏁',
+          icon: '\u{1F3C1}',
           label: 'First Goal',
           childName: child.displayName,
           detail: `${child.displayName} earned a badge`,
@@ -352,7 +356,7 @@ export default function HomePage() {
         },
         {
           id: `achievement:consistent-contributor:${child.id}`,
-          icon: '🤝',
+          icon: '\u{1F91D}',
           label: 'Consistent Contributor',
           childName: child.displayName,
           detail: `${child.displayName} earned a badge`,
@@ -360,7 +364,7 @@ export default function HomePage() {
         },
         {
           id: `achievement:family-helper:${child.id}`,
-          icon: '🛟',
+          icon: '\u{1F6DF}',
           label: 'Family Helper',
           childName: child.displayName,
           detail: `${child.displayName} earned a badge`,
@@ -368,7 +372,7 @@ export default function HomePage() {
         },
         {
           id: `achievement:reading-champion:${child.id}`,
-          icon: '📚',
+          icon: '\u{1F4DA}',
           label: 'Reading Champion',
           childName: child.displayName,
           detail: `${child.displayName} earned a badge`,
@@ -376,13 +380,15 @@ export default function HomePage() {
         },
       ].filter((achievement) => achievement.at)
 
-      const milestoneHighlights = [5, 10, 25, 50, 100]
+      const milestoneHighlights = [1, 5, 10, 25, 50, 100]
         .map((milestone) => ({
           id: `milestone:jobs:${milestone}:${child.id}`,
-          icon: 'âœ…',
-          label: `${milestone} Jobs Completed`,
+          icon: '\u{2705}',
+          label: milestone === 1 ? 'First Job Completed' : `${milestone} Jobs Completed`,
           childName: child.displayName,
-          detail: `${child.displayName} completed ${milestone} jobs`,
+          detail: milestone === 1
+            ? `${child.displayName} completed their first job`
+            : `${child.displayName} completed ${milestone} jobs`,
           at: findNthDate(completedJobDates, milestone),
         }))
         .filter((achievement) => achievement.at)
@@ -390,7 +396,7 @@ export default function HomePage() {
       const recognitionHighlights = [
         {
           id: `recognition:helping-hand:${child.id}`,
-          icon: 'ðŸŒŸ',
+          icon: '\u{1F31F}',
           label: `Helping Hand (${helperJobDates.length} helps)`,
           childName: child.displayName,
           detail: `${child.displayName} earned recognition`,
@@ -398,7 +404,7 @@ export default function HomePage() {
         },
         {
           id: `recognition:goal-getter:${child.id}`,
-          icon: 'ðŸŽ¯',
+          icon: '\u{1F3AF}',
           label: `Goal Getter (${completedGoalDates.length} done)`,
           childName: child.displayName,
           detail: `${child.displayName} earned recognition`,
@@ -406,7 +412,7 @@ export default function HomePage() {
         },
         {
           id: `recognition:streak-star:${child.id}`,
-          icon: 'ðŸ”¥',
+          icon: '\u{1F525}',
           label: `Streak Star (${childActiveDayDates.length} days)`,
           childName: child.displayName,
           detail: `${child.displayName} kept showing up`,
@@ -437,7 +443,7 @@ export default function HomePage() {
 
           return {
             id: `custom:${badge.id}:${child.id}`,
-            icon: badge.icon || (category === 'recognition' ? 'ðŸŒŸ' : 'ðŸ…'),
+            icon: badge.icon || (category === 'recognition' ? '\u{1F31F}' : '\u{1F3C5}'),
             label: badge.label || 'Custom Badge',
             childName: child.displayName,
             detail: `${child.displayName} earned ${category === 'recognition' ? 'recognition' : 'a badge'}`,
@@ -460,7 +466,7 @@ export default function HomePage() {
   const familyLevelHighlight = Number(dashboard.level?.current) > 1 && latestFamilyActivityDate
     ? [{
       id: `level:family:${dashboard.level.current}`,
-      icon: 'â¬†ï¸',
+      icon: '\u{2B06}\u{FE0F}',
       label: `Level ${dashboard.level.current}`,
       childName: 'Family',
       detail: `Family economy reached Level ${dashboard.level.current}`,
@@ -673,9 +679,15 @@ export default function HomePage() {
       ),
     )
     : 0
+  const familyGoalAvailableCredits = familySavingsGoal
+    ? Number(familySavingsGoal.saved) || 0
+    : familyFundBalance
   const familyFundLabel = String(familyFundName || 'Community Funds').trim() || 'Community Funds'
   const familySavingsContributors = Object.values(
-    (familySavingsGoal?.contributionHistory || []).reduce((accumulator, entry) => {
+    (familyFundContributions.length > 0
+      ? familyFundContributions
+      : familySavingsGoal?.contributionHistory || []
+    ).reduce((accumulator, entry) => {
       if (!entry?.childId) {
         return accumulator
       }
@@ -687,20 +699,24 @@ export default function HomePage() {
     }, {}),
   )
     .sort((left, right) => right.amount - left.amount)
-  const overallJobEarnings = dashboard.jobs.reduce((sum, job) => {
-    if (job.status === 'done') {
-      return sum + getJobCreditAmount(job)
-    }
-    return sum
-  }, 0)
+  const weeklyCompletedJobs = dashboard.jobs.filter((job) => {
+    const completedAt = toDate(job.completedAt)
+    return job.status === 'done' && completedAt && completedAt >= thisWeekStart
+  })
 
-  const familyTrackedJobs = dashboard.jobs
-    .filter((job) => job.status === 'open' || job.status === 'claimed' || job.status === 'done')
+  const familyTrackedJobs = weeklyCompletedJobs
+    .sort((left, right) => {
+      const leftCompletedAt = toDate(left.completedAt)?.getTime() || 0
+      const rightCompletedAt = toDate(right.completedAt)?.getTime() || 0
+      return rightCompletedAt - leftCompletedAt
+    })
+    .slice(0, 14)
+  const availableOrPendingJobs = dashboard.jobs
+    .filter((job) => job.status === 'open' || job.status === 'claimed')
     .sort((left, right) => {
       const score = {
         claimed: 0,
         open: 1,
-        done: 2,
       }
       const leftScore = score[left.status] ?? 99
       const rightScore = score[right.status] ?? 99
@@ -712,9 +728,33 @@ export default function HomePage() {
     .slice(0, 14)
 
   const jobStatusCounts = {
-    claimed: familyTrackedJobs.filter((job) => job.status === 'claimed').length,
-    open: familyTrackedJobs.filter((job) => job.status === 'open').length,
     done: familyTrackedJobs.filter((job) => job.status === 'done').length,
+    active: availableOrPendingJobs.length,
+  }
+
+  function renderFamilyJobItem(job) {
+    const ownerId = resolveChildIdForJob(job)
+    return (
+      <li key={job.id || job.title} className="family-job-item">
+        <div className="family-job-top">
+          <span className="mission-main">
+            <span className="family-job-checkbox" aria-hidden="true">{job.icon}</span>
+            <span>{job.title}</span>
+          </span>
+          <span className="mission-reward">{formatJobReward(job)}</span>
+        </div>
+        <div className="family-job-bottom">
+          <span>
+            {ownerId
+              ? childBadge(ownerId)
+              : <span className="family-badge">Unclaimed</span>}
+          </span>
+          <span className={`family-status-pill family-status-${job.status}`}>
+            {getJobStatusLabel(job.status)}
+          </span>
+        </div>
+      </li>
+    )
   }
 
   function childBadge(childId) {
@@ -738,7 +778,13 @@ export default function HomePage() {
 
   function getHighlightIcon(achievement) {
     const icon = String(achievement?.icon || '').trim()
-    return icon && !/[ÃÂ�ðâ]/.test(icon) ? icon : '*'
+    if (icon && !/[ÃÂ�ðâ]/.test(icon)) {
+      return icon
+    }
+
+    const isRecognition = achievement?.category === 'recognition'
+      || String(achievement?.id || '').startsWith('recognition:')
+    return isRecognition ? '\u{1F31F}' : '\u{1F3C5}'
   }
 
   const activityFeedItems = (() => {
@@ -800,7 +846,7 @@ export default function HomePage() {
           id: `goal-complete:${goal.id || goal.name}:${completedAt.getTime()}`,
           at: completedAt,
           childId,
-          icon: '🏁',
+          icon: '\u{1F3C1}',
           text: `${goal.rewardTitle || goal.name} completed`,
           kind: 'goal-complete',
         })
@@ -809,7 +855,7 @@ export default function HomePage() {
           id: `goal-progress:${goal.id || goal.name}:${updatedAt.getTime()}`,
           at: updatedAt,
           childId,
-          icon: '🎯',
+          icon: '\u{1F3AF}',
           text: `${goal.rewardTitle || goal.name} reached ${Math.round(progress * 100)}%`,
           kind: 'goal-progress',
         })
@@ -822,8 +868,11 @@ export default function HomePage() {
 
     return scopedItems
       .sort((left, right) => (right.at?.getTime() || 0) - (left.at?.getTime() || 0))
-      .slice(0, 10)
   })()
+  const activityWeekStart = new Date(nowMs - 7 * 24 * 60 * 60 * 1000)
+  const weeklyActivityFeedItems = activityFeedItems
+    .filter((item) => item.at && item.at >= activityWeekStart)
+  const kidRecentActivityFeedItems = activityFeedItems.slice(0, 10)
 
   const hasFamilyAnnouncement = Boolean(String(familyAnnouncement || '').trim())
 
@@ -859,7 +908,7 @@ export default function HomePage() {
 
   return (
     <>
-      <main className="phone-content home-grid">
+      <main className={`phone-content home-grid ${isParent ? 'family-dashboard-grid' : ''}`}>
         <StatusNote>{loading ? 'Loading dashboard...' : ''}</StatusNote>
         <StatusNote tone="error">{error}</StatusNote>
 
@@ -880,32 +929,32 @@ export default function HomePage() {
               </section>
             ) : null}
 
-            <section className="panel home-col-full">
+            <section className="panel family-goal-panel">
               <p className="panel-label">Family Goal</p>
-              <p className="panel-muted home-section-subtitle">The shared target everyone can build together.</p>
+              <p className="panel-muted home-section-subtitle">The shared target powered by {familyFundLabel}.</p>
               <div className="money-section-card money-section-card--shared family-goal-hero" style={{ marginTop: '0.25rem' }}>
                 {!familyFundEnabled ? (
                   <p className="panel-muted">{familyFundLabel} is off. Turn it on in Parent Actions or setup to power shared family goals.</p>
                 ) : null}
                 {!familySavingsGoal ? (
                   <>
-                    <p className="panel-muted" style={{ marginTop: 0 }}>{familyFundLabel}: {familyFundBalance} credits available</p>
+                    <p className="panel-muted" style={{ marginTop: 0 }}>{familyFundLabel}: {familyGoalAvailableCredits} credits available</p>
                     <p className="panel-muted">No shared family goal yet. Create one in Savings with no child selected.</p>
                   </>
                 ) : (
                   <>
-                    <p className="family-goal-kicker">🎯 FAMILY GOAL</p>
+                    <p className="family-goal-kicker">{'\u{1F3AF}'} FAMILY GOAL</p>
                     <p className="family-goal-name">{(familySavingsGoal.rewardTitle || familySavingsGoal.name || 'Family Goal').toUpperCase()}</p>
                     <div className="limit-chip-row">
                       <span className="limit-chip">{getGoalStatusLabel(familySavingsGoal.status)}</span>
                       <span className="limit-chip">{childProfiles.length} kids can contribute</span>
                     </div>
-                    <p className="panel-muted" style={{ marginTop: '0.45rem', marginBottom: 0 }}>{familyFundLabel}: {familyFundBalance} credits available</p>
+                    <p className="panel-muted" style={{ marginTop: '0.45rem', marginBottom: 0 }}>{familyFundLabel}: {familyGoalAvailableCredits} credits available for this goal</p>
                     <p className="family-goal-math">{familySavingsGoal.saved} / {familySavingsGoal.target} Credits</p>
                     <p className="family-goal-percent">{familySavingsGoalPct}%</p>
                     <ProgressTrack value={familySavingsGoalPct} light label="Family goal progress" />
                     <div>
-                      <p className="money-section-kicker" style={{ marginBottom: '0.35rem' }}>Contributors</p>
+                      <p className="money-section-kicker" style={{ marginBottom: '0.35rem' }}>Fund Contributors</p>
                       {familySavingsContributors.length > 0 ? (
                         <ul className="profile-list">
                           {familySavingsContributors.map((contributor) => {
@@ -932,7 +981,7 @@ export default function HomePage() {
             </section>
 
             {(familyRecognitionEnabled || achievementsEnabled) ? (
-              <section className="panel home-col-full family-recognition-panel">
+              <section className="panel family-recognition-panel">
                 <p className="panel-label">Weekly Family Recognition</p>
                 <p className="panel-muted home-section-subtitle">Highlights from this week</p>
 
@@ -1046,53 +1095,64 @@ export default function HomePage() {
               </section>
             ) : null}
 
-            <section className="panel home-col-full">
-              <p className="panel-label">Family Job Tracker</p>
-              <p className="panel-muted">{overallJobEarnings} credits earned from completed jobs</p>
-              <div className="limit-chip-row">
-                <span className="limit-chip">In progress: {jobStatusCounts.claimed}</span>
-                <span className="limit-chip">Open: {jobStatusCounts.open}</span>
-                <span className="limit-chip">Done: {jobStatusCounts.done}</span>
+            <section className="panel family-jobs-panel">
+              <div className="family-jobs-header">
+                <div>
+                  <p className="panel-label">Family Job Tracker</p>
+                </div>
+                <div className="family-jobs-summary" aria-label="Family job summary">
+                  <span className="family-job-stat">
+                    <span>Completed</span>
+                    <strong>{jobStatusCounts.done}</strong>
+                  </span>
+                  <span className="family-job-stat">
+                    <span>Available</span>
+                    <strong>{jobStatusCounts.active}</strong>
+                  </span>
+                </div>
               </div>
-              {familyTrackedJobs.length === 0 ? (
-                <p className="panel-muted">No jobs created yet.</p>
-              ) : (
-                <ul className="family-job-list">
-                  {familyTrackedJobs.map((job) => {
-                    const ownerId = resolveChildIdForJob(job)
-                    return (
-                      <li key={job.id || job.title} className="family-job-item">
-                        <div className="family-job-top">
-                          <span className="mission-main">
-                            <span className="family-job-checkbox" aria-hidden="true">{job.icon}</span>
-                            <span>{job.title}</span>
-                          </span>
-                          <span className="mission-reward">{formatJobReward(job)}</span>
-                        </div>
-                        <div className="family-job-bottom">
-                          <span>
-                            {ownerId
-                              ? childBadge(ownerId)
-                              : <span className="family-badge">Unclaimed</span>}
-                          </span>
-                          <span className={`family-status-pill family-status-${job.status}`}>
-                            {getJobStatusLabel(job.status)}
-                          </span>
-                        </div>
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
+              <div className="family-job-board">
+                <details className="family-job-column collapsible-subsection" open={familyTrackedJobs.length > 0}>
+                  <summary className="activity-subsection-head collapsible-subsection-summary">
+                    <p className="activity-subsection-title">Completed This Week</p>
+                    <span className="activity-subsection-count">{familyTrackedJobs.length}</span>
+                    <span className="collapsible-subsection-toggle" aria-hidden="true" />
+                  </summary>
+                  {familyTrackedJobs.length === 0 ? (
+                    <p className="panel-muted">No jobs completed this week yet.</p>
+                  ) : (
+                    <ul className="family-job-list">
+                      {familyTrackedJobs.map(renderFamilyJobItem)}
+                    </ul>
+                  )}
+                </details>
+                <details className="family-job-column family-job-column-active collapsible-subsection" open={availableOrPendingJobs.length > 0}>
+                  <summary className="activity-subsection-head collapsible-subsection-summary">
+                    <p className="activity-subsection-title">Available / Pending</p>
+                    <span className="activity-subsection-count">{availableOrPendingJobs.length}</span>
+                    <span className="collapsible-subsection-toggle" aria-hidden="true" />
+                  </summary>
+                  {availableOrPendingJobs.length === 0 ? (
+                    <p className="panel-muted">No open or in-progress jobs right now.</p>
+                  ) : (
+                    <ul className="family-job-list">
+                      {availableOrPendingJobs.map(renderFamilyJobItem)}
+                    </ul>
+                  )}
+                </details>
+              </div>
             </section>
 
-            <section className="panel home-col-full recent-activity-panel">
+            <section className="panel recent-activity-panel family-activity-panel">
+              <div className="family-activity-header">
               <p className="panel-label">Recent Activity</p>
-              <section className="activity-subsection activity-subsection-highlights">
-                <div className="activity-subsection-head">
+              </div>
+              <details className="activity-subsection activity-subsection-highlights collapsible-subsection" open={recentHighlights.length > 0}>
+                <summary className="activity-subsection-head collapsible-subsection-summary">
                   <p className="activity-subsection-title">Recent Achievements</p>
                   <span className="activity-subsection-count">Last 5</span>
-                </div>
+                  <span className="collapsible-subsection-toggle" aria-hidden="true" />
+                </summary>
                 {recentHighlights.length === 0 ? (
                   <p className="panel-muted">No recent achievements unlocked yet.</p>
                 ) : (
@@ -1111,17 +1171,19 @@ export default function HomePage() {
                     ))}
                   </ul>
                 )}
-              </section>
+              </details>
 
-              <section className="activity-subsection activity-subsection-feed">
-                <div className="activity-subsection-head">
-                  <p className="activity-subsection-title">Activity Feed</p>
-                </div>
-                {activityFeedItems.length === 0 ? (
-                  <p className="panel-muted">No recent family activity yet.</p>
+              <details className="activity-subsection activity-subsection-feed collapsible-subsection" open={weeklyActivityFeedItems.length > 0}>
+                <summary className="activity-subsection-head collapsible-subsection-summary">
+                  <p className="activity-subsection-title">Weekly Feed</p>
+                  <span className="activity-subsection-count">{weeklyActivityFeedItems.length}</span>
+                  <span className="collapsible-subsection-toggle" aria-hidden="true" />
+                </summary>
+                {weeklyActivityFeedItems.length === 0 ? (
+                  <p className="panel-muted">No family activity from the past week yet.</p>
                 ) : (
                   <ul className="activity-feed-list">
-                    {activityFeedItems.map((item) => {
+                    {weeklyActivityFeedItems.map((item) => {
                       return (
                         <li key={item.id} className="activity-feed-item">
                           <div className="activity-feed-top">
@@ -1141,7 +1203,7 @@ export default function HomePage() {
                     })}
                   </ul>
                 )}
-              </section>
+              </details>
             </section>
           </>
         ) : (
@@ -1194,12 +1256,13 @@ export default function HomePage() {
               )}
             </section>
             <section className="panel home-col-full">
+            
               <p className="panel-label">Recent Activity</p>
-              {activityFeedItems.length === 0 ? (
+              {kidRecentActivityFeedItems.length === 0 ? (
                 <p className="panel-muted">No recent activity for this child yet.</p>
               ) : (
                 <ul className="mission-list">
-                  {activityFeedItems.map((item) => {
+                  {kidRecentActivityFeedItems.map((item) => {
                     const badge = getActivityBadgeMeta(item.kind)
                     return (
                       <li key={item.id}>

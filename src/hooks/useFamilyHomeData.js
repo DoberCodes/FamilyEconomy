@@ -60,6 +60,7 @@ export default function useFamilyHomeData() {
     familyFundEnabled: family?.familyFundEnabled !== false,
     familyFundName: family?.familyFundName || 'Community Funds',
     familyFundBalance: Number(family?.familyFundBalance) || 0,
+    familyFundContributionHistory: family?.familyFundContributionHistory || EMPTY_ARRAY,
     familyDashboardTopCardsEnabled: family?.familyDashboardTopCardsEnabled !== false,
     achievementsEnabled: family?.achievementsEnabled !== false,
     familyRecognitionEnabled: family?.familyRecognitionEnabled !== false,

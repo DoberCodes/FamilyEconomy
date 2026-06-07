@@ -40,6 +40,8 @@ const emptyFamilySummary = {
   familyFundIncomeTaxPercent: 0,
   familyFundSalesTaxEnabled: false,
   familyFundSalesTaxPercent: 0,
+  childSavingsAccountsEnabled: false,
+  childSavingsWithdrawalsEnabled: true,
   creatorOwnerEmail: '',
   creatorMetricsEnabled: false,
   savingsGoalApprovalMode: 'claim_only',
@@ -93,6 +95,8 @@ function buildFamilySummary(family = {}) {
     familyFundIncomeTaxPercent: Math.min(100, Math.max(0, Number(family?.familyFundIncomeTaxPercent) || 0)),
     familyFundSalesTaxEnabled: Boolean(family?.familyFundSalesTaxEnabled),
     familyFundSalesTaxPercent: Math.min(100, Math.max(0, Number(family?.familyFundSalesTaxPercent) || 0)),
+    childSavingsAccountsEnabled: Boolean(family?.childSavingsAccountsEnabled),
+    childSavingsWithdrawalsEnabled: family?.childSavingsWithdrawalsEnabled !== false,
     creatorOwnerEmail: family?.creatorOwnerEmail || '',
     creatorMetricsEnabled: Boolean(family?.creatorMetricsEnabled),
     savingsGoalApprovalMode: family?.savingsGoalApprovalMode || 'claim_only',
@@ -276,6 +280,8 @@ export default function ProfilePage() {
   const [familyFundIncomeTaxPercent, setFamilyFundIncomeTaxPercent] = useState('10')
   const [familyFundSalesTaxEnabled, setFamilyFundSalesTaxEnabled] = useState(false)
   const [familyFundSalesTaxPercent, setFamilyFundSalesTaxPercent] = useState('8')
+  const [childSavingsAccountsEnabled, setChildSavingsAccountsEnabled] = useState(false)
+  const [childSavingsWithdrawalsEnabled, setChildSavingsWithdrawalsEnabled] = useState(true)
   const [familyAnnouncementDraft, setFamilyAnnouncementDraft] = useState('')
   const [savingFamilyAnnouncement, setSavingFamilyAnnouncement] = useState(false)
   const [newChildName, setNewChildName] = useState('')
@@ -470,6 +476,8 @@ export default function ProfilePage() {
       familyFundIncomeTaxPercent: Math.min(100, Math.max(0, Number(source.familyFundIncomeTaxPercent) || 0)),
       familyFundSalesTaxEnabled: Boolean(source.familyFundSalesTaxEnabled),
       familyFundSalesTaxPercent: Math.min(100, Math.max(0, Number(source.familyFundSalesTaxPercent) || 0)),
+      childSavingsAccountsEnabled: Boolean(source.childSavingsAccountsEnabled),
+      childSavingsWithdrawalsEnabled: source.childSavingsWithdrawalsEnabled !== false,
       savingsGoalApprovalMode: source.savingsGoalApprovalMode || 'claim_only',
       rewardRequestApprovalMode: source.rewardRequestApprovalMode || 'required',
       jobCheckApprovalMode: source.jobCheckApprovalMode || 'required',
@@ -507,6 +515,8 @@ export default function ProfilePage() {
       familyFundIncomeTaxPercent: Math.min(100, Math.max(0, Number(familyFundIncomeTaxPercent) || 0)),
       familyFundSalesTaxEnabled,
       familyFundSalesTaxPercent: Math.min(100, Math.max(0, Number(familyFundSalesTaxPercent) || 0)),
+      childSavingsAccountsEnabled,
+      childSavingsWithdrawalsEnabled,
       savingsGoalApprovalMode,
       rewardRequestApprovalMode,
       jobCheckApprovalMode,
@@ -1162,6 +1172,8 @@ export default function ProfilePage() {
       setFamilyFundIncomeTaxPercent(String(Math.min(100, Math.max(0, Number(familySummary.familyFundIncomeTaxPercent) || 0))))
       setFamilyFundSalesTaxEnabled(Boolean(familySummary.familyFundSalesTaxEnabled))
       setFamilyFundSalesTaxPercent(String(Math.min(100, Math.max(0, Number(familySummary.familyFundSalesTaxPercent) || 0))))
+      setChildSavingsAccountsEnabled(Boolean(familySummary.childSavingsAccountsEnabled))
+      setChildSavingsWithdrawalsEnabled(familySummary.childSavingsWithdrawalsEnabled !== false)
       setSavingsGoalApprovalMode(familySummary.savingsGoalApprovalMode || 'claim_only')
       setRewardRequestApprovalMode(familySummary.rewardRequestApprovalMode || 'required')
       setJobCheckApprovalMode(familySummary.jobCheckApprovalMode || 'required')
@@ -1823,6 +1835,8 @@ export default function ProfilePage() {
         familyFundIncomeTaxPercent: Math.min(100, Math.max(0, Number(familyFundIncomeTaxPercent) || 0)),
         familyFundSalesTaxEnabled,
         familyFundSalesTaxPercent: Math.min(100, Math.max(0, Number(familyFundSalesTaxPercent) || 0)),
+        childSavingsAccountsEnabled,
+        childSavingsWithdrawalsEnabled,
         childSessionSecurityEnabled,
         savingsGoalApprovalMode,
         rewardRequestApprovalMode,
@@ -1860,6 +1874,8 @@ export default function ProfilePage() {
         familyFundIncomeTaxPercent: Math.min(100, Math.max(0, Number(familyFundIncomeTaxPercent) || 0)),
         familyFundSalesTaxEnabled,
         familyFundSalesTaxPercent: Math.min(100, Math.max(0, Number(familyFundSalesTaxPercent) || 0)),
+        childSavingsAccountsEnabled,
+        childSavingsWithdrawalsEnabled,
         creatorOwnerEmail: familySummary.creatorOwnerEmail || (userEmailLower === CREATOR_OWNER_EMAIL ? CREATOR_OWNER_EMAIL : ''),
         creatorMetricsEnabled: Boolean(familySummary.creatorMetricsEnabled) || userEmailLower === CREATOR_OWNER_EMAIL,
         savingsGoalApprovalMode,
@@ -2585,7 +2601,7 @@ export default function ProfilePage() {
 
   return (
     <>
-      <main className="phone-content">
+      <main className={`phone-content ${isParent && parentControlsUnlocked ? 'parent-tools-grid' : ''}`}>
         {!isParent ? (
           <section className="panel">
             <p className="panel-label">Parent Access</p>
@@ -2691,13 +2707,13 @@ export default function ProfilePage() {
 
         {isParent && parentControlsUnlocked ? (
           <>
-            <section className="panel">
+            <section className="panel parent-home-panel">
               <p className="panel-label">Parent Home</p>
               <p className="panel-muted">Use these tools to run chores, rewards, savings, and safety in simple steps.</p>
               <p className="panel-muted">Children set up: {childProfiles.length}</p>
             </section>
 
-            <section className="panel">
+            <section className="panel parent-news-panel">
               <p className="panel-label">Family News</p>
               <p className="panel-muted">Quick action: post a headline update kids will see first in Family News.</p>
               <form className="auth-form" onSubmit={handleSaveFamilyAnnouncement}>
@@ -2716,7 +2732,7 @@ export default function ProfilePage() {
               </form>
             </section>
 
-            <section className="panel">
+            <section className="panel parent-actions-panel">
               <p className="panel-label">Parent Actions</p>
               <p className="panel-muted">Daily tools for approvals, chores, rewards, and the economy overview. Occasional setup lives in More tools.</p>
               <div className="button-row parent-actions-primary">
@@ -2755,7 +2771,7 @@ export default function ProfilePage() {
               </details>
             </section>
 
-            <section className="panel">
+            <section className="panel parent-kids-security-panel">
               <p className="panel-label">Kids and Security</p>
               <p className="panel-muted">
                 Add or edit child profiles and control whether kids can set their own login PIN.
@@ -2907,7 +2923,7 @@ export default function ProfilePage() {
             </section>
 
             {!hasParentPin ? (
-              <section className="panel">
+              <section className="panel parent-pin-panel">
                 <p className="panel-label">Set Parent PIN</p>
                 <p className="panel-muted">Add a 4-digit PIN for faster future unlocks.</p>
                 <form className="auth-form" onSubmit={handleSavePin}>
@@ -3215,6 +3231,52 @@ export default function ProfilePage() {
                         <option value="strict">Strict</option>
                       </select>
                     </label>
+                    <label className="form-field">
+                      <div className="form-label-row">
+                        <span className="form-label">Child savings accounts</span>
+                        <HelpButton
+                          onHelpClick={setActiveHelpDialog}
+                          label="Child savings accounts"
+                          lines={[
+                            'Adds a separate savings balance for each child.',
+                            'Kids can move wallet credits into savings, then use savings for goals or the family fund.',
+                            'Turn this on when you want to teach separating spend-now money from save-for-later money.',
+                          ]}
+                        />
+                      </div>
+                      <select
+                        className="job-input"
+                        value={childSavingsAccountsEnabled ? 'on' : 'off'}
+                        onChange={(event) => setChildSavingsAccountsEnabled(event.target.value === 'on')}
+                      >
+                        <option value="off">Off</option>
+                        <option value="on">On</option>
+                      </select>
+                    </label>
+                    {childSavingsAccountsEnabled ? (
+                      <label className="form-field">
+                        <div className="form-label-row">
+                          <span className="form-label">Allow savings withdrawals</span>
+                          <HelpButton
+                            onHelpClick={setActiveHelpDialog}
+                            label="Allow savings withdrawals"
+                            lines={[
+                              'Controls whether kids can move savings back to their wallet.',
+                              'On: savings is flexible and kids can correct mistakes.',
+                              'Off: savings can only move toward goals or the shared family fund.',
+                            ]}
+                          />
+                        </div>
+                        <select
+                          className="job-input"
+                          value={childSavingsWithdrawalsEnabled ? 'on' : 'off'}
+                          onChange={(event) => setChildSavingsWithdrawalsEnabled(event.target.value === 'on')}
+                        >
+                          <option value="on">On</option>
+                          <option value="off">Off</option>
+                        </select>
+                      </label>
+                    ) : null}
                   </section>
 
                   <section className="dialog-section">

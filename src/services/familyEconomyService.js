@@ -112,6 +112,11 @@ function normalizeFamilySavingsSettings(familyData = {}) {
     familyFundEnabled: familyData.familyFundEnabled !== false,
     familyFundName: normalizeFamilyFundName(familyData.familyFundName),
     familyFundBalance: Math.max(0, Number(familyData.familyFundBalance) || 0),
+    familyFundContributionHistory: normalizeFamilyFundContributionHistory(
+      familyData.familyFundContributionHistory,
+    ),
+    childSavingsAccountsEnabled: Boolean(familyData.childSavingsAccountsEnabled),
+    childSavingsWithdrawalsEnabled: familyData.childSavingsWithdrawalsEnabled !== false,
     familyFundIncomeTaxEnabled: Boolean(familyData.familyFundIncomeTaxEnabled),
     familyFundIncomeTaxPercent: normalizeFundTaxPercent(familyData.familyFundIncomeTaxPercent),
     familyFundSalesTaxEnabled: Boolean(familyData.familyFundSalesTaxEnabled),
@@ -129,6 +134,18 @@ function normalizeFamilyFundName(value) {
 
 function normalizeFundTaxPercent(value) {
   return Math.min(100, Math.max(0, Number(value) || 0))
+}
+
+function normalizeFamilyFundContributionHistory(history = []) {
+  return Array.isArray(history)
+    ? history.map((entry, index) => ({
+      id: entry.id || `family-fund:contribution:${index}`,
+      childId: entry.childId || null,
+      amount: Math.max(0, Number(entry.amount) || 0),
+      source: entry.source || 'family_fund',
+      createdAt: serializeDateValue(entry.createdAt),
+    }))
+    : []
 }
 
 function calculateFundTaxAmount(baseAmount, enabled, percent) {
@@ -226,7 +243,7 @@ function normalizeCustomBadges(customBadges = []) {
       return {
         id: String(badge?.id || `custom-badge-${index + 1}`),
         label,
-        icon: String(badge?.icon || (category === 'recognition' ? '🌟' : '🏅')).trim() || (category === 'recognition' ? '🌟' : '🏅'),
+        icon: String(badge?.icon || (category === 'recognition' ? '\u{1F31F}' : '\u{1F3C5}')).trim() || (category === 'recognition' ? '\u{1F31F}' : '\u{1F3C5}'),
         category,
         metric,
         target: Math.max(1, Number(badge?.target) || 1),
@@ -469,8 +486,31 @@ function normalizeGoal(goal, fallbackId, options = {}) {
   const target = Number(goal.target) || 1
   const explicitStatus = normalizeGoalStatus(goal.status)
   const isFamilyGoal = !goal.childId
+  const familyFundContributionHistory = normalizeFamilyFundContributionHistory(
+    options.familyFundContributionHistory,
+  )
+  const goalContributionHistory = Array.isArray(goal.contributionHistory)
+    ? goal.contributionHistory.map((entry, index) => ({
+      id: entry.id || `${fallbackId || goal.id || 'goal'}:contribution:${index}`,
+      childId: entry.childId || null,
+      amount: Math.max(0, Number(entry.amount) || 0),
+      source: entry.source || 'savings_goal',
+      createdAt: serializeDateValue(entry.createdAt),
+    }))
+    : []
+  const contributionHistory = isFamilyGoal && familyFundContributionHistory.length > 0
+    ? familyFundContributionHistory
+    : goalContributionHistory
+  const legacyFamilyGoalContributionTotal = isFamilyGoal && familyFundContributionHistory.length === 0
+    ? goalContributionHistory.reduce((sum, entry) => sum + entry.amount, 0)
+    : 0
   const saved = isFamilyGoal && explicitStatus !== 'completed' && explicitStatus !== 'denied'
-    ? Math.max(0, Number(options.familyFundBalance) || 0)
+    ? Math.max(
+      0,
+      Number(options.familyFundBalance) || 0,
+      Number(goal.saved) || 0,
+      legacyFamilyGoalContributionTotal,
+    )
     : Math.max(0, Number(goal.saved) || 0)
   const status = explicitStatus === 'active' && target > 0 && saved >= target
     ? 'ready_to_claim'
@@ -493,14 +533,7 @@ function normalizeGoal(goal, fallbackId, options = {}) {
     counterNote: goal.counterNote || '',
     counteredAt: serializeDateValue(goal.counteredAt),
     counteredBy: goal.counteredBy || null,
-    contributionHistory: Array.isArray(goal.contributionHistory)
-      ? goal.contributionHistory.map((entry, index) => ({
-        id: entry.id || `${fallbackId || goal.id || 'goal'}:contribution:${index}`,
-        childId: entry.childId || null,
-        amount: Math.max(0, Number(entry.amount) || 0),
-        createdAt: serializeDateValue(entry.createdAt),
-      }))
-      : [],
+    contributionHistory,
     negotiationHistory: Array.isArray(goal.negotiationHistory)
       ? goal.negotiationHistory
       : [],
@@ -871,6 +904,7 @@ function normalizeChildProfile(profile, fallbackId) {
     avatar: profile.avatar || '🧒',
     weeklyGoalCredits: Number(profile.weeklyGoalCredits) || 0,
     credits: Number(profile.credits) || 0,
+    savingsBalance: Math.max(0, Number(profile.savingsBalance) || 0),
     sessionCodeEnabled: Boolean(profile.sessionCodeEnabled),
     sessionCode: profile.sessionCode || '',
     allowChildSetSessionCode: Boolean(profile.allowChildSetSessionCode),
@@ -985,11 +1019,14 @@ export async function getFamilyDashboard(context = {}) {
     .sort((a, b) => (a.order || 0) - (b.order || 0))
 
   const familyFundBalance = Math.max(0, Number(familyData.familyFundBalance) || 0)
+  const familyFundContributionHistory = normalizeFamilyFundContributionHistory(
+    familyData.familyFundContributionHistory,
+  )
   const goals = goalSnapshot.docs
     .map((item) => normalizeGoal(
       { id: item.id, ...item.data() },
       item.id,
-      { familyFundBalance },
+      { familyFundBalance, familyFundContributionHistory },
     ))
     .filter((goal) =>
       selectedChildId ? !goal.childId || goal.childId === selectedChildId : true,
@@ -2966,6 +3003,12 @@ export async function createHousehold(household, context = {}) {
       ? existingFamilyData.familyFundSalesTaxPercent
       : household.familyFundSalesTaxPercent,
   )
+  const childSavingsAccountsEnabled = household.childSavingsAccountsEnabled === undefined
+    ? Boolean(existingFamilyData.childSavingsAccountsEnabled)
+    : Boolean(household.childSavingsAccountsEnabled)
+  const childSavingsWithdrawalsEnabled = household.childSavingsWithdrawalsEnabled === undefined
+    ? existingFamilyData.childSavingsWithdrawalsEnabled !== false
+    : Boolean(household.childSavingsWithdrawalsEnabled)
 
   const contextEmail = String(context.userEmail || '').trim().toLowerCase()
   const existingCreatorOwnerEmail = String(existingFamilyData.creatorOwnerEmail || '')
@@ -2994,6 +3037,8 @@ export async function createHousehold(household, context = {}) {
       familyFundIncomeTaxPercent,
       familyFundSalesTaxEnabled,
       familyFundSalesTaxPercent,
+      childSavingsAccountsEnabled,
+      childSavingsWithdrawalsEnabled,
       childSessionSecurityEnabled: Boolean(household.childSessionSecurityEnabled),
       dynamicPricingEnabled: Boolean(household.dynamicPricingEnabled),
       dynamicPricingWindowPeriod: normalizePricingWindow(household.dynamicPricingWindowPeriod),
@@ -3108,6 +3153,7 @@ export async function createChildProfile(childProfile, context = {}) {
     avatar,
     weeklyGoalCredits,
     credits: 0,
+    savingsBalance: 0,
     sessionCodeEnabled: false,
     sessionCode: '',
     allowChildSetSessionCode: false,
@@ -3698,10 +3744,13 @@ export async function contributeToSavingsGoal(goalId, amountValue, context = {})
     const familyFundEnabled = familyData.familyFundEnabled !== false
     const familyFundName = normalizeFamilyFundName(familyData.familyFundName)
     const familyFundBalance = Math.max(0, Number(familyData.familyFundBalance) || 0)
+    const familyFundContributionHistory = normalizeFamilyFundContributionHistory(
+      familyData.familyFundContributionHistory,
+    )
     const goalData = normalizeGoal(
       { id: goalSnap.id, ...goalSnap.data() },
       goalSnap.id,
-      { familyFundBalance },
+      { familyFundBalance, familyFundContributionHistory },
     )
     const isFamilyGoal = !goalData.childId
 
@@ -3743,9 +3792,7 @@ export async function contributeToSavingsGoal(goalId, amountValue, context = {})
       throw new Error(`${familyFundName} is turned off. Ask a parent to enable it first.`)
     }
 
-    const currentSaved = isFamilyGoal
-      ? familyFundBalance
-      : (Number(goalData.saved) || 0)
+    const currentSaved = Number(goalData.saved) || 0
     const target = Number(goalData.target) || 0
 
     if (target > 0 && currentSaved >= target) {
@@ -3768,6 +3815,7 @@ export async function contributeToSavingsGoal(goalId, amountValue, context = {})
       id: `${contributorChildId}:${Date.now()}`,
       childId: contributorChildId,
       amount,
+      source: isFamilyGoal ? 'family_goal' : 'savings_goal',
       createdAt: Date.now(),
     }
 
@@ -3779,6 +3827,10 @@ export async function contributeToSavingsGoal(goalId, amountValue, context = {})
     if (isFamilyGoal) {
       transaction.update(familyRef, {
         familyFundBalance: nextSaved,
+        familyFundContributionHistory: [
+          ...familyFundContributionHistory,
+          contributorEntry,
+        ].slice(-250),
         updatedAt: serverTimestamp(),
       })
     }
@@ -3791,7 +3843,9 @@ export async function contributeToSavingsGoal(goalId, amountValue, context = {})
       completedAt: null,
       approvedAt: null,
       approvedBy: null,
-      contributionHistory: [...contributionHistory, contributorEntry],
+      ...(isFamilyGoal
+        ? {}
+        : { contributionHistory: [...contributionHistory, contributorEntry] }),
       updatedAt: serverTimestamp(),
     })
 
@@ -3867,6 +3921,13 @@ export async function contributeToFamilyFund(amountValue, context = {}) {
 
     const nextCredits = currentCredits - amount
     const nextFundBalance = Math.max(0, Number(familySettings.familyFundBalance) || 0) + amount
+    const contributorEntry = {
+      id: `${contributorChildId}:${Date.now()}`,
+      childId: contributorChildId,
+      amount,
+      source: 'family_fund',
+      createdAt: Date.now(),
+    }
 
     transaction.update(childRef, {
       credits: nextCredits,
@@ -3875,6 +3936,10 @@ export async function contributeToFamilyFund(amountValue, context = {}) {
 
     transaction.update(familyRef, {
       familyFundBalance: nextFundBalance,
+      familyFundContributionHistory: [
+        ...familySettings.familyFundContributionHistory,
+        contributorEntry,
+      ].slice(-250),
       updatedAt: serverTimestamp(),
     })
 
@@ -3894,6 +3959,394 @@ export async function contributeToFamilyFund(amountValue, context = {}) {
       screen: userRole === 'kid' ? 'kid' : 'parent',
     },
     { familyId: activeFamilyId, userId, userRole },
+  )
+
+  return result
+}
+
+function resolveSavingsAccountChildId(context, userRole) {
+  const childId = context.selectedChildId || (userRole === 'kid' ? context.userId : null)
+  if (!childId) {
+    throw new Error('Select a child profile before using a savings account.')
+  }
+  return childId
+}
+
+function assertChildSavingsAccountsEnabled(familyData) {
+  const savingsSettings = normalizeFamilySavingsSettings(familyData || {})
+  if (!savingsSettings.childSavingsAccountsEnabled) {
+    throw new Error('Savings accounts are turned off right now. Ask a parent to enable them first.')
+  }
+  return savingsSettings
+}
+
+export async function moveWalletCreditsToSavingsAccount(amountValue, context = {}) {
+  const { familyId: activeFamilyId, userId, userRole } = getActiveFamilyContext(context)
+
+  if (userRole !== 'parent' && userRole !== 'kid') {
+    throw new Error('Only family members can use savings accounts.')
+  }
+
+  if (!hasFirebaseConfig || !db) {
+    throw new Error('Firebase is not configured.')
+  }
+
+  const amount = Number(amountValue)
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error('Savings transfer amount must be greater than zero.')
+  }
+
+  const childId = resolveSavingsAccountChildId({ ...context, userId }, userRole)
+  const familyRef = doc(db, 'families', activeFamilyId)
+  const childRef = doc(db, 'families', activeFamilyId, 'children', childId)
+
+  const result = await runTransaction(db, async (transaction) => {
+    const familySnap = await transaction.get(familyRef)
+    if (!familySnap.exists()) {
+      throw new Error('Family settings not found.')
+    }
+    assertChildSavingsAccountsEnabled(familySnap.data())
+
+    const childSnap = await transaction.get(childRef)
+    if (!childSnap.exists()) {
+      throw new Error('Child profile not found.')
+    }
+
+    const currentCredits = Number(childSnap.data()?.credits) || 0
+    const currentSavings = Math.max(0, Number(childSnap.data()?.savingsBalance) || 0)
+    if (currentCredits < amount) {
+      throw new Error('Not enough wallet credits to move into savings.')
+    }
+
+    const nextCredits = currentCredits - amount
+    const nextSavings = currentSavings + amount
+
+    transaction.update(childRef, {
+      credits: nextCredits,
+      savingsBalance: nextSavings,
+      updatedAt: serverTimestamp(),
+    })
+
+    return { childId, credits: nextCredits, savingsBalance: nextSavings }
+  })
+
+  trackAnalyticsEvent(
+    'savings_account_deposit',
+    {
+      amount,
+      childId,
+      source: 'moveWalletCreditsToSavingsAccount',
+      screen: userRole === 'kid' ? 'kid' : 'parent',
+    },
+    { familyId: activeFamilyId, userId, userRole, childId },
+  )
+
+  return result
+}
+
+export async function moveSavingsAccountToWallet(amountValue, context = {}) {
+  const { familyId: activeFamilyId, userId, userRole } = getActiveFamilyContext(context)
+
+  if (userRole !== 'parent' && userRole !== 'kid') {
+    throw new Error('Only family members can use savings accounts.')
+  }
+
+  if (!hasFirebaseConfig || !db) {
+    throw new Error('Firebase is not configured.')
+  }
+
+  const amount = Number(amountValue)
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error('Withdrawal amount must be greater than zero.')
+  }
+
+  const childId = resolveSavingsAccountChildId({ ...context, userId }, userRole)
+  const familyRef = doc(db, 'families', activeFamilyId)
+  const childRef = doc(db, 'families', activeFamilyId, 'children', childId)
+
+  const result = await runTransaction(db, async (transaction) => {
+    const familySnap = await transaction.get(familyRef)
+    if (!familySnap.exists()) {
+      throw new Error('Family settings not found.')
+    }
+    const savingsSettings = assertChildSavingsAccountsEnabled(familySnap.data())
+    if (!savingsSettings.childSavingsWithdrawalsEnabled) {
+      throw new Error('Moving savings back to wallet is turned off right now.')
+    }
+
+    const childSnap = await transaction.get(childRef)
+    if (!childSnap.exists()) {
+      throw new Error('Child profile not found.')
+    }
+
+    const currentCredits = Number(childSnap.data()?.credits) || 0
+    const currentSavings = Math.max(0, Number(childSnap.data()?.savingsBalance) || 0)
+    if (currentSavings < amount) {
+      throw new Error('Not enough savings to move back to wallet.')
+    }
+
+    const nextCredits = currentCredits + amount
+    const nextSavings = currentSavings - amount
+
+    transaction.update(childRef, {
+      credits: nextCredits,
+      savingsBalance: nextSavings,
+      updatedAt: serverTimestamp(),
+    })
+
+    return { childId, credits: nextCredits, savingsBalance: nextSavings }
+  })
+
+  trackAnalyticsEvent(
+    'savings_account_withdrawal',
+    {
+      amount,
+      childId,
+      source: 'moveSavingsAccountToWallet',
+      screen: userRole === 'kid' ? 'kid' : 'parent',
+    },
+    { familyId: activeFamilyId, userId, userRole, childId },
+  )
+
+  return result
+}
+
+export async function contributeSavingsAccountToSavingsGoal(goalId, amountValue, context = {}) {
+  const { familyId: activeFamilyId, userId, userRole } = getActiveFamilyContext(context)
+
+  if (userRole !== 'parent' && userRole !== 'kid') {
+    throw new Error('Only family members can contribute savings.')
+  }
+
+  if (!hasFirebaseConfig || !db) {
+    throw new Error('Firebase is not configured.')
+  }
+
+  const amount = Number(amountValue)
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error('Contribution amount must be greater than zero.')
+  }
+
+  const goalRef = doc(db, 'families', activeFamilyId, 'goals', goalId)
+  const familyRef = doc(db, 'families', activeFamilyId)
+
+  const result = await runTransaction(db, async (transaction) => {
+    const goalSnap = await transaction.get(goalRef)
+    if (!goalSnap.exists()) {
+      throw new Error('Savings goal not found.')
+    }
+
+    const familySnap = await transaction.get(familyRef)
+    if (!familySnap.exists()) {
+      throw new Error('Family settings not found.')
+    }
+
+    const familyData = familySnap.data() || {}
+    const savingsSettings = assertChildSavingsAccountsEnabled(familyData)
+    const familyFundBalance = Math.max(0, Number(savingsSettings.familyFundBalance) || 0)
+    const familyFundContributionHistory = normalizeFamilyFundContributionHistory(
+      familyData.familyFundContributionHistory,
+    )
+    const goalData = normalizeGoal(
+      { id: goalSnap.id, ...goalSnap.data() },
+      goalSnap.id,
+      { familyFundBalance, familyFundContributionHistory },
+    )
+    const isFamilyGoal = !goalData.childId
+    const contributorChildId = goalData.childId || context.selectedChildId || (userRole === 'kid' ? userId : null)
+
+    if (!contributorChildId) {
+      throw new Error('Select a child profile before contributing savings.')
+    }
+
+    if (userRole === 'kid' && goalData.childId && goalData.childId !== contributorChildId) {
+      throw new Error('You can only contribute to your own savings goal.')
+    }
+
+    if (isFamilyGoal && !savingsSettings.familyFundEnabled) {
+      throw new Error(`${savingsSettings.familyFundName} is turned off. Ask a parent to enable it first.`)
+    }
+
+    if (goalData.status === 'completed') {
+      throw new Error('This savings goal is already completed.')
+    }
+
+    if (goalData.status === 'pending_parent_approval' || goalData.status === 'countered') {
+      throw new Error('This savings goal is waiting on parent review.')
+    }
+
+    if (goalData.status === 'denied') {
+      throw new Error('This savings goal request was denied. Create a new goal request first.')
+    }
+
+    const childRef = doc(db, 'families', activeFamilyId, 'children', contributorChildId)
+    const childSnap = await transaction.get(childRef)
+    if (!childSnap.exists()) {
+      throw new Error('Child profile not found.')
+    }
+
+    const currentSavings = Math.max(0, Number(childSnap.data()?.savingsBalance) || 0)
+    if (currentSavings < amount) {
+      throw new Error('Not enough savings to make that contribution.')
+    }
+
+    const currentSaved = Number(goalData.saved) || 0
+    const target = Number(goalData.target) || 0
+    if (target > 0 && currentSaved >= target) {
+      throw new Error('This goal already reached its target and is waiting on parent approval.')
+    }
+
+    const remaining = Math.max(0, target - currentSaved)
+    if (target > 0 && amount > remaining) {
+      throw new Error(`You can only contribute up to ${remaining} credits right now.`)
+    }
+
+    const completesGoal = target > 0 && currentSaved < target && (currentSaved + amount) >= target
+    const nextSavings = currentSavings - amount
+    const nextSaved = currentSaved + amount
+    const nextStatus = completesGoal ? 'ready_to_claim' : 'active'
+    const contributionHistory = Array.isArray(goalSnap.data().contributionHistory)
+      ? goalSnap.data().contributionHistory
+      : []
+    const contributorEntry = {
+      id: `${contributorChildId}:${Date.now()}`,
+      childId: contributorChildId,
+      amount,
+      source: isFamilyGoal ? 'savings_account_family_goal' : 'savings_account_goal',
+      createdAt: Date.now(),
+    }
+
+    transaction.update(childRef, {
+      savingsBalance: nextSavings,
+      updatedAt: serverTimestamp(),
+    })
+
+    if (isFamilyGoal) {
+      transaction.update(familyRef, {
+        familyFundBalance: nextSaved,
+        familyFundContributionHistory: [
+          ...familyFundContributionHistory,
+          contributorEntry,
+        ].slice(-250),
+        updatedAt: serverTimestamp(),
+      })
+    }
+
+    transaction.update(goalRef, {
+      saved: nextSaved,
+      status: nextStatus,
+      readyToClaimAt:
+        completesGoal ? (goalSnap.data().readyToClaimAt || serverTimestamp()) : null,
+      completedAt: null,
+      approvedAt: null,
+      approvedBy: null,
+      ...(isFamilyGoal
+        ? {}
+        : { contributionHistory: [...contributionHistory, contributorEntry] }),
+      updatedAt: serverTimestamp(),
+    })
+
+    return {
+      childId: contributorChildId,
+      savingsBalance: nextSavings,
+      saved: nextSaved,
+      completesGoal,
+      status: nextStatus,
+    }
+  })
+
+  trackAnalyticsEvent(
+    'savings_account_goal_contributed',
+    {
+      itemId: goalId,
+      itemType: 'goal',
+      amount,
+      childId: result.childId,
+      source: 'contributeSavingsAccountToSavingsGoal',
+      screen: userRole === 'kid' ? 'kid' : 'parent',
+    },
+    { familyId: activeFamilyId, userId, userRole, childId: result.childId },
+  )
+
+  return result
+}
+
+export async function contributeSavingsAccountToFamilyFund(amountValue, context = {}) {
+  const { familyId: activeFamilyId, userId, userRole } = getActiveFamilyContext(context)
+
+  if (userRole !== 'parent' && userRole !== 'kid') {
+    throw new Error('Only family members can contribute savings.')
+  }
+
+  if (!hasFirebaseConfig || !db) {
+    throw new Error('Firebase is not configured.')
+  }
+
+  const amount = Number(amountValue)
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error('Contribution amount must be greater than zero.')
+  }
+
+  const childId = resolveSavingsAccountChildId({ ...context, userId }, userRole)
+  const familyRef = doc(db, 'families', activeFamilyId)
+  const childRef = doc(db, 'families', activeFamilyId, 'children', childId)
+
+  const result = await runTransaction(db, async (transaction) => {
+    const familySnap = await transaction.get(familyRef)
+    if (!familySnap.exists()) {
+      throw new Error('Family settings not found.')
+    }
+    const savingsSettings = assertChildSavingsAccountsEnabled(familySnap.data())
+    if (!savingsSettings.familyFundEnabled) {
+      throw new Error(`${savingsSettings.familyFundName} is turned off. Ask a parent to enable it first.`)
+    }
+
+    const childSnap = await transaction.get(childRef)
+    if (!childSnap.exists()) {
+      throw new Error('Child profile not found.')
+    }
+
+    const currentSavings = Math.max(0, Number(childSnap.data()?.savingsBalance) || 0)
+    if (currentSavings < amount) {
+      throw new Error('Not enough savings to contribute to the family fund.')
+    }
+
+    const nextSavings = currentSavings - amount
+    const nextFundBalance = Math.max(0, Number(savingsSettings.familyFundBalance) || 0) + amount
+    const contributorEntry = {
+      id: `${childId}:${Date.now()}`,
+      childId,
+      amount,
+      source: 'savings_account_family_fund',
+      createdAt: Date.now(),
+    }
+
+    transaction.update(childRef, {
+      savingsBalance: nextSavings,
+      updatedAt: serverTimestamp(),
+    })
+
+    transaction.update(familyRef, {
+      familyFundBalance: nextFundBalance,
+      familyFundContributionHistory: [
+        ...savingsSettings.familyFundContributionHistory,
+        contributorEntry,
+      ].slice(-250),
+      updatedAt: serverTimestamp(),
+    })
+
+    return { childId, savingsBalance: nextSavings, nextFundBalance }
+  })
+
+  trackAnalyticsEvent(
+    'savings_account_family_fund_contributed',
+    {
+      amount,
+      childId,
+      source: 'contributeSavingsAccountToFamilyFund',
+      screen: userRole === 'kid' ? 'kid' : 'parent',
+    },
+    { familyId: activeFamilyId, userId, userRole, childId },
   )
 
   return result

@@ -13,7 +13,6 @@ export default function ChildProfilesPage() {
     error,
     activeChildProfile,
     setActiveChildProfile,
-    isParent,
   } = useChildProfiles({ defaultErrorMessage: 'Could not load child profiles.' })
   const activeChildId = activeChildProfile?.id || ''
   const hasActiveChild = Boolean(activeChildProfile)
@@ -36,18 +35,18 @@ export default function ChildProfilesPage() {
 
   return (
     <>
-      <main className="phone-content">
-        <section className="panel">
+      <main className="phone-content child-profiles-grid">
+        <section className="panel child-chooser-panel">
           <p className="panel-label">Choose Child</p>
           <p className="panel-muted">
-            Select a child tile to switch the kid-friendly view across the app.
+            Pick who is using the kid view.
           </p>
 
-          <EmptyState>{loading ? 'Loading children...' : ''}</EmptyState>
+          <EmptyState className="child-chooser-state">{loading ? 'Loading children...' : ''}</EmptyState>
           <StatusNote tone="error">{error}</StatusNote>
 
           {!loading && children.length === 0 ? (
-            <EmptyState>No child profiles yet.</EmptyState>
+            <EmptyState className="child-chooser-state">No child profiles yet.</EmptyState>
           ) : null}
 
           {children.length > 0 ? (
@@ -68,7 +67,6 @@ export default function ChildProfilesPage() {
                       {child.avatar}
                     </span>
                     <strong>{child.displayName}</strong>
-                    <small>Weekly goal: {child.weeklyGoalCredits}</small>
                   </button>
                 )
               })}
@@ -76,11 +74,6 @@ export default function ChildProfilesPage() {
           ) : null}
         </section>
 
-        {isParent ? (
-          <StatusNote>
-            Add/edit child profiles from Parent tab command center.
-          </StatusNote>
-        ) : null}
       </main>
     </>
   )

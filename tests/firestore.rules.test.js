@@ -8,7 +8,7 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing'
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
+import { doc, getDoc, setDoc, Timestamp, updateDoc } from 'firebase/firestore'
 
 const PROJECT_ID = 'family-economy-rules-test'
 const FAMILY_ID = 'family-main'
@@ -49,6 +49,30 @@ async function seedBaseData() {
       email: 'newparent@example.com',
       familyId: 'family-new',
       role: 'parent',
+    })
+
+    await setDoc(doc(db, 'registrationInvites', 'INVITE-OK'), {
+      code: 'INVITE-OK',
+      active: true,
+      status: 'active',
+      maxUses: 1,
+      usedCount: 0,
+      expiresAt: Timestamp.fromDate(new Date('2099-01-01T00:00:00.000Z')),
+      createdAt: Timestamp.fromDate(new Date('2026-01-01T00:00:00.000Z')),
+      updatedAt: Timestamp.fromDate(new Date('2026-01-01T00:00:00.000Z')),
+      createdBy: 'test',
+    })
+
+    await setDoc(doc(db, 'registrationInvites', 'INVITE-USED'), {
+      code: 'INVITE-USED',
+      active: true,
+      status: 'active',
+      maxUses: 1,
+      usedCount: 1,
+      expiresAt: Timestamp.fromDate(new Date('2099-01-01T00:00:00.000Z')),
+      createdAt: Timestamp.fromDate(new Date('2026-01-01T00:00:00.000Z')),
+      updatedAt: Timestamp.fromDate(new Date('2026-01-01T00:00:00.000Z')),
+      createdBy: 'test',
     })
 
     await setDoc(doc(db, 'families', FAMILY_ID), {
@@ -223,6 +247,60 @@ describe('Firestore Rules', () => {
     const anonDb = testEnv.unauthenticatedContext().firestore()
 
     await assertFails(getDoc(doc(anonDb, 'families', FAMILY_ID)))
+  })
+
+  it('allows invite-code lookup without allowing invite browsing', async () => {
+    const anonDb = testEnv.unauthenticatedContext().firestore()
+
+    await assertSucceeds(getDoc(doc(anonDb, 'registrationInvites', 'INVITE-OK')))
+    await assertFails(getDoc(doc(anonDb, 'registrationInvites', 'INVITE-USED')))
+  })
+
+  it('requires a usable invite code when creating a parent profile', async () => {
+    const db = userDb('new-parent-with-invite')
+
+    await assertSucceeds(
+      setDoc(doc(db, 'users', 'new-parent-with-invite'), {
+        displayName: 'Invited Parent',
+        email: 'invited@example.com',
+        familyId: 'family-invited',
+        role: 'parent',
+        registrationInviteCode: 'INVITE-OK',
+      }),
+    )
+
+    const noInviteDb = userDb('new-parent-without-invite')
+
+    await assertFails(
+      setDoc(doc(noInviteDb, 'users', 'new-parent-without-invite'), {
+        displayName: 'No Invite',
+        email: 'noinvite@example.com',
+        familyId: 'family-no-invite',
+        role: 'parent',
+      }),
+    )
+  })
+
+  it('allows signed-in users to consume exactly one invite use', async () => {
+    const db = userDb('new-parent-with-invite')
+
+    await assertSucceeds(
+      updateDoc(doc(db, 'registrationInvites', 'INVITE-OK'), {
+        usedCount: 1,
+        lastUsedBy: 'new-parent-with-invite',
+        lastUsedAt: Timestamp.fromDate(new Date('2026-06-09T00:00:00.000Z')),
+        updatedAt: Timestamp.fromDate(new Date('2026-06-09T00:00:00.000Z')),
+      }),
+    )
+
+    await assertFails(
+      updateDoc(doc(db, 'registrationInvites', 'INVITE-OK'), {
+        usedCount: 2,
+        lastUsedBy: 'new-parent-with-invite',
+        lastUsedAt: Timestamp.fromDate(new Date('2026-06-09T00:00:00.000Z')),
+        updatedAt: Timestamp.fromDate(new Date('2026-06-09T00:00:00.000Z')),
+      }),
+    )
   })
 
   it('keeps claimed job immutable for kids', async () => {

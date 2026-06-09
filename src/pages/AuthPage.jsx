@@ -1,12 +1,12 @@
-import { useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Navigate, useSearchParams } from 'react-router-dom'
 
 import SplashScreen from '../components/shared/SplashScreen'
 import { useAuth } from '../context/AuthContext'
+import { validateRegistrationInvite } from '../services/registrationInviteService'
 import { isBlockedByClientSignal, normalizeErrorMessage } from '../utils/errorUtils'
 
 const authLogoSrc = `${import.meta.env.BASE_URL}verticalnotag.png`
-const registrationInviteCode = String(import.meta.env.VITE_REGISTRATION_INVITE_CODE || '').trim()
 const demoParentEmail = String(import.meta.env.VITE_DEMO_PARENT_EMAIL || 'demo@familyeconomy.app').trim()
 const demoParentPassword = String(import.meta.env.VITE_DEMO_PARENT_PASSWORD || 'FamilyDemo123!').trim()
 const showDemoLogin = import.meta.env.VITE_SHOW_DEMO_LOGIN !== 'false'
@@ -35,6 +35,12 @@ export default function AuthPage() {
     displayName: currentDisplayName,
     authStatusError,
   } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const hasInviteUrlPrompt =
+    searchParams.has('invite') || searchParams.has('inviteCode') || searchParams.has('code')
+  const urlInviteCode = String(
+    searchParams.get('invite') || searchParams.get('inviteCode') || searchParams.get('code') || '',
+  ).trim()
 
   const [mode, setMode] = useState('login')
   const [email, setEmail] = useState('')
@@ -44,7 +50,8 @@ export default function AuthPage() {
   const [newFamilyId, setNewFamilyId] = useState(() => createFamilyId())
   const [showInviteForm, setShowInviteForm] = useState(false)
   const [inviteCode, setInviteCode] = useState('')
-  const [registrationUnlocked, setRegistrationUnlocked] = useState(false)
+  const [validatedInviteCode, setValidatedInviteCode] = useState('')
+  const [checkingInvite, setCheckingInvite] = useState(false)
   const [showEarlyAccessForm, setShowEarlyAccessForm] = useState(false)
   const [earlyAccessName, setEarlyAccessName] = useState('')
   const [earlyAccessEmailValue, setEarlyAccessEmailValue] = useState('')
@@ -57,7 +64,63 @@ export default function AuthPage() {
   const localErrorText = normalizeErrorMessage(error, '')
   const blockedByClient =
     isBlockedByClientSignal(authStatusText) || isBlockedByClientSignal(localErrorText)
-  const registrationInviteEnabled = registrationInviteCode.length > 0
+  const registrationUnlocked = validatedInviteCode.length > 0
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function validateUrlInvite() {
+      if (!hasInviteUrlPrompt) {
+        return
+      }
+
+      setValidatedInviteCode('')
+
+      if (!urlInviteCode) {
+        setShowInviteForm(true)
+        return
+      }
+
+      setCheckingInvite(true)
+      setError('')
+
+      try {
+        const normalizedInviteCode = await validateRegistrationInvite(urlInviteCode)
+
+        if (cancelled) {
+          return
+        }
+
+        setValidatedInviteCode(normalizedInviteCode)
+        setInviteCode(normalizedInviteCode)
+        setShowInviteForm(false)
+        setMode('register')
+        setPassword('')
+      } catch (caughtError) {
+        if (cancelled) {
+          return
+        }
+
+        setMode('login')
+        setShowInviteForm(true)
+        setError(normalizeErrorMessage(caughtError, 'That invitation code is not active.'))
+      } finally {
+        if (!cancelled) {
+          setCheckingInvite(false)
+        }
+      }
+    }
+
+    if (!hasFirebaseConfig) {
+      return
+    }
+
+    validateUrlInvite()
+
+    return () => {
+      cancelled = true
+    }
+  }, [hasFirebaseConfig, hasInviteUrlPrompt, urlInviteCode])
 
   if (!hasFirebaseConfig) {
     return (
@@ -95,7 +158,8 @@ export default function AuthPage() {
       await completeProfile({
         displayName: resolvedDisplayName,
         familyId: newFamilyId,
-        role: 'parent',
+          role: 'parent',
+        invitationCode: validatedInviteCode || urlInviteCode || inviteCode,
       })
     } catch (caughtError) {
       setError(normalizeErrorMessage(caughtError, 'Could not save profile.'))
@@ -150,8 +214,8 @@ export default function AuthPage() {
 
     try {
       if (mode === 'register') {
-        if (!registrationInviteEnabled || !registrationUnlocked) {
-          throw new Error('Parent registration is invite-only right now.')
+        if (!registrationUnlocked) {
+          throw new Error('Use an invitation link or enter your invitation code first.')
         }
 
         await register({
@@ -159,6 +223,7 @@ export default function AuthPage() {
           password,
           displayName,
           role: 'parent',
+          invitationCode: validatedInviteCode,
         })
       } else {
         await login(email, password)
@@ -173,28 +238,34 @@ export default function AuthPage() {
   function handleUnlockInvite(event) {
     event.preventDefault()
     setError('')
+    setValidatedInviteCode('')
 
-    if (!registrationInviteEnabled) {
-      setError('Parent registration is invite-only right now.')
+    const nextInviteCode = inviteCode.trim()
+
+    if (!nextInviteCode) {
+      setError('Enter your invitation code.')
       return
     }
 
-    if (inviteCode.trim() !== registrationInviteCode) {
-      setError('That invitation code is not valid.')
-      return
-    }
-
-    setRegistrationUnlocked(true)
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.set('invite', nextInviteCode)
+    nextSearchParams.delete('inviteCode')
+    nextSearchParams.delete('code')
+    setSearchParams(nextSearchParams, { replace: true })
     setShowInviteForm(false)
-    setMode('register')
     setPassword('')
   }
 
   function handleReturnToLogin() {
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.delete('invite')
+    nextSearchParams.delete('inviteCode')
+    nextSearchParams.delete('code')
+    setSearchParams(nextSearchParams, { replace: true })
     setMode('login')
-    setRegistrationUnlocked(false)
     setShowInviteForm(false)
     setInviteCode('')
+    setValidatedInviteCode('')
     setError('')
   }
 
@@ -338,38 +409,30 @@ export default function AuthPage() {
           </button>
         ) : (
           <div className="auth-private-access">
-            {registrationInviteEnabled ? (
-              <>
-                {showInviteForm ? (
-                  <form className="auth-invite-form" onSubmit={handleUnlockInvite}>
-                    <p className="auth-access-prompt-label">Invited family?</p>
-                    <input
-                      className="job-input"
-                      placeholder="Invitation code"
-                      value={inviteCode}
-                      onChange={(event) => setInviteCode(event.target.value)}
-                    />
+            {showInviteForm ? (
+              <form className="auth-invite-form" onSubmit={handleUnlockInvite}>
+                <p className="auth-access-prompt-label">Invited family?</p>
+                <input
+                  className="job-input"
+                  placeholder="Invitation code"
+                  value={inviteCode}
+                  onChange={(event) => setInviteCode(event.target.value)}
+                />
                     <button className="text-button" type="submit">
-                      Enter your code
+                      {checkingInvite ? 'Checking...' : 'Enter your code'}
                     </button>
                   </form>
-                ) : (
-                  <div className="auth-access-prompt">
-                    <span>Invited family?</span>
-                    <button
-                      type="button"
-                      className="auth-inline-link"
-                      onClick={() => setShowInviteForm(true)}
-                    >
-                      Enter your code
-                    </button>
-                  </div>
-                )}
-              </>
             ) : (
-              <p className="auth-private-note">
-                New parent accounts are invite-only right now.
-              </p>
+              <div className="auth-access-prompt">
+                <span>Invited family?</span>
+                <button
+                  type="button"
+                  className="auth-inline-link"
+                  onClick={() => setShowInviteForm(true)}
+                >
+                  Enter your code
+                </button>
+              </div>
             )}
             <div className="auth-access-prompt">
               <span>Need access?</span>

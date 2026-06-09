@@ -34,9 +34,43 @@ service cloud.firestore {
       return isInFamily(targetFamilyId) && role() == 'kid';
     }
 
+    function invitePath(inviteCode) {
+      return /databases/$(database)/documents/registrationInvites/$(inviteCode);
+    }
+
+    function registrationInviteIsUsable(inviteCode) {
+      return inviteCode is string
+        && exists(invitePath(inviteCode))
+        && get(invitePath(inviteCode)).data.active == true
+        && get(invitePath(inviteCode)).data.status == 'active'
+        && get(invitePath(inviteCode)).data.usedCount < get(invitePath(inviteCode)).data.maxUses
+        && request.time < get(invitePath(inviteCode)).data.expiresAt;
+    }
+
     // Users manage only their own profile document.
     match /users/{userId} {
-      allow read, write: if isSignedIn() && request.auth.uid == userId;
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
+        && request.resource.data.role == 'parent'
+        && registrationInviteIsUsable(request.resource.data.registrationInviteCode);
+      allow update, delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /registrationInvites/{inviteCode} {
+      allow get: if registrationInviteIsUsable(inviteCode);
+      allow list: if false;
+      allow create, delete: if false;
+      allow update: if isSignedIn()
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'usedCount',
+          'lastUsedAt',
+          'lastUsedBy',
+          'updatedAt',
+        ])
+        && request.resource.data.usedCount == resource.data.usedCount + 1
+        && request.resource.data.usedCount <= resource.data.maxUses
+        && request.resource.data.lastUsedBy == request.auth.uid;
     }
 
     match /analyticsEvents/{eventId} {

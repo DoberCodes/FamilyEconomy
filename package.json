@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "demo:reset": "node scripts/reset-demo-user.mjs",
     "demo:seed": "npm run demo:reset",
+    "invite:create": "node scripts/create-invite-code.mjs",
     "test:logic": "node --test tests/familyEconomyService.logic.test.js tests/parentCommandCenterSelectors.test.js tests/parentAnalyticsSelectors.test.js",
     "test:rules": "firebase emulators:exec --only firestore --project family-economy-rules-test \"node --test tests/firestore.rules.test.js\"",
     "test": "npm run test:logic && npm run test:rules"

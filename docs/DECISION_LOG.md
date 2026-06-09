@@ -12,6 +12,44 @@ If a decision conflicts with `VISION.md`, `VISION.md` is authoritative.
 
 # 2026-06
 
+## Decision: Back invite-only registration with Firestore invite codes
+
+### Context
+
+The first invite URL flow used the presence of a URL code to reveal registration.
+
+That made sharing links easier, but the codes were not stored or validated anywhere.
+
+### Decision
+
+Store invite codes in `registrationInvites/{CODE}`.
+
+Registration validates the invite document before creating the parent profile and increments `usedCount` after the profile is created.
+
+Add `npm run invite:create` to generate Firestore invite documents with `maxUses`, `usedCount`, and `expiresAt`.
+
+### Reasoning
+
+Firestore-backed invites give early access a real allowlist without adding Cloud Functions yet.
+
+The script keeps invite generation easy while still requiring explicit Firebase Admin credentials for writes.
+
+### Impact
+
+* `/auth?invite` still opens the code-entry box.
+* `/auth?invite=CODE` unlocks registration only when `registrationInvites/{CODE}` is active, unexpired, and under its use limit.
+* Invite documents are not listable by the public client.
+* Manual invite creation is possible in Firebase if the required fields are added.
+* A backend function is still recommended before public launch for stronger single-use consumption guarantees.
+
+### Related Documents
+
+* `README.md`
+* `FEATURES.md`
+* `firestore.rules`
+
+---
+
 ## Decision: Add an email-based early access request flow
 
 ### Context
@@ -34,7 +72,7 @@ It also lets reviewers and interested families describe their family context bef
 
 ### Impact
 
-* Public registration remains hidden unless an invitation code is configured.
+* Public registration remains hidden unless a Firestore-backed invite code is used.
 * Early-access requests are handled through email.
 * A future production flow can replace this with a server-validated request pipeline or CRM integration.
 
@@ -129,7 +167,11 @@ Family Economy is not ready for open self-service account creation or a public t
 
 Hide public parent registration by default.
 
-Only show the create-account form after a configured invitation code is entered.
+Only show the create-account form after a Firestore-backed invite code is used.
+
+`/auth?invite` shows the invitation code box.
+
+`/auth?invite=CODE` attempts to validate the code and unlocks the create-account form when the invite is usable.
 
 ### Reasoning
 
@@ -140,7 +182,7 @@ It also avoids inviting unknown families into the product before onboarding, sam
 ### Impact
 
 * Existing parents can still sign in normally.
-* New parent account creation is hidden unless `VITE_REGISTRATION_INVITE_CODE` is configured and entered.
+* New parent account creation is hidden unless a Firestore-backed invite code is used.
 * This is a soft client-side gate, not a hardened security boundary.
 * Before public launch, account creation should be restricted with Firebase/backend controls or a server-validated invite flow.
 

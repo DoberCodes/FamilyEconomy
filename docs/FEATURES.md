@@ -35,7 +35,7 @@ Features include:
 * Child profile selection and child session support.
 * Family-level settings and economy controls.
 * Mobile-first experience for both parents and children.
-* Parent account registration is hidden unless an invitation code is configured and entered.
+* Parent account registration is hidden unless a Firestore-backed invite code is used.
 * Login page includes an email-based early access request form.
 * Optional demo login can be shown on the sign-in page for product walkthroughs.
 * Demo household data can be reset to a known baseline with `npm run demo:reset`.

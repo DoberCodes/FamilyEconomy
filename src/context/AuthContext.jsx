@@ -29,6 +29,10 @@ import {
 } from '../store/authSelectors'
 import { isBlockedByClientSignal, normalizeErrorMessage } from '../utils/errorUtils'
 import { serializeAuthProfile } from '../utils/serializeUtils'
+import {
+  consumeRegistrationInvite,
+  validateRegistrationInvite,
+} from '../services/registrationInviteService'
 
 const AuthContext = createContext(null)
 
@@ -236,7 +240,7 @@ export function AuthProvider({ children }) {
     }
   }
 
-  async function register({ email, password, displayName, familyId, role }) {
+  async function register({ email, password, displayName, familyId, role, invitationCode }) {
     if (!auth || !db) {
       throw new Error('Firebase Auth is not configured.')
     }
@@ -244,6 +248,7 @@ export function AuthProvider({ children }) {
     dispatch(setAuthStatusError(''))
 
     const resolvedFamilyId = normalizeFamilyId(familyId)
+    const normalizedInviteCode = await validateRegistrationInvite(invitationCode)
 
     let userCredential
 
@@ -260,12 +265,15 @@ export function AuthProvider({ children }) {
       displayName,
       familyId: resolvedFamilyId,
       role,
+      registrationInviteCode: normalizedInviteCode,
+      registrationInviteUsedAt: serverTimestamp(),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     }
 
     try {
       await setDoc(doc(db, 'users', userCredential.user.uid), userProfile)
+      await consumeRegistrationInvite(normalizedInviteCode, userCredential.user.uid)
     } catch (error) {
       dispatch(setAuthStatusError(getReadableErrorMessage(error, 'Could not create parent profile document.')))
       if (isBlockedByClient(error)) {
@@ -290,7 +298,7 @@ export function AuthProvider({ children }) {
     }))
   }
 
-  async function completeProfile({ displayName, familyId, role }) {
+  async function completeProfile({ displayName, familyId, role, invitationCode }) {
     if (!authUser || !db) {
       throw new Error('You must be signed in to complete profile.')
     }
@@ -298,6 +306,7 @@ export function AuthProvider({ children }) {
     dispatch(setAuthStatusError(''))
 
     const resolvedFamilyId = normalizeFamilyId(familyId)
+    const normalizedInviteCode = invitationCode ? await validateRegistrationInvite(invitationCode) : ''
 
     const patch = {
       displayName,
@@ -307,8 +316,16 @@ export function AuthProvider({ children }) {
       updatedAt: serverTimestamp(),
     }
 
+    if (normalizedInviteCode) {
+      patch.registrationInviteCode = normalizedInviteCode
+      patch.registrationInviteUsedAt = serverTimestamp()
+    }
+
     try {
       await setDoc(doc(db, 'users', authUser.uid), patch, { merge: true })
+      if (normalizedInviteCode) {
+        await consumeRegistrationInvite(normalizedInviteCode, authUser.uid)
+      }
     } catch (error) {
       dispatch(setAuthStatusError(getReadableErrorMessage(error, 'Could not save parent profile.')))
       throw new Error(error?.message || 'Could not save parent profile.', {

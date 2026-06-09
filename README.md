@@ -70,7 +70,34 @@ If Firebase env values are missing, the app automatically uses seeded local data
 
 Firestore-backed analytics event writes are opt-in. Set `VITE_FIRESTORE_ANALYTICS_ENABLED=true` only when you want Creator analytics events persisted to Firestore; leave it false for quieter local development.
 
-Parent registration is private by default. Set `VITE_REGISTRATION_INVITE_CODE` when you want invited families to unlock the create-account form. This is a soft client-side gate; use Firebase/backend controls before public launch.
+Parent registration is private by default. Invited families can open `/auth?invite` to enter a code, or `/auth?invite=CODE` to unlock the create-account form directly.
+
+Invite codes live in Firestore under `registrationInvites/{CODE}`. Create one with:
+
+```powershell
+npm run invite:create -- --days 30 --max-uses 1 --note "Smith family"
+```
+
+The script prints an invite URL path you can send. It requires `FIREBASE_SERVICE_ACCOUNT_PATH` because it writes invite documents to Firebase.
+
+If you create a code manually in Firebase, use this shape:
+
+```json
+{
+  "code": "FE-EXAMPLE",
+  "active": true,
+  "status": "active",
+  "maxUses": 1,
+  "usedCount": 0,
+  "expiresAt": "Firestore Timestamp in the future",
+  "createdAt": "Firestore Timestamp",
+  "updatedAt": "Firestore Timestamp",
+  "createdBy": "manual",
+  "note": "Optional note"
+}
+```
+
+This is still a client-visible early-access gate; use a backend function before public launch if invite consumption needs to be fully tamper-resistant.
 
 ## Demo Account
 

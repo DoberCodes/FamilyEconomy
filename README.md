@@ -87,6 +87,14 @@ npm run invite:create -- --days 30 --max-uses 1 --note "Smith family"
 
 The script prints an invite URL path you can send. It requires `FIREBASE_SERVICE_ACCOUNT_PATH` because it writes invite documents to Firebase.
 
+To diagnose an invite that says it is not active:
+
+```powershell
+npm run invite:check -- --code FE-B32501-991760
+```
+
+That verifies the code exists in the configured Firebase project and reports whether it is active, expired, or used up.
+
 If you create a code manually in Firebase, use this shape:
 
 ```json

@@ -42,8 +42,12 @@ export async function validateRegistrationInvite(invitationCode) {
 
   try {
     inviteSnap = await getDocFromServer(doc(db, 'registrationInvites', normalizedInviteCode))
-  } catch {
-    throw new Error('That invitation code is not active.')
+  } catch (caughtError) {
+    if (caughtError?.code === 'permission-denied') {
+      throw new Error('Could not validate that invitation code. It may be missing, expired, used up, or Firestore rules may not be deployed.')
+    }
+
+    throw new Error('That invitation code could not be checked right now.')
   }
 
   if (!inviteSnap.exists() || !isUsableInvite(inviteSnap.data())) {

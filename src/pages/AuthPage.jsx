@@ -10,6 +10,7 @@ const registrationInviteCode = String(import.meta.env.VITE_REGISTRATION_INVITE_C
 const demoParentEmail = String(import.meta.env.VITE_DEMO_PARENT_EMAIL || 'demo@familyeconomy.app').trim()
 const demoParentPassword = String(import.meta.env.VITE_DEMO_PARENT_PASSWORD || 'FamilyDemo123!').trim()
 const showDemoLogin = import.meta.env.VITE_SHOW_DEMO_LOGIN !== 'false'
+const earlyAccessEmail = 'doberfamilyventures@gmail.com'
 
 function createFamilyId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -44,6 +45,12 @@ export default function AuthPage() {
   const [showInviteForm, setShowInviteForm] = useState(false)
   const [inviteCode, setInviteCode] = useState('')
   const [registrationUnlocked, setRegistrationUnlocked] = useState(false)
+  const [showEarlyAccessForm, setShowEarlyAccessForm] = useState(false)
+  const [earlyAccessName, setEarlyAccessName] = useState('')
+  const [earlyAccessEmailValue, setEarlyAccessEmailValue] = useState('')
+  const [earlyAccessFamily, setEarlyAccessFamily] = useState('')
+  const [earlyAccessMessage, setEarlyAccessMessage] = useState('')
+  const [earlyAccessStatus, setEarlyAccessStatus] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const authStatusText = normalizeErrorMessage(authStatusError, '')
@@ -199,6 +206,36 @@ export default function AuthPage() {
     setError('')
   }
 
+  function handleCloseEarlyAccessDialog() {
+    setShowEarlyAccessForm(false)
+    setEarlyAccessStatus('')
+  }
+
+  function handleEarlyAccessRequest(event) {
+    event.preventDefault()
+    setError('')
+
+    const requestName = earlyAccessName.trim()
+    const requestEmail = earlyAccessEmailValue.trim()
+    const requestFamily = earlyAccessFamily.trim()
+    const requestMessage = earlyAccessMessage.trim()
+
+    const body = [
+      'Early access request',
+      '',
+      `Parent name: ${requestName || 'Not provided'}`,
+      `Email: ${requestEmail || 'Not provided'}`,
+      `Family / context: ${requestFamily || 'Not provided'}`,
+      '',
+      'Message:',
+      requestMessage || 'Not provided',
+    ].join('\n')
+
+    const mailtoUrl = `mailto:${earlyAccessEmail}?subject=${encodeURIComponent('Family Economy early access request')}&body=${encodeURIComponent(body)}`
+    window.location.href = mailtoUrl
+    setEarlyAccessStatus('Your email app should open with the request ready to send.')
+  }
+
   return (
     <main className="auth-screen">
       <section className="auth-brand-hero" aria-label="Family Economy">
@@ -273,7 +310,8 @@ export default function AuthPage() {
         {showDemoLogin && mode === 'login' ? (
           <section className="auth-demo-panel" aria-label="Demo login credentials">
             <p className="auth-demo-title">Demo account</p>
-            <p className="auth-demo-copy">Resettable sample household for product walkthroughs.</p>
+            <p className="auth-demo-copy">Try Family Economy using a sample household.</p>
+            <p className="auth-demo-copy">This demo resets periodically.</p>
             <dl className="auth-demo-credentials">
               <div>
                 <dt>Email</dt>
@@ -304,6 +342,7 @@ export default function AuthPage() {
               <>
                 {showInviteForm ? (
                   <form className="auth-invite-form" onSubmit={handleUnlockInvite}>
+                    <p className="auth-access-prompt-label">Invited family?</p>
                     <input
                       className="job-input"
                       placeholder="Invitation code"
@@ -311,17 +350,20 @@ export default function AuthPage() {
                       onChange={(event) => setInviteCode(event.target.value)}
                     />
                     <button className="text-button" type="submit">
-                      Unlock registration
+                      Enter your code
                     </button>
                   </form>
                 ) : (
-                  <button
-                    type="button"
-                    className="auth-mode-link"
-                    onClick={() => setShowInviteForm(true)}
-                  >
-                    Have an invitation code?
-                  </button>
+                  <div className="auth-access-prompt">
+                    <span>Invited family?</span>
+                    <button
+                      type="button"
+                      className="auth-inline-link"
+                      onClick={() => setShowInviteForm(true)}
+                    >
+                      Enter your code
+                    </button>
+                  </div>
                 )}
               </>
             ) : (
@@ -329,9 +371,103 @@ export default function AuthPage() {
                 New parent accounts are invite-only right now.
               </p>
             )}
+            <div className="auth-access-prompt">
+              <span>Need access?</span>
+              <button
+                type="button"
+                className="auth-inline-link"
+                onClick={() => {
+                  setShowEarlyAccessForm(true)
+                  setEarlyAccessStatus('')
+                }}
+              >
+                Request early access
+              </button>
+            </div>
           </div>
         )}
       </section>
+
+      {showEarlyAccessForm ? (
+        <div
+          className="auth-access-dialog-overlay"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              handleCloseEarlyAccessDialog()
+            }
+          }}
+        >
+          <section
+            className="auth-access-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="early-access-title"
+          >
+            <div className="panel-head">
+              <div>
+                <p className="auth-access-title">Early access</p>
+                <h2 id="early-access-title" className="auth-access-heading">Request an invite</h2>
+              </div>
+              <button
+                type="button"
+                className="dialog-close-button"
+                onClick={handleCloseEarlyAccessDialog}
+                aria-label="Close early access dialog"
+              >
+                <span aria-hidden="true">X</span>
+              </button>
+            </div>
+            <p className="auth-access-copy">
+              Tell us a little about your family and what you want to try. This opens a ready-to-send email.
+            </p>
+            <form className="auth-access-request-form" onSubmit={handleEarlyAccessRequest}>
+              <input
+                className="job-input"
+                placeholder="Parent name"
+                value={earlyAccessName}
+                onChange={(event) => setEarlyAccessName(event.target.value)}
+              />
+              <input
+                className="job-input"
+                type="email"
+                placeholder="Email"
+                value={earlyAccessEmailValue}
+                onChange={(event) => setEarlyAccessEmailValue(event.target.value)}
+                required
+              />
+              <input
+                className="job-input"
+                placeholder="Family size or ages"
+                value={earlyAccessFamily}
+                onChange={(event) => setEarlyAccessFamily(event.target.value)}
+              />
+              <textarea
+                className="job-input auth-access-textarea"
+                placeholder="What would you like to try Family Economy for?"
+                value={earlyAccessMessage}
+                onChange={(event) => setEarlyAccessMessage(event.target.value)}
+                rows={4}
+              />
+              {earlyAccessStatus ? (
+                <p className="auth-access-status">{earlyAccessStatus}</p>
+              ) : null}
+              <div className="auth-access-button-row">
+                <button className="claim-button" type="submit">
+                  Send request
+                </button>
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={handleCloseEarlyAccessDialog}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      ) : null}
     </main>
   )
 }

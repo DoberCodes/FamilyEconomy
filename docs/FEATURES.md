@@ -20,6 +20,7 @@ Features include:
 * Parent access CTA.
 * Learn-more CTA.
 * Educational positioning around earning, saving, spending, and shared contribution.
+* "What children practice" section covering earning, saving, delayed gratification, shared goals, responsibility, and contribution.
 * Fictional-credit framing that avoids banking or real-money implications.
 
 ---
@@ -35,6 +36,7 @@ Features include:
 * Family-level settings and economy controls.
 * Mobile-first experience for both parents and children.
 * Parent account registration is hidden unless an invitation code is configured and entered.
+* Login page includes an email-based early access request form.
 * Optional demo login can be shown on the sign-in page for product walkthroughs.
 * Demo household data can be reset to a known baseline with `npm run demo:reset`.
 

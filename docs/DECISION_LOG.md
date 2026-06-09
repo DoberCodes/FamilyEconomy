@@ -12,6 +12,38 @@ If a decision conflicts with `VISION.md`, `VISION.md` is authoritative.
 
 # 2026-06
 
+## Decision: Add an email-based early access request flow
+
+### Context
+
+Parent registration is invite-only while Family Economy is still in early review.
+
+Interested families still need a clear way to ask for access without creating an unmanaged account.
+
+### Decision
+
+Add a "Request early access" form to the login page.
+
+The form composes a prefilled email to `doberfamilyventures@gmail.com` instead of creating an account or writing request data to Firestore.
+
+### Reasoning
+
+This keeps the early-access flow personal and intentional while avoiding new backend infrastructure or public account creation.
+
+It also lets reviewers and interested families describe their family context before access is granted.
+
+### Impact
+
+* Public registration remains hidden unless an invitation code is configured.
+* Early-access requests are handled through email.
+* A future production flow can replace this with a server-validated request pipeline or CRM integration.
+
+### Related Documents
+
+* `FEATURES.md`
+
+---
+
 ## Decision: Move child contribution source choices into destination goal cards
 
 ### Context

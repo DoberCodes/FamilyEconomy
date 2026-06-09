@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 
-const heroBackgroundSrc = `${import.meta.env.BASE_URL}login.png`
-const logoLockupSrc = `${import.meta.env.BASE_URL}transparentFullLock.png`
+const heroBackgroundSrc = `${import.meta.env.BASE_URL}transparenticon.png`
+// const logoLockupSrc = `${import.meta.env.BASE_URL}transparentFullLock.png`
 
 const featureGroups = [
   {
@@ -25,18 +25,28 @@ const principles = [
   'Shared family goals',
 ]
 
+const practiceItems = [
+  'Earning',
+  'Saving',
+  'Delayed gratification',
+  'Shared goals',
+  'Responsibility',
+  'Contribution',
+]
+
 export default function LandingPage() {
   return (
     <main className="landing-page">
       <section
         className="landing-hero"
-        style={{ '--landing-hero-image': `url(${heroBackgroundSrc})` }}
+        style={{ '--landing-hero-image': `url(${heroBackgroundSrc})`, '--landing-hero-image-alt': 'Illustration of a parent and child working together on a shared project', '--landing-hero-image-title': 'Family Economy', backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'right' }}
       >
         <nav className="landing-nav" aria-label="Landing navigation">
-          <img className="landing-nav-logo" src={logoLockupSrc} alt="Family Economy" />
+          <div></div>
+          {/* <img className="landing-nav-logo" src={logoLockupSrc} alt="Family Economy" /> */}
           <div className="landing-nav-actions">
             <Link className="landing-nav-link" to="/auth">Sign in</Link>
-            <Link className="landing-nav-button" to="/auth">Start</Link>
+            <Link className="landing-nav-button" to="/auth">Try Demo!</Link>
           </div>
         </nav>
 
@@ -73,6 +83,18 @@ export default function LandingPage() {
             <p>{feature.body}</p>
           </article>
         ))}
+      </section>
+
+      <section className="landing-section landing-practice" aria-label="What children practice">
+        <div className="landing-section-heading">
+          <p className="landing-kicker">What Children Practice</p>
+          <h2>Small money choices, real life skills</h2>
+        </div>
+        <ul className="landing-practice-list">
+          {practiceItems.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
       </section>
 
       <section className="landing-section landing-experience">

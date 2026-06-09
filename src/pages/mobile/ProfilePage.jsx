@@ -308,8 +308,10 @@ export default function ProfilePage() {
   const [achievementsEnabled, setAchievementsEnabled] = useState(true)
   const [familyRecognitionEnabled, setFamilyRecognitionEnabled] = useState(true)
 
-const demoParentPassword = String(import.meta.env.VITE_DEMO_PARENT_PASSWORD || 'FamilyDemo123!').trim()
-const showDemoLogin = import.meta.env.VITE_SHOW_DEMO_LOGIN !== 'false'  
+  const demoParentEmail = String(import.meta.env.VITE_DEMO_PARENT_EMAIL || 'demo@familyeconomy.app').trim().toLowerCase()
+  const demoParentPassword = String(import.meta.env.VITE_DEMO_PARENT_PASSWORD || 'FamilyDemo123!').trim()
+  const showDemoLogin = import.meta.env.VITE_SHOW_DEMO_LOGIN !== 'false'
+  const isDemoParentUser = String(userEmail || '').trim().toLowerCase() === demoParentEmail
 
   useEffect(() => {
     if (!poolRewardRequestId) {
@@ -2710,7 +2712,7 @@ const showDemoLogin = import.meta.env.VITE_SHOW_DEMO_LOGIN !== 'false'
                 <button type="submit" className="claim-button" disabled={saving}>
                   {saving ? 'Verifying...' : 'Unlock with Password'}
                 </button>
-                {showDemoLogin ? (
+                {showDemoLogin && isDemoParentUser ? (
                   <button type="button" className="claim-button" onClick={handleUseDemoLogin}>
                     Use demo login
                   </button>

@@ -471,6 +471,7 @@ export default function OnboardingPage() {
           recognitionStreakDaysTarget: Math.max(1, Number(recognitionStreakDaysTarget) || 3),
           recognitionHelpingHandJobsTarget: Math.max(1, Number(recognitionHelpingHandJobsTarget) || 1),
           recognitionGoalGetterTarget: Math.max(1, Number(recognitionGoalGetterTarget) || 1),
+          onboardingCompleted: true,
         },
         context: { familyId, userId, userRole, userEmail },
       }).unwrap()
@@ -767,7 +768,7 @@ export default function OnboardingPage() {
                 type="button"
                 className="claim-button"
                 onClick={handleAddSelectedJobTemplates}
-                disabled={addingJob || loading || childProfiles.length === 0 || selectedJobTemplateCount === 0}
+                disabled={addingJob || loading || selectedJobTemplateCount === 0}
               >
                 {addingJob ? 'Adding...' : `Add ${selectedJobTemplateCount} selected`}
               </button>
@@ -875,7 +876,7 @@ export default function OnboardingPage() {
               <button
                 type="submit"
                 className="claim-button onboarding-primary-button"
-                disabled={addingJob || loading || childProfiles.length === 0}
+                disabled={addingJob || loading}
               >
                 {addingJob ? 'Saving...' : 'Continue'}
               </button>
@@ -944,7 +945,7 @@ export default function OnboardingPage() {
               type="button"
               className="claim-button"
               onClick={handleAddSelectedRewardTemplates}
-              disabled={addingReward || loading || jobs.length === 0 || selectedRewardTemplateCount === 0}
+              disabled={addingReward || loading || selectedRewardTemplateCount === 0}
             >
               {addingReward ? 'Adding...' : `Add ${selectedRewardTemplateCount} selected`}
             </button>
@@ -1023,7 +1024,7 @@ export default function OnboardingPage() {
             <button
               type="submit"
               className="claim-button onboarding-primary-button"
-              disabled={addingReward || loading || jobs.length === 0}
+              disabled={addingReward || loading}
             >
               {addingReward ? 'Saving...' : 'Continue'}
             </button>

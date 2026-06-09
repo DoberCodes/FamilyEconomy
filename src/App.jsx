@@ -37,6 +37,22 @@ function resolveUiTheme(pathname, userRole) {
   return 'theme-parent'
 }
 
+function hasCompletedOnboarding(data) {
+  if (!data?.familyExists) {
+    return false
+  }
+
+  if (data.family?.onboardingCompletedAt) {
+    return true
+  }
+
+  return (
+    (data.childProfiles || []).length > 0
+    && (data.jobs || []).length > 0
+    && (data.rewards || []).length > 0
+  )
+}
+
 function UiThemeSync() {
   const { userRole } = useAuth()
   const location = useLocation()
@@ -67,8 +83,13 @@ function MobileAppRoutes() {
 
   useEffect(() => {
     if (!loading) {
-      setLoadingTimedOut(false)
-      return undefined
+      const resetTimeoutId = window.setTimeout(() => {
+        setLoadingTimedOut(false)
+      }, 0)
+
+      return () => {
+        clearTimeout(resetTimeoutId)
+      }
     }
 
     const timeoutId = window.setTimeout(() => {
@@ -112,8 +133,7 @@ function MobileAppRoutes() {
           return
         }
 
-        const hasFamily = result.data.familyExists
-        setNeedsOnboarding(!hasFamily)
+        setNeedsOnboarding(!hasCompletedOnboarding(result.data))
       } catch {
         if (!active) {
           return

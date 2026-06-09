@@ -2919,6 +2919,7 @@ export async function getHouseholdOnboardingData(context = {}) {
         profileName: familyData.profileName || 'My Family',
         familyRules: familyData.familyRules || '',
         familyAnnouncement: familyData.familyAnnouncement || '',
+        onboardingCompletedAt: serializeDateValue(familyData.onboardingCompletedAt),
         updatedAt: serializeDateValue(familyData.updatedAt),
         childSessionSecurityEnabled: Boolean(familyData.childSessionSecurityEnabled),
         creatorOwnerEmail: familyData.creatorOwnerEmail || '',
@@ -3075,6 +3076,9 @@ export async function createHousehold(household, context = {}) {
       familyDashboardTopCardsEnabled: household.familyDashboardTopCardsEnabled !== false,
       achievementsEnabled: household.achievementsEnabled !== false,
       familyRecognitionEnabled: household.familyRecognitionEnabled !== false,
+      onboardingCompletedAt: household.onboardingCompleted
+        ? serverTimestamp()
+        : existingFamilyData.onboardingCompletedAt || null,
       customBadges,
       achievementFirstGoalTarget: Math.max(1, Number(household.achievementFirstGoalTarget) || 1),
       achievementContributorCreditsTarget: Math.max(1, Number(household.achievementContributorCreditsTarget) || 100),

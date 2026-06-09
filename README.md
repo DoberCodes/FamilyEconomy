@@ -8,17 +8,19 @@ Minimal React app scaffolded with Vite.
 
 - Vision: [docs/VISION.md](docs/VISION.md)
 - Brand system: [docs/BRAND.md](docs/BRAND.md)
+- Documentation workflow: [docs/DOCUMENTATION_WORKFLOW.md](docs/DOCUMENTATION_WORKFLOW.md)
 - Features: [docs/FEATURES.md](docs/FEATURES.md)
 - Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Redux conversion status: [docs/redux-conversion-status.md](docs/redux-conversion-status.md)
 - Roadmap: [docs/ROADMAP.md](docs/ROADMAP.md)
-- Roadmap phase status: [docs/roadmap-status.md](docs/roadmap-status.md)
-- Product brief (Phase 0): [docs/product-brief.md](docs/product-brief.md)
+- Decision log: [docs/DECISION_LOG.md](docs/DECISION_LOG.md)
 - Firestore security guide: [docs/security-rules.md](docs/security-rules.md)
 
 ### Archived Docs
 
 - Archive index: [docs/archive/README.md](docs/archive/README.md)
+- Product brief archive: [docs/archive/product-brief.md](docs/archive/product-brief.md)
+- Roadmap phase status archive: [docs/archive/roadmap-status.md](docs/archive/roadmap-status.md)
 - MVP backlog archive (Phases 1-4): [docs/archive/mvp-backlog.md](docs/archive/mvp-backlog.md)
 - Session progress log archive: [docs/archive/progress-log.md](docs/archive/progress-log.md)
 - Analytics plan archive: [docs/archive/analytics-plan.md](docs/archive/analytics-plan.md)
@@ -67,6 +69,40 @@ GitHub Actions must also receive your Firebase web app values at build time. Add
 If Firebase env values are missing, the app automatically uses seeded local data.
 
 Firestore-backed analytics event writes are opt-in. Set `VITE_FIRESTORE_ANALYTICS_ENABLED=true` only when you want Creator analytics events persisted to Firestore; leave it false for quieter local development.
+
+Parent registration is private by default. Set `VITE_REGISTRATION_INVITE_CODE` when you want invited families to unlock the create-account form. This is a soft client-side gate; use Firebase/backend controls before public launch.
+
+## Demo Account
+
+The login screen can show a resettable demo account for product walkthroughs.
+
+Default demo credentials:
+
+- Email: `demo@familyeconomy.app`
+- Password: `FamilyDemo123!`
+
+Reset the demo Auth user and reseed the demo family:
+
+```powershell
+npm run demo:reset
+```
+
+The reset script:
+
+- Creates or updates the demo parent Auth user.
+- Resets that user's password to the configured demo password.
+- Deletes and recreates the demo family data.
+- Seeds children, jobs, rewards, requests, savings goals, shared fund activity, recognition inputs, transactions, and parent settings.
+
+Admin credentials are required. Set:
+
+- `FIREBASE_SERVICE_ACCOUNT_PATH`
+
+This explicit path is intentional because the script modifies Firebase Auth and Firestore demo data.
+
+For CI only, `FIREBASE_SERVICE_ACCOUNT_JSON` is also supported.
+
+Use `VITE_DEMO_PARENT_EMAIL`, `VITE_DEMO_PARENT_PASSWORD`, `VITE_SHOW_DEMO_LOGIN`, and `DEMO_FAMILY_ID` to customize or hide the demo login.
 
 ## Auth + User Profiles
 

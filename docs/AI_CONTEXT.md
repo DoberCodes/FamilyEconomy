@@ -25,6 +25,8 @@ Major product, architecture, roadmap, UX, and naming decisions should be recorde
 
 The decision log exists to preserve reasoning and historical context, not implementation details.
 
+For documentation changes, use `DOCUMENTATION_WORKFLOW.md` as the closeout checklist. In particular, roadmap status changes should trigger an explicit decision-log check before the work is considered complete.
+
 ## Product Mission
 
 Family Economy is a family-focused financial literacy platform designed to teach children responsible money management through a fictional household economy.
@@ -138,6 +140,7 @@ If implementation differs from documentation, identify and report the discrepanc
 
 - Product vision: [VISION.md](VISION.md)
 - Brand system: [BRAND.md](BRAND.md)
+- Documentation workflow: [DOCUMENTATION_WORKFLOW.md](DOCUMENTATION_WORKFLOW.md)
 - Product brief: [product-brief.md](product-brief.md)
 - Features: [FEATURES.md](FEATURES.md)
 - Domain model: [DOMAIN_MODEL.md](DOMAIN_MODEL.md)

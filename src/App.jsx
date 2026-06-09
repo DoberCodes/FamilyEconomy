@@ -7,6 +7,7 @@ import TopStatusBar from './components/mobile/TopStatusBar'
 import SplashScreen from './components/shared/SplashScreen'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import AuthPage from './pages/AuthPage'
+import LandingPage from './pages/LandingPage'
 import ChildProfilesPage from './pages/mobile/ChildProfilesPage'
 import HomePage from './pages/mobile/HomePage'
 import KidProfilePage from './pages/mobile/KidProfilePage'
@@ -167,16 +168,16 @@ function MobileAppRoutes() {
 
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/mobile/home" replace />} />
-      <Route path="/mobile/home" element={<HomePage />} />
-      <Route path="/mobile/children" element={<ChildProfilesPage />} />
-      <Route path="/mobile/children/:childId" element={<KidProfilePage />} />
-      <Route path="/mobile/missions" element={<Navigate to="/mobile/jobs" replace />} />
-      <Route path="/mobile/jobs" element={<JobsPage />} />
-      <Route path="/mobile/store" element={<StorePage />} />
-      <Route path="/mobile/savings" element={<SavingsPage />} />
-      <Route path="/mobile/onboarding" element={<OnboardingPage />} />
-      <Route path="/mobile/profile" element={<ProfilePage />} />
+      <Route index element={<Navigate to="/mobile/home" replace />} />
+      <Route path="home" element={<HomePage />} />
+      <Route path="children" element={<ChildProfilesPage />} />
+      <Route path="children/:childId" element={<KidProfilePage />} />
+      <Route path="missions" element={<Navigate to="/mobile/jobs" replace />} />
+      <Route path="jobs" element={<JobsPage />} />
+      <Route path="store" element={<StorePage />} />
+      <Route path="savings" element={<SavingsPage />} />
+      <Route path="onboarding" element={<OnboardingPage />} />
+      <Route path="profile" element={<ProfilePage />} />
       <Route path="*" element={<Navigate to="/mobile/home" replace />} />
     </Routes>
   )
@@ -267,8 +268,11 @@ function SplashPreviewGate() {
     <>
       <ShellChrome />
       <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/landing" element={<LandingPage />} />
         <Route path="/auth" element={<AuthPage />} />
-        <Route path="*" element={<MobileAppRoutes />} />
+        <Route path="/mobile/*" element={<MobileAppRoutes />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
   )

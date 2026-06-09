@@ -6,6 +6,10 @@ import { useAuth } from '../context/AuthContext'
 import { isBlockedByClientSignal, normalizeErrorMessage } from '../utils/errorUtils'
 
 const authLogoSrc = `${import.meta.env.BASE_URL}verticalnotag.png`
+const registrationInviteCode = String(import.meta.env.VITE_REGISTRATION_INVITE_CODE || '').trim()
+const demoParentEmail = String(import.meta.env.VITE_DEMO_PARENT_EMAIL || 'demo@familyeconomy.app').trim()
+const demoParentPassword = String(import.meta.env.VITE_DEMO_PARENT_PASSWORD || 'FamilyDemo123!').trim()
+const showDemoLogin = import.meta.env.VITE_SHOW_DEMO_LOGIN !== 'false'
 
 function createFamilyId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -17,7 +21,7 @@ function createFamilyId() {
 
 export default function AuthPage() {
   const {
-    isAuthenticated,
+    // isAuthenticated,
     loading,
     hasFirebaseConfig,
     login,
@@ -25,8 +29,8 @@ export default function AuthPage() {
     completeProfile,
     shouldRedirectToParentHome,
     shouldCompleteProfile,
-    familyId,
-    userRole,
+    // familyId,
+    // userRole,
     displayName: currentDisplayName,
     authStatusError,
   } = useAuth()
@@ -37,12 +41,16 @@ export default function AuthPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [displayName, setDisplayName] = useState('')
   const [newFamilyId, setNewFamilyId] = useState(() => createFamilyId())
+  const [showInviteForm, setShowInviteForm] = useState(false)
+  const [inviteCode, setInviteCode] = useState('')
+  const [registrationUnlocked, setRegistrationUnlocked] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const authStatusText = normalizeErrorMessage(authStatusError, '')
   const localErrorText = normalizeErrorMessage(error, '')
   const blockedByClient =
     isBlockedByClientSignal(authStatusText) || isBlockedByClientSignal(localErrorText)
+  const registrationInviteEnabled = registrationInviteCode.length > 0
 
   if (!hasFirebaseConfig) {
     return (
@@ -135,6 +143,10 @@ export default function AuthPage() {
 
     try {
       if (mode === 'register') {
+        if (!registrationInviteEnabled || !registrationUnlocked) {
+          throw new Error('Parent registration is invite-only right now.')
+        }
+
         await register({
           email,
           password,
@@ -151,6 +163,42 @@ export default function AuthPage() {
     }
   }
 
+  function handleUnlockInvite(event) {
+    event.preventDefault()
+    setError('')
+
+    if (!registrationInviteEnabled) {
+      setError('Parent registration is invite-only right now.')
+      return
+    }
+
+    if (inviteCode.trim() !== registrationInviteCode) {
+      setError('That invitation code is not valid.')
+      return
+    }
+
+    setRegistrationUnlocked(true)
+    setShowInviteForm(false)
+    setMode('register')
+    setPassword('')
+  }
+
+  function handleReturnToLogin() {
+    setMode('login')
+    setRegistrationUnlocked(false)
+    setShowInviteForm(false)
+    setInviteCode('')
+    setError('')
+  }
+
+  function handleUseDemoLogin() {
+    setMode('login')
+    setEmail(demoParentEmail)
+    setPassword(demoParentPassword)
+    setDisplayName('')
+    setError('')
+  }
+
   return (
     <main className="auth-screen">
       <section className="auth-brand-hero" aria-label="Family Economy">
@@ -158,7 +206,7 @@ export default function AuthPage() {
       </section>
 
       <section className="auth-card auth-login-panel">
-        <p className="auth-kicker">Parent Access</p>
+        <p className="auth-kicker">{mode === 'register' ? 'Private Invite' : 'Parent Access'}</p>
         <h1 className="auth-title">
           {mode === 'register' ? 'Create parent account' : 'Welcome back'}
         </h1>
@@ -222,15 +270,67 @@ export default function AuthPage() {
           </button>
         </form>
 
-        <button
-          type="button"
-          className="auth-mode-link"
-          onClick={() => setMode(mode === 'register' ? 'login' : 'register')}
-        >
-          {mode === 'register'
-            ? 'Already have an account? Sign in'
-            : 'Need an account? Register'}
-        </button>
+        {showDemoLogin && mode === 'login' ? (
+          <section className="auth-demo-panel" aria-label="Demo login credentials">
+            <p className="auth-demo-title">Demo account</p>
+            <p className="auth-demo-copy">Resettable sample household for product walkthroughs.</p>
+            <dl className="auth-demo-credentials">
+              <div>
+                <dt>Email</dt>
+                <dd>{demoParentEmail}</dd>
+              </div>
+              <div>
+                <dt>Password</dt>
+                <dd>{demoParentPassword}</dd>
+              </div>
+            </dl>
+            <button type="button" className="auth-demo-fill" onClick={handleUseDemoLogin}>
+              Use demo login
+            </button>
+          </section>
+        ) : null}
+
+        {mode === 'register' ? (
+          <button
+            type="button"
+            className="auth-mode-link"
+            onClick={handleReturnToLogin}
+          >
+            Already have an account? Sign in
+          </button>
+        ) : (
+          <div className="auth-private-access">
+            {registrationInviteEnabled ? (
+              <>
+                {showInviteForm ? (
+                  <form className="auth-invite-form" onSubmit={handleUnlockInvite}>
+                    <input
+                      className="job-input"
+                      placeholder="Invitation code"
+                      value={inviteCode}
+                      onChange={(event) => setInviteCode(event.target.value)}
+                    />
+                    <button className="text-button" type="submit">
+                      Unlock registration
+                    </button>
+                  </form>
+                ) : (
+                  <button
+                    type="button"
+                    className="auth-mode-link"
+                    onClick={() => setShowInviteForm(true)}
+                  >
+                    Have an invitation code?
+                  </button>
+                )}
+              </>
+            ) : (
+              <p className="auth-private-note">
+                New parent accounts are invite-only right now.
+              </p>
+            )}
+          </div>
+        )}
       </section>
     </main>
   )

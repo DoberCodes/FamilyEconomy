@@ -9,6 +9,8 @@
     "build:github-pages": "cross-env VITE_BASE_PATH=/FamilyEconomy/ VITE_USE_HASH_ROUTER=true vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "demo:reset": "node scripts/reset-demo-user.mjs",
+    "demo:seed": "npm run demo:reset",
     "test:logic": "node --test tests/familyEconomyService.logic.test.js tests/parentCommandCenterSelectors.test.js tests/parentAnalyticsSelectors.test.js",
     "test:rules": "firebase emulators:exec --only firestore --project family-economy-rules-test \"node --test tests/firestore.rules.test.js\"",
     "test": "npm run test:logic && npm run test:rules"
@@ -31,6 +33,7 @@
     "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
+    "firebase-admin": "^14.0.0",
     "firebase-tools": "^15.19.0",
     "globals": "^17.6.0",
     "vite": "^8.0.12"

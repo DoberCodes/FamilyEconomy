@@ -7,6 +7,7 @@ Project documentation is located in the `/docs` directory. The root `README.md` 
 Before making recommendations, architectural decisions, or code changes, review relevant documentation from:
 
 - docs/AI_CONTEXT.md
+- docs/DOCUMENTATION_WORKFLOW.md
 - docs/BRAND.md
 - docs/VISION.md
 - docs/FEATURES.md
@@ -38,6 +39,7 @@ When significant features, architecture, or domain concepts change:
 - Update the appropriate documentation files.
 - Do not allow documentation to drift from implementation.
 - Call out outdated documentation when discovered.
+- Use `docs/DOCUMENTATION_WORKFLOW.md` as the closeout checklist for roadmap, feature, domain, architecture, brand, security, and major UX documentation changes.
 
 If a change affects:
 
@@ -46,8 +48,14 @@ If a change affects:
 - Domain structure
 - Architecture boundaries
 - Roadmap direction
+- UI hierarchy, navigation, or interaction model
+- Infrastructure, deployment, integrations, or environment assumptions
+- Security, permissions, parent authority, or child autonomy
+- Existing feature purpose, removal, replacement, or deprecation
 
 Update documentation before implementation is considered complete.
+
+Before considering documentation work complete, explicitly check whether `docs/DECISION_LOG.md` needs an entry. Roadmap priority/status changes, domain model changes, architecture boundary changes, and major UX direction changes usually require one.
 
 ## Decision Log
 
@@ -62,11 +70,19 @@ Good decision log candidates:
 * Domain model changes
 * Roadmap priority changes
 * Architecture boundary changes
+* Infrastructure, deployment, integration, or environment assumption changes
 * Major UX philosophy decisions
+* UI hierarchy, navigation, layout, or interaction model changes
+* Security, permission, parent authority, or child autonomy changes
+* Feature removals, replacements, deprecations, or purpose changes
 * Naming changes with long-term impact
 * Feature scope decisions
 
-Do not use the decision log for routine bug fixes, small styling changes, minor copy edits, or implementation details that do not affect product direction.
+Do not use the decision log for routine bug fixes, unintended behavior corrections, small styling changes, minor copy edits, or implementation details that do not affect product direction.
+
+Bug fixes usually do not need decision-log entries when they restore the original intended behavior. If fixing the bug changes the intended behavior, record that new direction as a decision.
+
+When unsure whether a change belongs in the decision log, prefer a concise entry if the change affects the original purpose of a feature, document, workflow, or system.
 
 Each entry should include:
 

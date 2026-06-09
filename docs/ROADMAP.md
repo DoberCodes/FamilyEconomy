@@ -26,42 +26,126 @@ The goal is to build the simplest feature that delivers meaningful educational o
 
 ---
 
-# Current Priorities
+# Shipped
+
+These systems are already represented in the current product and should be treated as existing product surface. They may still need polish, but they are no longer future roadmap items.
+
+## Core Economy
+
+* Jobs
+* Rewards
+* Savings Goals
+* Family Goals
+* Community Fund
+* Family Contributions
+* XP & Levels
+* Achievements
+* Badges
+* Weekly Recognition
+* Family Dashboard
+* Family News
+* Activity Feed
+
+## Marketing Entry
+
+* Marketing landing page
+* Parent access CTA
+* Learn-more CTA
+* Educational positioning for fictional credits, family goals, and shared responsibility
+
+## Dashboard Structure
+
+The Family Dashboard has been reshaped into a central family hub.
+
+Implemented flow:
+
+```text
+Family News
+-> Family Goal
+-> Weekly Recognition
+-> Family Job Tracker
+-> Recent Activity
+```
+
+Shipped changes:
+
+* Family Snapshot was removed from the Family Dashboard surface.
+* Family Goal was positioned directly beneath Family News in the dashboard flow.
+* Weekly Recognition is presented as a carousel.
+* Family Job Tracker is available on the Family Dashboard.
+* Recent Achievements and Weekly Feed are separated within Recent Activity.
+* Dashboard storytelling and family visibility have been improved.
+
+## Weekly Recognition Foundation
+
+Recognition is now a family celebration system with carousel-based slides, title-holder cards, empty states, and kid-friendly participation framing.
+
+Implemented recognition categories:
+
+* Hardest Worker
+* Most Helpful
+* Top Saver
+* Goal Setter
+* Most Generous
+* Most Improved
+* Consistency Champion
+
+Future metric scaffolding:
+
+* Smart Investor
+
+## Savings Accounts
+
+Child savings accounts have been implemented and are no longer a future-only advanced economy item.
+
+Implemented savings account concepts:
+
+* Wallet -> Savings transfers
+* Savings -> Wallet transfers
+* General savings
+* Savings contributions to personal savings goals
+* Savings contributions to the Community Fund / Family Fund
+* Parent-controlled savings account availability
+
+## Parent Insights Foundation
+
+Parent-focused reporting has a working foundation.
+
+Implemented or partially surfaced insights:
+
+* Participation summaries
+* Recognition summaries
+* Contribution summaries
+* Family engagement indicators
+* Economy health indicators
+
+## Feedback
+
+Parent feedback capture exists as part of the parent-facing product surface.
+
+---
+
+# In Progress / Needs Polish
+
+These areas are active product surfaces that already exist in some form, but still need refinement, expansion, or clearer workflows.
 
 ## Family Dashboard Refinement
 
 Continue evolving the Family Dashboard into the central family hub.
 
-### Goals
+Current polish goals:
 
-* Remove Family Snapshot from the Family Dashboard.
-* Position Family Goal directly beneath Family News.
 * Continue refining Weekly Recognition.
 * Improve Family Job Tracker usability.
 * Continue refining Recent Achievements and Activity Feed.
 * Improve dashboard storytelling and family visibility.
-
-### Desired Flow
-
-```text
-Family News
-↓
-Family Goal
-↓
-Weekly Recognition
-↓
-Family Job Tracker
-↓
-Recent Activity
-```
-
----
+* Improve desktop, tablet, and wide-screen presentation.
 
 ## Weekly Recognition Expansion
 
 Continue strengthening recognition as a family celebration system.
 
-### Current Focus
+Current focus:
 
 * Refine carousel experience.
 * Improve title-holder cards.
@@ -69,28 +153,19 @@ Continue strengthening recognition as a family celebration system.
 * Improve mobile presentation.
 * Continue reinforcing participation and growth.
 
-### Recognition Categories
-
-Implemented:
-
-* Hardest Worker
-* Most Helpful
-* Goal Setter
-* Most Generous
-* Consistency Champion
-
-Planned:
+Recognition ideas still worth exploring:
 
 * Rising Star
-* Top Saver
-
----
+* Community Builder
+* Goal Champion
+* Family MVP
+* Additional family-defined categories
 
 ## Family Onboarding
 
 Reduce setup friction for new families.
 
-### Improvements
+Improvements:
 
 * Parent setup wizard
 * Child profile setup flow
@@ -99,29 +174,25 @@ Reduce setup friction for new families.
 * Starter goal recommendations
 * Age-based starter templates
 
----
-
 ## Savings & Goals Experience
 
 Continue strengthening delayed gratification and planning concepts.
 
-### Improvements
+Improvements:
 
 * Goal progress visibility
 * Goal completion celebrations
 * Savings-related achievements
 * Reward-to-goal workflows
 * Educational messaging
-
----
-
-# Next Up
+* Emergency fund concepts
+* Savings-based recognition
 
 ## Community Systems Expansion
 
 Continue expanding collaborative family experiences.
 
-### Features
+Features:
 
 * Family projects
 * Community project workflows
@@ -129,27 +200,11 @@ Continue expanding collaborative family experiences.
 * Family voting systems
 * Shared decision-making tools
 
----
-
-## Parent Insights
-
-Parent-focused educational reporting.
-
-### Features
-
-* Participation summaries
-* Recognition summaries
-* Contribution summaries
-* Family engagement indicators
-* Economy health summaries
-
----
-
 ## Family Templates
 
 Provide easier setup and customization.
 
-### Planned Templates
+Planned templates:
 
 * Cooperative Economy
 * Balanced Economy
@@ -157,32 +212,13 @@ Provide easier setup and customization.
 
 ---
 
-## Recognition Expansion
+# Future
 
-Expand recognition systems beyond the initial implementation.
-
-### Ideas
-
-* Rising Star
-* Community Builder
-* Goal Champion
-* Family MVP
-* Additional family-defined categories
-
----
-
-# Future Expansion
+These systems should remain future-facing until the core family experience is stable and validated.
 
 ## Advanced Economy
 
 Introduce deeper financial concepts for older children.
-
-### Savings Account
-
-* Wallet → Savings transfers
-* General savings
-* Emergency fund concepts
-* Savings-based recognition
 
 ### Budgeting & Expenses
 
@@ -190,9 +226,6 @@ Introduce deeper financial concepts for older children.
 * Food Contribution
 * Utilities Contribution
 * Transportation Contribution
-
-Educational focus:
-
 * Budgeting
 * Cash flow
 * Planning
@@ -216,6 +249,8 @@ Educational focus:
 * Risk and reward
 * Long-term growth
 * Educational investing only
+* Smart Investor recognition
+* Best return this month
 
 ### Family Business
 
@@ -224,8 +259,6 @@ Educational focus:
 * Business income
 * Business expenses
 * Entrepreneurship education
-
----
 
 ## Ecosystem Expansion
 
@@ -242,66 +275,6 @@ Pursue only after product-market fit is established.
 * Classroom Economy
 * Homeschool Economy
 * Group educational experiences
-
----
-
-# Product Evolution
-
-This section provides a high-level view of how Family Economy is expected to grow.
-
----
-
-## Core Economy
-
-### Implemented
-
-* Jobs
-* Rewards
-* Savings Goals
-* Family Goals
-* Community Fund
-* Family Contributions
-* XP & Levels
-* Achievements
-* Badges
-* Weekly Recognition
-* Family Dashboard
-* Family News
-* Activity Feed
-
-### Future
-
-* Family Voting
-* Community Projects
-* Parent Insights
-* Economy Templates
-* Expanded Recognition
-
----
-
-## Advanced Economy
-
-### Future
-
-* Savings Accounts
-* Emergency Funds
-* Budgeting
-* Expenses
-* Family Bank
-* Loans
-* Credit Simulation
-* Investing Simulation
-* Family Business
-
----
-
-## Ecosystem
-
-### Future
-
-* Raspberry Pi Family Hub
-* Classroom Edition
-* Homeschool Edition
 
 ---
 

@@ -14,6 +14,8 @@ dist-ssr
 
 # Editor directories and files
 .env
+firebase-service-account*.json
+service-account*.json
 .vscode
 .vscode/*
 !.vscode/extensions.json

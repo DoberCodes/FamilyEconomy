@@ -120,8 +120,8 @@ export default function KidProfilePage() {
   const [contributionAmount, setContributionAmount] = useState('25')
   const [familyContributionAmount, setFamilyContributionAmount] = useState('25')
   const [savingsTransferAmount, setSavingsTransferAmount] = useState('25')
-  const [savingsAccountGoalAmount, setSavingsAccountGoalAmount] = useState('25')
-  const [savingsAccountFamilyAmount, setSavingsAccountFamilyAmount] = useState('25')
+  const [childGoalContributionSource, setChildGoalContributionSource] = useState('wallet')
+  const [familyContributionSource, setFamilyContributionSource] = useState('wallet')
   const [savingContribution, setSavingContribution] = useState(false)
   const [savingFamilyContribution, setSavingFamilyContribution] = useState(false)
   const [movingSavingsAccount, setMovingSavingsAccount] = useState('')
@@ -170,6 +170,13 @@ export default function KidProfilePage() {
     () => childProfiles.find((child) => child.id === childId) || activeChildProfile,
     [childProfiles, childId, activeChildProfile],
   )
+
+  useEffect(() => {
+    if (!childSavingsAccountsEnabled) {
+      setChildGoalContributionSource('wallet')
+      setFamilyContributionSource('wallet')
+    }
+  }, [childSavingsAccountsEnabled])
 
   const updateCreditsCelebration = useCallback((selectedChildId, nextCredits) => {
     if (!familyId || !selectedChildId) {
@@ -794,38 +801,20 @@ export default function KidProfilePage() {
     }
 
     setError('')
-    setSavingContribution(true)
 
     const contribution = Number(contributionAmount) || 0
+    const useSavingsAccount = childGoalContributionSource === 'savings'
 
-    try {
-      await contributeToSavingsGoalMutation({
-        goalId: activeChildGoal.id,
-        amount: contribution,
-        context: { familyId, userId, userRole },
-      }).unwrap()
-
-      await refreshChildData(resolvedChild?.id)
-      setContributionAmount('25')
-    } catch (caughtError) {
-      setError(caughtError.message || 'Could not move credits into savings.')
-    } finally {
-      setSavingContribution(false)
+    if (useSavingsAccount) {
+      setMovingSavingsAccount('goal')
+    } else {
+      setSavingContribution(true)
     }
-  }
-
-  async function handleContributeToFamilySavingsGoal(event) {
-    event.preventDefault()
-
-    setError('')
-    setSavingFamilyContribution(true)
-
-    const contribution = Number(familyContributionAmount) || 0
 
     try {
-      if (familySavingsGoal?.id) {
-        await contributeToSavingsGoalMutation({
-          goalId: familySavingsGoal.id,
+      if (useSavingsAccount) {
+        await contributeSavingsAccountToSavingsGoalMutation({
+          goalId: activeChildGoal.id,
           amount: contribution,
           context: {
             familyId,
@@ -835,15 +824,84 @@ export default function KidProfilePage() {
           },
         }).unwrap()
       } else {
-        await contributeToFamilyFundMutation({
+        await contributeToSavingsGoalMutation({
+          goalId: activeChildGoal.id,
           amount: contribution,
-          context: {
-            familyId,
-            userId,
-            userRole,
-            selectedChildId: resolvedChild?.id,
-          },
+          context: { familyId, userId, userRole },
         }).unwrap()
+      }
+
+      await refreshChildData(resolvedChild?.id)
+      setContributionAmount('25')
+    } catch (caughtError) {
+      setError(caughtError.message || 'Could not move credits into savings.')
+    } finally {
+      setSavingContribution(false)
+      setMovingSavingsAccount('')
+    }
+  }
+
+  async function handleContributeToFamilySavingsGoal(event) {
+    event.preventDefault()
+
+    setError('')
+
+    const contribution = Number(familyContributionAmount) || 0
+    const useSavingsAccount = familyContributionSource === 'savings'
+
+    if (useSavingsAccount) {
+      setMovingSavingsAccount('family')
+    } else {
+      setSavingFamilyContribution(true)
+    }
+
+    try {
+      if (familySavingsGoal?.id) {
+        if (useSavingsAccount) {
+          await contributeSavingsAccountToSavingsGoalMutation({
+            goalId: familySavingsGoal.id,
+            amount: contribution,
+            context: {
+              familyId,
+              userId,
+              userRole,
+              selectedChildId: resolvedChild?.id,
+            },
+          }).unwrap()
+        } else {
+          await contributeToSavingsGoalMutation({
+            goalId: familySavingsGoal.id,
+            amount: contribution,
+            context: {
+              familyId,
+              userId,
+              userRole,
+              selectedChildId: resolvedChild?.id,
+            },
+          }).unwrap()
+        }
+      } else {
+        if (useSavingsAccount) {
+          await contributeSavingsAccountToFamilyFundMutation({
+            amount: contribution,
+            context: {
+              familyId,
+              userId,
+              userRole,
+              selectedChildId: resolvedChild?.id,
+            },
+          }).unwrap()
+        } else {
+          await contributeToFamilyFundMutation({
+            amount: contribution,
+            context: {
+              familyId,
+              userId,
+              userRole,
+              selectedChildId: resolvedChild?.id,
+            },
+          }).unwrap()
+        }
       }
 
       await refreshChildData(resolvedChild?.id)
@@ -852,6 +910,7 @@ export default function KidProfilePage() {
       setError(caughtError.message || 'Could not move credits into the family fund.')
     } finally {
       setSavingFamilyContribution(false)
+      setMovingSavingsAccount('')
     }
   }
 
@@ -898,73 +957,6 @@ export default function KidProfilePage() {
       setSavingsTransferAmount('25')
     } catch (caughtError) {
       setError(caughtError.message || 'Could not move savings back to wallet.')
-    } finally {
-      setMovingSavingsAccount('')
-    }
-  }
-
-  async function handleContributeSavingsAccountToGoal(event) {
-    event.preventDefault()
-    if (!activeChildGoal?.id) {
-      return
-    }
-
-    setError('')
-    setMovingSavingsAccount('goal')
-
-    try {
-      await contributeSavingsAccountToSavingsGoalMutation({
-        goalId: activeChildGoal.id,
-        amount: Number(savingsAccountGoalAmount) || 0,
-        context: {
-          familyId,
-          userId,
-          userRole,
-          selectedChildId: resolvedChild?.id,
-        },
-      }).unwrap()
-      await refreshChildData(resolvedChild?.id)
-      setSavingsAccountGoalAmount('25')
-    } catch (caughtError) {
-      setError(caughtError.message || 'Could not contribute savings to this goal.')
-    } finally {
-      setMovingSavingsAccount('')
-    }
-  }
-
-  async function handleContributeSavingsAccountToFamily(event) {
-    event.preventDefault()
-
-    setError('')
-    setMovingSavingsAccount('family')
-
-    try {
-      if (familySavingsGoal?.id) {
-        await contributeSavingsAccountToSavingsGoalMutation({
-          goalId: familySavingsGoal.id,
-          amount: Number(savingsAccountFamilyAmount) || 0,
-          context: {
-            familyId,
-            userId,
-            userRole,
-            selectedChildId: resolvedChild?.id,
-          },
-        }).unwrap()
-      } else {
-        await contributeSavingsAccountToFamilyFundMutation({
-          amount: Number(savingsAccountFamilyAmount) || 0,
-          context: {
-            familyId,
-            userId,
-            userRole,
-            selectedChildId: resolvedChild?.id,
-          },
-        }).unwrap()
-      }
-      await refreshChildData(resolvedChild?.id)
-      setSavingsAccountFamilyAmount('25')
-    } catch (caughtError) {
-      setError(caughtError.message || 'Could not contribute savings to the family fund.')
     } finally {
       setMovingSavingsAccount('')
     }
@@ -1223,6 +1215,12 @@ export default function KidProfilePage() {
   const familyFundLabel = String(familyFundName || 'Community Funds').trim() || 'Community Funds'
   const walletCredits = Number(dashboard.balance?.credits) || 0
   const childSavingsBalance = Math.max(0, Number(resolvedChild?.savingsBalance) || 0)
+  const childGoalContributionBalance = childGoalContributionSource === 'savings'
+    ? childSavingsBalance
+    : walletCredits
+  const familyContributionBalance = familyContributionSource === 'savings'
+    ? childSavingsBalance
+    : walletCredits
   const childCompletedGoalsCount = childGoals.filter((goal) => goal.status === 'completed').length
   const childFamilyContributionCredits = (familySavingsGoal?.contributionHistory || [])
     .filter((entry) => entry.childId === resolvedChild?.id)
@@ -2715,56 +2713,6 @@ export default function KidProfilePage() {
                       ) : null}
                     </div>
                   </form>
-
-                  {activeChildGoal && !childGoalWaitingApproval && !childGoalPendingApproval && !childGoalCountered && !childGoalCompleted ? (
-                    <form className="auth-form" onSubmit={handleContributeSavingsAccountToGoal}>
-                      <div className="money-section-divider"></div>
-                      <p className="money-section-description">Use savings account credits for your active goal.</p>
-                      <input
-                        className="job-input"
-                        type="number"
-                        min="1"
-                        max={Math.max(0, childSavingsBalance)}
-                        placeholder="Savings amount for goal"
-                        value={savingsAccountGoalAmount}
-                        onChange={(event) => setSavingsAccountGoalAmount(event.target.value)}
-                        required
-                      />
-                      <button
-                        type="submit"
-                        className="claim-button"
-                        disabled={movingSavingsAccount.length > 0 || childSavingsBalance <= 0}
-                      >
-                        {movingSavingsAccount === 'goal' ? 'Sending...' : 'Use Savings For My Goal'}
-                      </button>
-                    </form>
-                  ) : null}
-
-                  {familyFundEnabled ? (
-                    <form className="auth-form" onSubmit={handleContributeSavingsAccountToFamily}>
-                      <div className="money-section-divider"></div>
-                      <p className="money-section-description">
-                        Send savings account credits to {familySavingsGoal ? 'the family goal' : familyFundLabel}.
-                      </p>
-                      <input
-                        className="job-input"
-                        type="number"
-                        min="1"
-                        max={Math.max(0, childSavingsBalance)}
-                        placeholder="Savings amount for family"
-                        value={savingsAccountFamilyAmount}
-                        onChange={(event) => setSavingsAccountFamilyAmount(event.target.value)}
-                        required
-                      />
-                      <button
-                        type="submit"
-                        className="claim-button"
-                        disabled={movingSavingsAccount.length > 0 || childSavingsBalance <= 0}
-                      >
-                        {movingSavingsAccount === 'family' ? 'Sending...' : `Use Savings For ${familySavingsGoal ? 'Family Goal' : familyFundLabel}`}
-                      </button>
-                    </form>
-                  ) : null}
                 </div>
               </div>
             ) : null}
@@ -2844,6 +2792,19 @@ export default function KidProfilePage() {
                     <p className="money-section-description">
                       Pick an amount to move into your goal.
                     </p>
+                    <label className="money-transfer-source">
+                      <span className="money-section-kicker">Transfer From</span>
+                      <select
+                        className="job-input money-source-select"
+                        value={childGoalContributionSource}
+                        onChange={(event) => setChildGoalContributionSource(event.target.value)}
+                      >
+                        <option value="wallet">Wallet ({walletCredits} credits)</option>
+                        {childSavingsAccountsEnabled ? (
+                          <option value="savings">Savings Account ({childSavingsBalance} credits)</option>
+                        ) : null}
+                      </select>
+                    </label>
                     <div className="money-quick-row" role="group" aria-label="Quick contribution amounts">
                       {[10, 25, 50].map((value) => (
                         <button
@@ -2860,7 +2821,7 @@ export default function KidProfilePage() {
                       className="job-input"
                       type="number"
                       min="1"
-                      max={Math.max(0, Number(dashboard.balance.credits) || 0)}
+                      max={Math.max(0, childGoalContributionBalance)}
                       placeholder="Contribution amount"
                       value={contributionAmount}
                       onChange={(event) => setContributionAmount(event.target.value)}
@@ -2871,11 +2832,12 @@ export default function KidProfilePage() {
                       className="claim-button"
                       disabled={
                         savingContribution
-                        || (Number(dashboard.balance.credits) || 0) <= 0
+                        || movingSavingsAccount.length > 0
+                        || childGoalContributionBalance <= 0
                         || childGoalCompleted
                       }
                     >
-                      {savingContribution ? 'Saving...' : 'Add To Savings Goal'}
+                      {savingContribution || movingSavingsAccount === 'goal' ? 'Saving...' : 'Add To Savings Goal'}
                     </button>
                   </form>
                 ) : null}
@@ -3033,6 +2995,19 @@ export default function KidProfilePage() {
                       <form className="auth-form" onSubmit={handleContributeToFamilySavingsGoal}>
                         <div className="money-section-divider"></div>
                         <p className="money-section-description">Help the whole family add to {familyFundLabel}.</p>
+                        <label className="money-transfer-source">
+                          <span className="money-section-kicker">Transfer From</span>
+                          <select
+                            className="job-input money-source-select"
+                            value={familyContributionSource}
+                            onChange={(event) => setFamilyContributionSource(event.target.value)}
+                          >
+                            <option value="wallet">Wallet ({walletCredits} credits)</option>
+                            {childSavingsAccountsEnabled ? (
+                              <option value="savings">Savings Account ({childSavingsBalance} credits)</option>
+                            ) : null}
+                          </select>
+                        </label>
                         <div className="money-quick-row" role="group" aria-label="Quick family contribution amounts">
                           {[10, 25, 50].map((value) => (
                             <button
@@ -3049,7 +3024,7 @@ export default function KidProfilePage() {
                           className="job-input"
                           type="number"
                           min="1"
-                          max={Math.max(0, Number(dashboard.balance.credits) || 0)}
+                          max={Math.max(0, familyContributionBalance)}
                           placeholder="Contribution amount"
                           value={familyContributionAmount}
                           onChange={(event) => setFamilyContributionAmount(event.target.value)}
@@ -3058,9 +3033,9 @@ export default function KidProfilePage() {
                         <button
                           type="submit"
                           className="claim-button"
-                          disabled={savingFamilyContribution || (Number(dashboard.balance.credits) || 0) <= 0}
+                          disabled={savingFamilyContribution || movingSavingsAccount.length > 0 || familyContributionBalance <= 0}
                         >
-                          {savingFamilyContribution ? 'Saving...' : `Add To ${familyFundLabel}`}
+                          {savingFamilyContribution || movingSavingsAccount === 'family' ? 'Saving...' : `Add To ${familySavingsGoal ? 'Family Goal' : familyFundLabel}`}
                         </button>
                       </form>
                     ) : (
@@ -3080,6 +3055,19 @@ export default function KidProfilePage() {
                       <form className="auth-form" onSubmit={handleContributeToFamilySavingsGoal}>
                         <div className="money-section-divider"></div>
                         <p className="money-section-description">You can still add credits to {familyFundLabel} now.</p>
+                        <label className="money-transfer-source">
+                          <span className="money-section-kicker">Transfer From</span>
+                          <select
+                            className="job-input money-source-select"
+                            value={familyContributionSource}
+                            onChange={(event) => setFamilyContributionSource(event.target.value)}
+                          >
+                            <option value="wallet">Wallet ({walletCredits} credits)</option>
+                            {childSavingsAccountsEnabled ? (
+                              <option value="savings">Savings Account ({childSavingsBalance} credits)</option>
+                            ) : null}
+                          </select>
+                        </label>
                         <div className="money-quick-row" role="group" aria-label="Quick family contribution amounts">
                           {[10, 25, 50].map((value) => (
                             <button
@@ -3096,7 +3084,7 @@ export default function KidProfilePage() {
                           className="job-input"
                           type="number"
                           min="1"
-                          max={Math.max(0, Number(dashboard.balance.credits) || 0)}
+                          max={Math.max(0, familyContributionBalance)}
                           placeholder="Contribution amount"
                           value={familyContributionAmount}
                           onChange={(event) => setFamilyContributionAmount(event.target.value)}
@@ -3105,9 +3093,9 @@ export default function KidProfilePage() {
                         <button
                           type="submit"
                           className="claim-button"
-                          disabled={savingFamilyContribution || (Number(dashboard.balance.credits) || 0) <= 0}
+                          disabled={savingFamilyContribution || movingSavingsAccount.length > 0 || familyContributionBalance <= 0}
                         >
-                          {savingFamilyContribution ? 'Saving...' : `Add To ${familyFundLabel}`}
+                          {savingFamilyContribution || movingSavingsAccount === 'family' ? 'Saving...' : `Add To ${familyFundLabel}`}
                         </button>
                       </form>
                     ) : (

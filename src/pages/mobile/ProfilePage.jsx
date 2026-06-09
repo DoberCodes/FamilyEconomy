@@ -136,6 +136,8 @@ function buildFamilySummary(family = {}) {
   }
 }
 
+
+
 function deferStateUpdate(callback) {
   const timeoutId = window.setTimeout(callback, 0)
   return () => window.clearTimeout(timeoutId)
@@ -306,6 +308,9 @@ export default function ProfilePage() {
   const [achievementsEnabled, setAchievementsEnabled] = useState(true)
   const [familyRecognitionEnabled, setFamilyRecognitionEnabled] = useState(true)
 
+const demoParentPassword = String(import.meta.env.VITE_DEMO_PARENT_PASSWORD || 'FamilyDemo123!').trim()
+const showDemoLogin = import.meta.env.VITE_SHOW_DEMO_LOGIN !== 'false'  
+
   useEffect(() => {
     if (!poolRewardRequestId) {
       return
@@ -363,6 +368,11 @@ export default function ProfilePage() {
   const [badgeSavedSnapshot, setBadgeSavedSnapshot] = useState('')
   const [editingJobSnapshot, setEditingJobSnapshot] = useState('')
   const [editingRewardSnapshot, setEditingRewardSnapshot] = useState('')
+
+  function handleUseDemoLogin() {
+    setPassword(demoParentPassword)
+    setError('')
+  }
 
   function toDateValue(value) {
     if (!value) {
@@ -2634,6 +2644,8 @@ export default function ProfilePage() {
                 >
                   <span className="credential-icon" aria-hidden="true">{showParentLoginPassword ? '👁' : '🙈'}</span>
                 </button>
+
+                
               </div>
               {error ? <p className="status-note status-error">{error}</p> : null}
               <button type="submit" className="claim-button" disabled={saving}>
@@ -2698,6 +2710,11 @@ export default function ProfilePage() {
                 <button type="submit" className="claim-button" disabled={saving}>
                   {saving ? 'Verifying...' : 'Unlock with Password'}
                 </button>
+                {showDemoLogin ? (
+                  <button type="button" className="claim-button" onClick={handleUseDemoLogin}>
+                    Use demo login
+                  </button>
+                ) : null} 
               </form>
             )}
 
@@ -3217,6 +3234,7 @@ export default function ProfilePage() {
                             'Gentle: shared fund on with no income/reward contributions, softer penalties, and no parent approvals.',
                             'Balanced: shared fund on with light contributions and recommended/default approval settings.',
                             'Strict: shared fund on with heavier contributions, tighter accountability, and maximum approvals.',
+                            'Use a preset when you want the economy to feel coherent before fine-tuning each setting.',
                           ]}
                         />
                       </div>
@@ -3264,6 +3282,7 @@ export default function ProfilePage() {
                               'Controls whether kids can move savings back to their wallet.',
                               'On: savings is flexible and kids can correct mistakes.',
                               'Off: savings can only move toward goals or the shared family fund.',
+                              'Use this to decide whether savings should teach flexibility or commitment.',
                             ]}
                           />
                         </div>
@@ -3293,6 +3312,7 @@ export default function ProfilePage() {
                             'Approve claim only: kids can create goals, you approve payouts.',
                             'Approve create + claim: you approve both new goals and payouts.',
                             'No approval: fully self-serve. Best only for older, trusted kids.',
+                            'Use this to match savings independence to each family stage.',
                           ]}
                         />
                       </div>
@@ -3322,6 +3342,7 @@ export default function ProfilePage() {
                             'Require approval (default): kids submit a check and you approve or deny it.',
                             'Auto-approve: checks are instantly confirmed without parent review.',
                             'Individual chores can override this setting.',
+                            'Use this to balance parent oversight with smoother daily routines.',
                           ]}
                         />
                       </div>
@@ -3350,6 +3371,7 @@ export default function ProfilePage() {
                             'Require approval: parents approve the claim before credits are spent.',
                             'Auto-approve: credits are spent right away and parents only get a notification.',
                             'Individual rewards can override this setting.',
+                            'Use this to decide how much spending practice should happen before parent review.',
                           ]}
                         />
                       </div>
@@ -3377,6 +3399,7 @@ export default function ProfilePage() {
                             'Shows leaderboard-style cards on Home.',
                             'On: highlights who earned/spent most to add motivation.',
                             'Off: removes competition and keeps the dashboard calmer.',
+                            'Use this based on whether comparison motivates your kids or distracts from growth.',
                           ]}
                         />
                       </div>
@@ -3407,6 +3430,7 @@ export default function ProfilePage() {
                           lines={[
                             'Creates a shared balance kids can add to together.',
                             'That balance powers shared family savings goals.',
+                            'Families use it to connect everyday earning and spending choices to something everyone is building together.',
                             'Turn it off if you do not want collaborative family-goal saving right now.',
                           ]}
                         />
@@ -3434,6 +3458,7 @@ export default function ProfilePage() {
                               lines={[
                                 'This is the display name kids see for the shared fund.',
                                 'Keep it short and clear, like Community Funds or Family Goal Pot.',
+                                'A clear name helps kids understand what the shared balance is for.',
                               ]}
                             />
                           </div>
@@ -3457,6 +3482,7 @@ export default function ProfilePage() {
                               lines={[
                                 'Adds a contribution from completed credit jobs into the shared fund.',
                                 'The child still earns credits; a percentage is routed to the fund.',
+                                'Use this to teach that individual earning can also support shared family goals.',
                               ]}
                             />
                           </div>
@@ -3483,6 +3509,7 @@ export default function ProfilePage() {
                                 lines={[
                                   'Percentage of completed credit-job rewards sent to the shared fund.',
                                   'Lower rates feel lighter for younger kids; higher rates build shared goals faster.',
+                                  'Use this to tune how visible shared responsibility should feel.',
                                 ]}
                               />
                             </div>
@@ -3509,6 +3536,7 @@ export default function ProfilePage() {
                               lines={[
                                 'Adds a contribution when kids buy rewards, and routes that amount to the shared fund.',
                                 'Helps keep shared goals moving while personal rewards are still used.',
+                                'Use this to teach that spending choices can still support something shared.',
                               ]}
                             />
                           </div>
@@ -3535,6 +3563,7 @@ export default function ProfilePage() {
                                 lines={[
                                   'Percentage added on reward purchases and routed to the shared fund.',
                                   'Keep this modest if kids buy rewards often.',
+                                  'Use this as a light reminder that spending has tradeoffs.',
                                 ]}
                               />
                             </div>
@@ -3563,7 +3592,18 @@ export default function ProfilePage() {
                       <summary className="dialog-subsection-summary">Missed or timed-out job</summary>
                       <div className="dialog-subsection-body">
                         <label className="form-field">
-                          <span className="form-label">Consequence for missed claimed jobs</span>
+                          <div className="form-label-row">
+                            <span className="form-label">Consequence for missed claimed jobs</span>
+                            <HelpButton
+                              onHelpClick={setActiveHelpDialog}
+                              label="Consequence for missed claimed jobs"
+                              lines={[
+                                'Controls whether a claimed chore can have a credit consequence if it is not finished.',
+                                'When on, a parent can mark the chore missed and apply the configured penalty.',
+                                'Use this when claiming a chore should mean taking responsibility for following through or communicating when plans change.',
+                              ]}
+                            />
+                          </div>
                           <select
                             className="job-input"
                             value={missedJobConsequenceEnabled ? 'on' : 'off'}
@@ -3576,7 +3616,18 @@ export default function ProfilePage() {
                         {missedJobConsequenceEnabled ? (
                           <div className="dialog-nested-fields">
                             <label className="form-field">
-                              <span className="form-label">Penalty credits when parent marks missed</span>
+                              <div className="form-label-row">
+                                <span className="form-label">Penalty credits when parent marks missed</span>
+                                <HelpButton
+                                  onHelpClick={setActiveHelpDialog}
+                                  label="Penalty credits when parent marks missed"
+                                  lines={[
+                                    'Sets how many credits are removed when a parent marks a claimed chore missed.',
+                                    'Lower values keep the consequence light; higher values make the commitment feel stronger.',
+                                    'Use this sparingly to support accountability without making chores feel punishing.',
+                                  ]}
+                                />
+                              </div>
                               <input
                                 className="job-input"
                                 type="number"
@@ -3598,6 +3649,7 @@ export default function ProfilePage() {
                                     'Decides how a claimed chore becomes "missed."',
                                     'Off: parent decides manually when to mark missed.',
                                     'On: the app can mark missed after the hour limit.',
+                                    'Use this when your family wants predictable timing instead of case-by-case judgment.',
                                   ]}
                                 />
                               </div>
@@ -3612,7 +3664,18 @@ export default function ProfilePage() {
                             </label>
                             {missedJobTimingEnabled ? (
                               <label className="form-field">
-                                <span className="form-label">Default hours before a claimed job can be marked missed</span>
+                                <div className="form-label-row">
+                                  <span className="form-label">Default hours before a claimed job can be marked missed</span>
+                                  <HelpButton
+                                    onHelpClick={setActiveHelpDialog}
+                                    label="Default hours before a claimed job can be marked missed"
+                                    lines={[
+                                      'Sets the default time limit for claimed chores.',
+                                      'After this many hours, the chore can be treated as missed if it is not completed.',
+                                      'Use a longer window for flexible routines and a shorter window for time-sensitive chores.',
+                                    ]}
+                                  />
+                                </div>
                                 <input
                                   className="job-input"
                                   type="number"
@@ -3634,7 +3697,18 @@ export default function ProfilePage() {
                       <summary className="dialog-subsection-summary">Parent denied job check</summary>
                       <div className="dialog-subsection-body">
                         <label className="form-field">
-                          <span className="form-label">Consequence when parent denies a job check</span>
+                          <div className="form-label-row">
+                            <span className="form-label">Consequence when parent denies a job check</span>
+                            <HelpButton
+                              onHelpClick={setActiveHelpDialog}
+                              label="Consequence when parent denies a job check"
+                              lines={[
+                                'Controls whether denied chore checks can remove credits.',
+                                'When on, a denied check can apply the configured penalty.',
+                                'Use this only when your family wants false or incomplete check-ins to carry a clear consequence.',
+                              ]}
+                            />
+                          </div>
                           <select
                             className="job-input"
                             value={failedJobCheckConsequenceEnabled ? 'on' : 'off'}
@@ -3646,7 +3720,18 @@ export default function ProfilePage() {
                         </label>
                         {failedJobCheckConsequenceEnabled ? (
                           <label className="form-field">
-                            <span className="form-label">Penalty credits when a job check is denied</span>
+                            <div className="form-label-row">
+                              <span className="form-label">Penalty credits when a job check is denied</span>
+                              <HelpButton
+                                onHelpClick={setActiveHelpDialog}
+                                label="Penalty credits when a job check is denied"
+                                lines={[
+                                  'Sets how many credits are removed after a parent denies a chore check.',
+                                  'The chore reward is not granted, and this optional penalty can also be applied.',
+                                  'Use a modest value so the lesson stays about honesty and follow-through.',
+                                ]}
+                              />
+                            </div>
                             <input
                               className="job-input"
                               type="number"
@@ -3679,6 +3764,7 @@ export default function ProfilePage() {
                                 'Sets how many shared chores one child can hold at once.',
                                 'Lower values improve pacing and fairness across siblings.',
                                 'Example: 2 means one child can hold two active shared chores.',
+                                'Use this to keep one child from taking the whole chore board at once.',
                               ]}
                             />
                           </div>
@@ -3703,6 +3789,7 @@ export default function ProfilePage() {
                                 'Controls whether "pending review" chores still use a slot.',
                                 'No: pending chores still count toward the limit.',
                                 'Yes: pending chores free up a slot so kids can claim another.',
+                                'Use this when parent review may take time but kids should be able to keep helping.',
                               ]}
                             />
                           </div>
@@ -3731,6 +3818,7 @@ export default function ProfilePage() {
                                 'Automatically increases points on chores no one claims.',
                                 'Useful for nudging less-popular chores without parent reminders.',
                                 'If Off, chore points stay fixed unless you edit them manually.',
+                                'Use this to teach opportunity cost without turning chores into pressure.',
                               ]}
                             />
                           </div>
@@ -3755,6 +3843,7 @@ export default function ProfilePage() {
                                   lines={[
                                     'Wait time before stale bonus starts.',
                                     'No bonus is added until this many hours pass unclaimed.',
+                                    'Use this to give kids a fair chance to choose chores before incentives change.',
                                   ]}
                                 />
                               </div>
@@ -3776,6 +3865,7 @@ export default function ProfilePage() {
                                   lines={[
                                     'How often the stale bonus is added after it starts.',
                                     'Smaller interval means points increase more frequently.',
+                                    'Use this to control how quickly ignored chores become more attractive.',
                                   ]}
                                 />
                               </div>
@@ -3797,6 +3887,7 @@ export default function ProfilePage() {
                                   lines={[
                                     'Percent increase added each bonus interval.',
                                     'Higher values make ignored chores grow faster in value.',
+                                    'Use this to decide how strongly the app should nudge unpopular chores.',
                                   ]}
                                 />
                               </div>
@@ -3819,6 +3910,7 @@ export default function ProfilePage() {
                                     'Hard cap on total stale bonus for a chore.',
                                     `Parent summary: after ${staleStartHoursValue}h, jobs gain +${staleRateValue}% every ${stalePeriodHoursValue}h, up to +${staleCapValue}% total.`,
                                     `Example: a 40-point chore can grow to about ${Math.round(40 * (1 + (staleCapValue / 100)))} points before it caps.`,
+                                    'Use the cap to keep bonuses predictable and prevent waiting from becoming the best strategy.',
                                   ]}
                                 />
                               </div>
@@ -3857,6 +3949,7 @@ export default function ProfilePage() {
                                 'Turns dynamic reward pricing on or off.',
                                 'Off: reward costs stay fixed at the value you set.',
                                 'On: costs can rise/fall based on demand and scarcity settings.',
+                                'Use this only when you want to teach simple tradeoffs around popularity, limits, and timing.',
                               ]}
                             />
                           </div>
@@ -3880,6 +3973,7 @@ export default function ProfilePage() {
                                   lines={[
                                     'How often dynamic pricing updates.',
                                     'Per day reacts faster; per week is steadier and easier to predict.',
+                                    'Use a slower window when kids need more predictability.',
                                   ]}
                                 />
                               </div>
@@ -3902,6 +3996,7 @@ export default function ProfilePage() {
                                   lines={[
                                     'How strongly repeated claims push a reward price up.',
                                     'Higher value means popular rewards become expensive faster.',
+                                    'Use this to show that high demand can change choices, while keeping the effect modest.',
                                   ]}
                                 />
                               </div>
@@ -3923,6 +4018,7 @@ export default function ProfilePage() {
                                   lines={[
                                     'How strongly low remaining supply increases price.',
                                     'Higher value means prices rise more near daily/weekly limits.',
+                                    'Use this to teach planning around limited rewards without creating urgency pressure.',
                                   ]}
                                 />
                               </div>
@@ -3944,6 +4040,7 @@ export default function ProfilePage() {
                                   lines={[
                                     'Lowest price allowed relative to base cost.',
                                     'Example: 80% floor on a 100-point reward means it never drops below 80.',
+                                    'Use this to keep rewards from becoming too cheap to feel meaningful.',
                                   ]}
                                 />
                               </div>
@@ -3965,6 +4062,7 @@ export default function ProfilePage() {
                                   lines={[
                                     'Highest price allowed relative to base cost.',
                                     'Example: 220% ceiling on a 100-point reward means max 220.',
+                                    'Use this to keep popular or limited rewards from feeling unreachable.',
                                   ]}
                                 />
                               </div>
@@ -3987,6 +4085,7 @@ export default function ProfilePage() {
                                     'Limits sudden price jumps each pricing window.',
                                     `Guardrails: ${dynamicMinMultiplierValue}% to ${dynamicMaxMultiplierValue}% of base, max +${dynamicMaxStepValue}% per window.`,
                                     `Example: a 100-point reward stays between ${dynamicMinMultiplierValue} and ${dynamicMaxMultiplierValue} points.`,
+                                    'Use this so pricing teaches tradeoffs without surprising kids.',
                                   ]}
                                 />
                               </div>

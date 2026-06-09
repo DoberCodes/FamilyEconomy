@@ -10,6 +10,20 @@ If there is a conflict between this document and `VISION.md`, `VISION.md` is aut
 
 # Implemented
 
+## Marketing Landing Page
+
+The root route (`/`) presents Family Economy as a parent-facing marketing page before entering the app.
+
+Features include:
+
+* Brand-forward hero.
+* Parent access CTA.
+* Learn-more CTA.
+* Educational positioning around earning, saving, spending, and shared contribution.
+* Fictional-credit framing that avoids banking or real-money implications.
+
+---
+
 ## Core Family Economy Experience
 
 ### Household Structure
@@ -20,6 +34,9 @@ If there is a conflict between this document and `VISION.md`, `VISION.md` is aut
 * Child profile selection and child session support.
 * Family-level settings and economy controls.
 * Mobile-first experience for both parents and children.
+* Parent account registration is hidden unless an invitation code is configured and entered.
+* Optional demo login can be shown on the sign-in page for product walkthroughs.
+* Demo household data can be reset to a known baseline with `npm run demo:reset`.
 
 ### Educational Credits
 
@@ -143,6 +160,7 @@ Children can:
 * Track progress.
 * Save toward goals.
 * Complete goals.
+* Choose whether eligible goal contributions come from their wallet or savings account.
 
 ### Goal Features
 
@@ -150,6 +168,19 @@ Children can:
 * Progress tracking.
 * Completion states.
 * Educational messaging.
+
+### Optional Child Savings Accounts
+
+Parents can enable child savings accounts as a separate place to hold credits before spending or contributing them.
+
+When enabled, children can:
+
+* Move wallet credits into their savings account.
+* Move savings account credits back to wallet when withdrawals are allowed.
+* Add to a personal savings goal from Wallet or Savings Account.
+* Add to the family goal or community fund from Wallet or Savings Account.
+
+The savings account is a source for thoughtful transfers, not a separate real-money banking product.
 
 ---
 
@@ -429,7 +460,6 @@ Designed primarily for older children.
 
 Planned concepts include:
 
-* Savings Accounts
 * Emergency Funds
 * Budgeting
 * Expenses

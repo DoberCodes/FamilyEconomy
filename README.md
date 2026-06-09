@@ -72,6 +72,13 @@ Firestore-backed analytics event writes are opt-in. Set `VITE_FIRESTORE_ANALYTIC
 
 Parent registration is private by default. Invited families can open `/auth?invite` to enter a code, or `/auth?invite=CODE` to unlock the create-account form directly.
 
+On the GitHub Pages deployment, use the hash-router form:
+
+- `https://doberfamilyventures.com/FamilyEconomy/#/auth?invite`
+- `https://doberfamilyventures.com/FamilyEconomy/#/auth?invite=CODE`
+
+The deployed `404.html` redirects cleaner project-page URLs like `/FamilyEconomy/auth?invite=CODE` into the hash route.
+
 Invite codes live in Firestore under `registrationInvites/{CODE}`. Create one with:
 
 ```powershell

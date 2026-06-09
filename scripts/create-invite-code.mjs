@@ -56,7 +56,9 @@ console.log(`Invite code created: ${code}`)
 console.log(`Max uses: ${maxUses}`)
 console.log(`Expires: ${expiresAt.toDate().toISOString()}`)
 console.log(`Invite URL path: /auth?invite=${encodeURIComponent(code)}`)
+console.log(`GitHub Pages invite path: /FamilyEconomy/#/auth?invite=${encodeURIComponent(code)}`)
 console.log('Code-entry URL path: /auth?invite')
+console.log('GitHub Pages code-entry path: /FamilyEconomy/#/auth?invite')
 
 function parseArgs(rawArgs) {
   const parsed = {}

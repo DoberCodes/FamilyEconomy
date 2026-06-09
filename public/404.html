@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Family Economy</title>
+    <script>
+      (function () {
+        var projectBase = '/FamilyEconomy'
+        var pathname = window.location.pathname || '/'
+        var search = window.location.search || ''
+        var hash = window.location.hash || ''
+
+        if (hash) {
+          window.location.replace(projectBase + '/' + hash)
+          return
+        }
+
+        var route = pathname
+        if (route.indexOf(projectBase) === 0) {
+          route = route.slice(projectBase.length)
+        }
+
+        if (!route || route === '/') {
+          route = '/'
+        }
+
+        window.location.replace(projectBase + '/#' + route + search)
+      })()
+    </script>
+  </head>
+  <body>
+    <p>Redirecting to Family Economy...</p>
+  </body>
+</html>

@@ -48,7 +48,6 @@ export default function AuthPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [displayName, setDisplayName] = useState('')
   const [newFamilyId, setNewFamilyId] = useState(() => createFamilyId())
-  const [showInviteForm, setShowInviteForm] = useState(false)
   const [inviteCode, setInviteCode] = useState('')
   const [validatedInviteCode, setValidatedInviteCode] = useState('')
   const [checkingInvite, setCheckingInvite] = useState(false)
@@ -65,6 +64,7 @@ export default function AuthPage() {
   const blockedByClient =
     isBlockedByClientSignal(authStatusText) || isBlockedByClientSignal(localErrorText)
   const registrationUnlocked = validatedInviteCode.length > 0
+  const isInviteCodeEntry = hasInviteUrlPrompt && mode !== 'register'
 
   useEffect(() => {
     let cancelled = false
@@ -77,7 +77,7 @@ export default function AuthPage() {
       setValidatedInviteCode('')
 
       if (!urlInviteCode) {
-        setShowInviteForm(true)
+        setMode('login')
         return
       }
 
@@ -93,7 +93,6 @@ export default function AuthPage() {
 
         setValidatedInviteCode(normalizedInviteCode)
         setInviteCode(normalizedInviteCode)
-        setShowInviteForm(false)
         setMode('register')
         setPassword('')
       } catch (caughtError) {
@@ -102,7 +101,6 @@ export default function AuthPage() {
         }
 
         setMode('login')
-        setShowInviteForm(true)
         setError(normalizeErrorMessage(caughtError, 'That invitation code is not active.'))
       } finally {
         if (!cancelled) {
@@ -252,7 +250,6 @@ export default function AuthPage() {
     nextSearchParams.delete('inviteCode')
     nextSearchParams.delete('code')
     setSearchParams(nextSearchParams, { replace: true })
-    setShowInviteForm(false)
     setPassword('')
   }
 
@@ -263,7 +260,6 @@ export default function AuthPage() {
     nextSearchParams.delete('code')
     setSearchParams(nextSearchParams, { replace: true })
     setMode('login')
-    setShowInviteForm(false)
     setInviteCode('')
     setValidatedInviteCode('')
     setError('')
@@ -271,6 +267,7 @@ export default function AuthPage() {
 
   function handleUseDemoLogin() {
     setMode('login')
+    setSearchParams({}, { replace: true })
     setEmail(demoParentEmail)
     setPassword(demoParentPassword)
     setDisplayName('')
@@ -314,9 +311,13 @@ export default function AuthPage() {
       </section>
 
       <section className="auth-card auth-login-panel">
-        <p className="auth-kicker">{mode === 'register' ? 'Private Invite' : 'Parent Access'}</p>
+        <p className="auth-kicker">{mode === 'register' || isInviteCodeEntry ? 'Private Invite' : 'Parent Access'}</p>
         <h1 className="auth-title">
-          {mode === 'register' ? 'Create parent account' : 'Welcome back'}
+          {isInviteCodeEntry
+            ? 'Enter your code'
+            : mode === 'register'
+              ? 'Create parent account'
+              : 'Welcome back'}
         </h1>
         {blockedByClient ? (
           <p className="status-note status-error">
@@ -329,6 +330,23 @@ export default function AuthPage() {
           <p className="status-note status-error">{authStatusText}</p>
         ) : null}
 
+        {isInviteCodeEntry ? (
+          <form className="auth-form auth-invite-form" onSubmit={handleUnlockInvite}>
+            <input
+              className="job-input"
+              placeholder="Invitation code"
+              value={inviteCode}
+              onChange={(event) => setInviteCode(event.target.value)}
+              autoFocus
+            />
+
+            {localErrorText ? <p className="status-note status-error">{localErrorText}</p> : null}
+
+            <button className="claim-button" type="submit" disabled={checkingInvite}>
+              {checkingInvite ? 'Checking...' : 'Continue'}
+            </button>
+          </form>
+        ) : (
         <form className="auth-form" onSubmit={handleSubmit}>
           {mode === 'register' ? (
             <input
@@ -377,23 +395,28 @@ export default function AuthPage() {
                 : 'Sign in'}
           </button>
         </form>
+        )}
 
-        {showDemoLogin && mode === 'login' ? (
+        {showDemoLogin && mode === 'login' && !isInviteCodeEntry ? (
           <section className="auth-demo-panel" aria-label="Demo login credentials">
-            <p className="auth-demo-title">Demo account</p>
-            <p className="auth-demo-copy">Try Family Economy using a sample household.</p>
-            <p className="auth-demo-copy">This demo resets periodically.</p>
-            <dl className="auth-demo-credentials">
-              <div>
-                <dt>Email</dt>
-                <dd>{demoParentEmail}</dd>
+            <details className="auth-demo-details">
+              <summary className="auth-demo-title">Explore the demo</summary>
+              <div className="auth-demo-body">
+                <p className="auth-demo-copy">Try Family Economy using a sample household.</p>
+                <p className="auth-demo-copy">This demo resets periodically.</p>
+                <dl className="auth-demo-credentials">
+                  <div>
+                    <dt>Email</dt>
+                    <dd>{demoParentEmail}</dd>
+                  </div>
+                  <div>
+                    <dt>Password</dt>
+                    <dd>{demoParentPassword}</dd>
+                  </div>
+                </dl>
               </div>
-              <div>
-                <dt>Password</dt>
-                <dd>{demoParentPassword}</dd>
-              </div>
-            </dl>
-            <button type="button" className="auth-demo-fill" onClick={handleUseDemoLogin}>
+            </details>
+            <button type="button" className="auth-demo-action" onClick={handleUseDemoLogin}>
               Use demo login
             </button>
           </section>
@@ -407,33 +430,16 @@ export default function AuthPage() {
           >
             Already have an account? Sign in
           </button>
+        ) : isInviteCodeEntry ? (
+          <button
+            type="button"
+            className="auth-mode-link"
+            onClick={handleReturnToLogin}
+          >
+            Back to sign in
+          </button>
         ) : (
           <div className="auth-private-access">
-            {showInviteForm ? (
-              <form className="auth-invite-form" onSubmit={handleUnlockInvite}>
-                <p className="auth-access-prompt-label">Invited family?</p>
-                <input
-                  className="job-input"
-                  placeholder="Invitation code"
-                  value={inviteCode}
-                  onChange={(event) => setInviteCode(event.target.value)}
-                />
-                    <button className="text-button" type="submit">
-                      {checkingInvite ? 'Checking...' : 'Enter your code'}
-                    </button>
-                  </form>
-            ) : (
-              <div className="auth-access-prompt">
-                <span>Invited family?</span>
-                <button
-                  type="button"
-                  className="auth-inline-link"
-                  onClick={() => setShowInviteForm(true)}
-                >
-                  Enter your code
-                </button>
-              </div>
-            )}
             <div className="auth-access-prompt">
               <span>Need access?</span>
               <button

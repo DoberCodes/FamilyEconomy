@@ -1494,12 +1494,16 @@ body.parent-session-active {
 
 .auth-demo-panel {
   margin-top: 1rem;
-  padding: 0.78rem 0.86rem;
-  border: 1px solid rgba(248, 250, 252, 0.16);
-  border-radius: 16px;
-  background: rgba(6, 28, 26, 0.32);
+  padding: 0.68rem 0.78rem;
+  border: 1px solid rgba(190, 225, 218, 0.18);
+  border-radius: 14px;
+  background: rgba(6, 28, 26, 0.24);
   color: rgba(248, 250, 252, 0.9);
-  box-shadow: inset 0 1px 0 rgba(248, 250, 252, 0.08);
+  box-shadow: inset 0 1px 0 rgba(248, 250, 252, 0.05);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.72rem;
+  align-items: center;
 }
 
 .auth-demo-title,
@@ -1507,12 +1511,64 @@ body.parent-session-active {
   margin: 0;
 }
 
-.auth-demo-title {
-  color: #f8c84b;
+.auth-demo-action {
+  justify-self: end;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(248, 250, 252, 0.82);
+  font: inherit;
   font-size: 0.72rem;
+  font-weight: 850;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.auth-demo-action:hover,
+.auth-demo-action:focus-visible {
+  color: #ffffff;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.auth-demo-details {
+  min-width: 0;
+}
+
+.auth-demo-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.46rem;
+  width: fit-content;
+  color: #f8c84b;
+  font-size: 0.71rem;
   font-weight: 900;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+  cursor: pointer;
+  list-style: none;
+}
+
+.auth-demo-title::-webkit-details-marker {
+  display: none;
+}
+
+.auth-demo-title::after {
+  content: '';
+  width: 0.38rem;
+  height: 0.38rem;
+  border-right: 2px solid rgba(248, 250, 252, 0.72);
+  border-bottom: 2px solid rgba(248, 250, 252, 0.72);
+  transform: rotate(45deg) translateY(-0.08rem);
+}
+
+.auth-demo-details[open] .auth-demo-title::after {
+  transform: rotate(225deg) translateY(-0.02rem);
+}
+
+.auth-demo-body {
+  margin-top: 0.48rem;
 }
 
 .auth-demo-copy {
@@ -1552,25 +1608,6 @@ body.parent-session-active {
   color: #ffffff;
   font-weight: 850;
   overflow-wrap: anywhere;
-}
-
-.auth-demo-fill {
-  width: 100%;
-  min-height: 36px;
-  margin-top: 0.68rem;
-  border: 1px solid rgba(248, 250, 252, 0.16);
-  border-radius: 999px;
-  background: rgba(248, 250, 252, 0.1);
-  color: #f8fafc;
-  font: inherit;
-  font-size: 0.78rem;
-  font-weight: 850;
-  cursor: pointer;
-}
-
-.auth-demo-fill:hover,
-.auth-demo-fill:focus-visible {
-  background: rgba(248, 250, 252, 0.16);
 }
 
 .phone-screen:has(.auth-screen) .app-footer-brand {

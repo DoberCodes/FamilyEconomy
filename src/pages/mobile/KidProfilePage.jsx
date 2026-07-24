@@ -171,13 +171,6 @@ export default function KidProfilePage() {
     [childProfiles, childId, activeChildProfile],
   )
 
-  useEffect(() => {
-    if (!childSavingsAccountsEnabled) {
-      setChildGoalContributionSource('wallet')
-      setFamilyContributionSource('wallet')
-    }
-  }, [childSavingsAccountsEnabled])
-
   const updateCreditsCelebration = useCallback((selectedChildId, nextCredits) => {
     if (!familyId || !selectedChildId) {
       return
